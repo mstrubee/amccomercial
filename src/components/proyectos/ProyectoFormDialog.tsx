@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { ProyectoInput, ProyectoWithEmpresas } from "@/hooks/useProyectos";
+import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/useProyectos";
 import { formatCLP, ufToCLP } from "@/data/mock-data";
 
 interface Props {
@@ -30,9 +30,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const [estadoObra, setEstadoObra] = useState("");
   const [fechaEstadoObra, setFechaEstadoObra] = useState("");
   const [estadoAmc, setEstadoAmc] = useState("Vigente");
-  const [adjudicado, setAdjudicado] = useState(false);
   const [monto, setMonto] = useState(0);
-  const [selectedEmpresas, setSelectedEmpresas] = useState<string[]>([]);
+  const [empresaLinks, setEmpresaLinks] = useState<Record<string, { selected: boolean; monto: number; adjudicado: boolean }>>({});
 
   // Contactos
   const [arqNombre, setArqNombre] = useState("");
@@ -53,16 +52,33 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const [duenosTelefono, setDuenosTelefono] = useState("");
 
   useEffect(() => {
-    if (open && initialData) {
+    if (!open) return;
+
+    const buildLinks = () => {
+      const links: Record<string, { selected: boolean; monto: number; adjudicado: boolean }> = {};
+      empresas?.forEach((emp) => {
+        links[emp.id] = { selected: false, monto: 0, adjudicado: false };
+      });
+      if (initialData?.proyecto_empresas) {
+        initialData.proyecto_empresas.forEach((pe) => {
+          links[pe.empresa_id] = {
+            selected: true,
+            monto: (pe as any).monto_cotizacion || 0,
+            adjudicado: (pe as any).adjudicado || false,
+          };
+        });
+      }
+      return links;
+    };
+
+    if (initialData) {
       setNombre(initialData.nombre);
       setDireccion(initialData.direccion);
       setComuna(initialData.comuna);
       setEstadoObra(initialData.estado_obra);
       setFechaEstadoObra(initialData.fecha_estado_obra || "");
       setEstadoAmc(initialData.estado_amc);
-      setAdjudicado(initialData.adjudicado);
       setMonto(initialData.monto_estimado || 0);
-      setSelectedEmpresas(initialData.proyecto_empresas?.map((pe) => pe.empresa_id) || []);
       setArqNombre(initialData.arq_nombre || "");
       setArqContacto(initialData.arq_contacto || "");
       setArqMail(initialData.arq_mail || "");
@@ -79,36 +95,47 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       setDuenosContacto(initialData.duenos_contacto || "");
       setDuenosMail(initialData.duenos_mail || "");
       setDuenosTelefono(initialData.duenos_telefono || "");
-    } else if (open && !initialData) {
+    } else {
       setNombre(""); setDireccion(""); setComuna(""); setEstadoObra(""); setFechaEstadoObra("");
-      setEstadoAmc("Vigente"); setAdjudicado(false); setMonto(0); setSelectedEmpresas([]);
+      setEstadoAmc("Vigente"); setMonto(0);
       setArqNombre(""); setArqContacto(""); setArqMail(""); setArqTelefono("");
       setConstNombre(""); setConstContacto(""); setConstMail(""); setConstTelefono("");
       setItoNombre(""); setItoContacto(""); setItoMail(""); setItoTelefono("");
       setDuenosNombre(""); setDuenosContacto(""); setDuenosMail(""); setDuenosTelefono("");
     }
-  }, [open, initialData]);
+    setEmpresaLinks(buildLinks());
+  }, [open, initialData, empresas]);
 
-  const toggleEmpresa = (id: string) => {
-    setSelectedEmpresas((prev) =>
-      prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]
-    );
+  const updateEmpresaLink = (id: string, field: string, value: any) => {
+    setEmpresaLinks((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: value },
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
+
+    const empresa_links: EmpresaLink[] = Object.entries(empresaLinks)
+      .filter(([, v]) => v.selected)
+      .map(([id, v]) => ({
+        empresa_id: id,
+        monto_cotizacion: v.monto,
+        adjudicado: v.adjudicado,
+      }));
+
     onSubmit({
       nombre: nombre.trim(),
       direccion, comuna, estado_obra: estadoObra,
       fecha_estado_obra: fechaEstadoObra || null,
-      estado_amc: estadoAmc, adjudicado,
+      estado_amc: estadoAmc,
       monto_estimado: monto || null,
       arq_nombre: arqNombre, arq_contacto: arqContacto, arq_mail: arqMail, arq_telefono: arqTelefono,
       const_nombre: constNombre, const_contacto: constContacto, const_mail: constMail, const_telefono: constTelefono,
       ito_nombre: itoNombre, ito_contacto: itoContacto, ito_mail: itoMail, ito_telefono: itoTelefono,
       duenos_nombre: duenosNombre, duenos_contacto: duenosContacto, duenos_mail: duenosMail, duenos_telefono: duenosTelefono,
-      empresas_ids: selectedEmpresas,
+      empresa_links,
     });
   };
 
@@ -165,32 +192,64 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <div className="space-y-1">
-                  <Label>Monto Estimado (UF)</Label>
-                  <Input type="number" min={0} step={0.01} value={monto || ""} onChange={(e) => setMonto(Number(e.target.value))} placeholder="Ej: 1200.50" />
-                  {monto > 0 && (
-                    <p className="text-xs text-muted-foreground">≈ {formatCLP(ufToCLP(monto))}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 pb-1">
-                  <Switch checked={adjudicado} onCheckedChange={setAdjudicado} />
-                  <Label>Adjudicado</Label>
-                </div>
+              <div className="space-y-1">
+                <Label>Monto Estimado (UF)</Label>
+                <Input type="number" min={0} step={0.01} value={monto || ""} onChange={(e) => setMonto(Number(e.target.value))} placeholder="Ej: 1200.50" />
+                {monto > 0 && (
+                  <p className="text-xs text-muted-foreground">≈ {formatCLP(ufToCLP(monto))}</p>
+                )}
               </div>
             </div>
 
-            {/* Empresas vinculadas */}
+            {/* Empresas vinculadas con cotización y adjudicación */}
             {empresas && empresas.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empresas Vinculadas</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {empresas.map((emp) => (
-                    <label key={emp.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors text-sm">
-                      <Checkbox checked={selectedEmpresas.includes(emp.id)} onCheckedChange={() => toggleEmpresa(emp.id)} />
-                      <span className="text-card-foreground">{emp.nombre}</span>
-                    </label>
-                  ))}
+                <div className="space-y-2">
+                  {empresas.map((emp) => {
+                    const link = empresaLinks[emp.id] || { selected: false, monto: 0, adjudicado: false };
+                    return (
+                      <div key={emp.id} className={`p-3 rounded-lg border transition-colors ${link.selected ? "bg-secondary/50 border-primary/30" : "bg-secondary/20 border-border"}`}>
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={link.selected}
+                            onCheckedChange={(checked) => updateEmpresaLink(emp.id, "selected", !!checked)}
+                          />
+                          <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
+                          {link.selected && (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={link.adjudicado}
+                                onCheckedChange={(checked) => updateEmpresaLink(emp.id, "adjudicado", checked)}
+                              />
+                              <span className={`text-xs font-medium ${link.adjudicado ? "text-success" : "text-muted-foreground"}`}>
+                                {link.adjudicado ? "Adjudicada" : "No adjudicada"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {link.selected && (
+                          <div className="mt-2 ml-7">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                className="h-8 w-40 text-sm"
+                                placeholder="Cotización UF"
+                                value={link.monto || ""}
+                                onChange={(e) => updateEmpresaLink(emp.id, "monto", Number(e.target.value))}
+                              />
+                              <span className="text-xs text-muted-foreground">UF</span>
+                              {link.monto > 0 && (
+                                <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(link.monto))}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

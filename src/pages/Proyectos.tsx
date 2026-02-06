@@ -110,9 +110,7 @@ export default function Proyectos() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Adjudicado</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Monto Est. (UF)</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas / Cotización</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -125,24 +123,7 @@ export default function Proyectos() {
                   <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
                   <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
                   <td className="px-5 py-3">
-                    <span className={p.adjudicado ? "text-success font-medium" : "text-muted-foreground"}>{p.adjudicado ? "Sí" : "No"}</span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {p.proyecto_empresas?.map((pe) => pe.empresas ? (
-                        <span key={pe.id} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground">
-                          {pe.empresas.nombre.split(" ")[0]}
-                        </span>
-                      ) : null)}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-right font-medium text-card-foreground">
-                    {p.monto_estimado ? (
-                      <div>
-                        <span>{formatUF(p.monto_estimado)}</span>
-                        <span className="block text-[10px] text-muted-foreground">{formatCLP(ufToCLP(p.monto_estimado))}</span>
-                      </div>
-                    ) : "—"}
+                    <EmpresasCell proyectoEmpresas={p.proyecto_empresas} />
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-1">
@@ -239,84 +220,134 @@ export default function Proyectos() {
       </AlertDialog>
 
       {/* View detail dialog */}
-      <Dialog open={!!viewTarget} onOpenChange={() => setViewTarget(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          {viewTarget && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-xl">{viewTarget.nombre}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-5 mt-2">
-                <div className="flex gap-3 flex-wrap">
-                  <StatusBadge status={viewTarget.estado_amc} />
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                    viewTarget.adjudicado ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground border-border"
-                  }`}>
-                    {viewTarget.adjudicado ? "Adjudicado" : "No adjudicado"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Dirección</p>
-                    <p className="text-card-foreground flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                      {viewTarget.direccion || "—"}, {viewTarget.comuna || "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Estado Obra</p>
-                    <p className="text-card-foreground">{viewTarget.estado_obra || "—"} {viewTarget.fecha_estado_obra ? `— ${new Date(viewTarget.fecha_estado_obra).toLocaleDateString("es-CL")}` : ""}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Monto Estimado</p>
-                    <p className="text-card-foreground font-semibold">
-                      {viewTarget.monto_estimado ? (
-                        <>
-                          {formatUF(viewTarget.monto_estimado)}
-                          <span className="text-xs text-muted-foreground font-normal ml-2">≈ {formatCLP(ufToCLP(viewTarget.monto_estimado))}</span>
-                        </>
-                      ) : "—"}
-                    </p>
-                  </div>
-                </div>
+      <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} />
+    </div>
+  );
+}
 
-                {[
-                  { label: "Arquitectura", n: viewTarget.arq_nombre, c: viewTarget.arq_contacto, m: viewTarget.arq_mail, t: viewTarget.arq_telefono },
-                  { label: "Constructora", n: viewTarget.const_nombre, c: viewTarget.const_contacto, m: viewTarget.const_mail, t: viewTarget.const_telefono },
-                  { label: "ITO", n: viewTarget.ito_nombre, c: viewTarget.ito_contacto, m: viewTarget.ito_mail, t: viewTarget.ito_telefono },
-                  { label: "Dueños", n: viewTarget.duenos_nombre, c: viewTarget.duenos_contacto, m: viewTarget.duenos_mail, t: viewTarget.duenos_telefono },
-                ].filter((s) => s.n).map(({ label, n, c, m, t }) => (
-                  <div key={label} className="p-3 rounded-lg bg-secondary/30">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{label}</p>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div><span className="text-muted-foreground">Empresa:</span> <span className="text-card-foreground">{n}</span></div>
-                      <div><span className="text-muted-foreground">Contacto:</span> <span className="text-card-foreground">{c}</span></div>
-                      <div><span className="text-muted-foreground">Email:</span> <span className="text-card-foreground">{m}</span></div>
-                      <div><span className="text-muted-foreground">Teléfono:</span> <span className="text-card-foreground">{t}</span></div>
+/* ── Empresas cell component ── */
+function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"] }) {
+  if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
+    return <span className="text-muted-foreground text-xs">Sin empresas</span>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {proyectoEmpresas.map((pe) => {
+        if (!pe.empresas) return null;
+        const isAdj = (pe as any).adjudicado;
+        const monto = (pe as any).monto_cotizacion || 0;
+        return (
+          <div key={pe.id} className="leading-tight">
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
+                isAdj
+                  ? "bg-success text-success-foreground"
+                  : "bg-secondary text-secondary-foreground"
+              }`}
+            >
+              {pe.empresas.nombre.split(" ")[0]}
+            </span>
+            {monto > 0 && (
+              <>
+                <span className="ml-1.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
+                <span className="ml-1 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Detail dialog component ── */
+function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWithEmpresas | null; onClose: () => void }) {
+  if (!viewTarget) return null;
+
+  return (
+    <Dialog open={!!viewTarget} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl">{viewTarget.nombre}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5 mt-2">
+          <div className="flex gap-3 flex-wrap">
+            <StatusBadge status={viewTarget.estado_amc} />
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Dirección</p>
+              <p className="text-card-foreground flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                {viewTarget.direccion || "—"}, {viewTarget.comuna || "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Estado Obra</p>
+              <p className="text-card-foreground">{viewTarget.estado_obra || "—"} {viewTarget.fecha_estado_obra ? `— ${new Date(viewTarget.fecha_estado_obra).toLocaleDateString("es-CL")}` : ""}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Monto Estimado</p>
+              <p className="text-card-foreground font-semibold">
+                {viewTarget.monto_estimado ? (
+                  <>
+                    {formatUF(viewTarget.monto_estimado)}
+                    <span className="text-xs text-muted-foreground font-normal ml-2">≈ {formatCLP(ufToCLP(viewTarget.monto_estimado))}</span>
+                  </>
+                ) : "—"}
+              </p>
+            </div>
+          </div>
+
+          {/* Empresas vinculadas detail */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" /> Empresas Vinculadas
+            </p>
+            <div className="space-y-2">
+              {viewTarget.proyecto_empresas?.map((pe) => {
+                if (!pe.empresas) return null;
+                const isAdj = (pe as any).adjudicado;
+                const monto = (pe as any).monto_cotizacion || 0;
+                return (
+                  <div key={pe.id} className={`px-3 py-2 rounded-lg text-sm border ${isAdj ? "bg-success/10 border-success/30" : "bg-secondary/30 border-border"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`font-medium ${isAdj ? "text-success" : "text-card-foreground"}`}>{pe.empresas.nombre}</span>
+                      {isAdj && <span className="text-[10px] font-semibold text-success uppercase">Adjudicada</span>}
                     </div>
-                  </div>
-                ))}
-
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5" /> Empresas Vinculadas
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    {viewTarget.proyecto_empresas?.map((pe) => pe.empresas ? (
-                      <span key={pe.id} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                        {pe.empresas.nombre}
-                      </span>
-                    ) : null)}
-                    {(!viewTarget.proyecto_empresas || viewTarget.proyecto_empresas.length === 0) && (
-                      <span className="text-sm text-muted-foreground">Sin empresas vinculadas</span>
+                    {monto > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Cotización: {formatUF(monto)} <span className="ml-1">≈ {formatCLP(ufToCLP(monto))}</span>
+                      </p>
                     )}
                   </div>
-                </div>
+                );
+              })}
+              {(!viewTarget.proyecto_empresas || viewTarget.proyecto_empresas.length === 0) && (
+                <span className="text-sm text-muted-foreground">Sin empresas vinculadas</span>
+              )}
+            </div>
+          </div>
+
+          {[
+            { label: "Arquitectura", n: viewTarget.arq_nombre, c: viewTarget.arq_contacto, m: viewTarget.arq_mail, t: viewTarget.arq_telefono },
+            { label: "Constructora", n: viewTarget.const_nombre, c: viewTarget.const_contacto, m: viewTarget.const_mail, t: viewTarget.const_telefono },
+            { label: "ITO", n: viewTarget.ito_nombre, c: viewTarget.ito_contacto, m: viewTarget.ito_mail, t: viewTarget.ito_telefono },
+            { label: "Dueños", n: viewTarget.duenos_nombre, c: viewTarget.duenos_contacto, m: viewTarget.duenos_mail, t: viewTarget.duenos_telefono },
+          ].filter((s) => s.n).map(({ label, n, c, m, t }) => (
+            <div key={label} className="p-3 rounded-lg bg-secondary/30">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{label}</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><span className="text-muted-foreground">Empresa:</span> <span className="text-card-foreground">{n}</span></div>
+                <div><span className="text-muted-foreground">Contacto:</span> <span className="text-card-foreground">{c}</span></div>
+                <div><span className="text-muted-foreground">Email:</span> <span className="text-card-foreground">{m}</span></div>
+                <div><span className="text-muted-foreground">Teléfono:</span> <span className="text-card-foreground">{t}</span></div>
               </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
