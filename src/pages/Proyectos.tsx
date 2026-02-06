@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy } from "lucide-react";
+import { useState, useMemo, Fragment } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,6 +33,8 @@ export default function Proyectos() {
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
 
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
   const filtered = (proyectos || []).filter((p) => {
     const matchSearch =
       p.nombre.toLowerCase().includes(search.toLowerCase()) ||
@@ -43,6 +45,31 @@ export default function Proyectos() {
       p.proyecto_empresas?.some((pe) => pe.empresa_id === filterEmpresa);
     return matchSearch && matchEstado && matchEmpresa;
   });
+
+  // Group projects by name
+  const groupedRows = useMemo(() => {
+    const groups: Record<string, ProyectoWithEmpresas[]> = {};
+    filtered.forEach((p) => {
+      const key = p.nombre.trim().toLowerCase();
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    });
+    // Build ordered list: iterate filtered to maintain order, emit group once
+    const seen = new Set<string>();
+    const result: { key: string; items: ProyectoWithEmpresas[] }[] = [];
+    filtered.forEach((p) => {
+      const key = p.nombre.trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({ key, items: groups[key] });
+      }
+    });
+    return result;
+  }, [filtered]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   if (isLoading) {
     return (
@@ -115,31 +142,59 @@ export default function Proyectos() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-secondary/20 transition-colors">
-                  <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
-                  <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => setViewTarget(p)}>{p.nombre}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
-                  <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
-                  <td className="px-5 py-3">
-                    <EmpresasCell proyectoEmpresas={p.proyecto_empresas} />
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}>
-                        <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}>
-                        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {groupedRows.map(({ key, items }) => {
+                const isGroup = items.length > 1;
+                const expanded = expandedGroups[key] ?? false;
+
+                if (!isGroup) {
+                  const p = items[0];
+                  return <ProjectRow key={p.id} p={p} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} />;
+                }
+
+                // Grouped header
+                const first = items[0];
+                return (
+                  <Fragment key={key}>
+                    <tr
+                      className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                      onClick={() => toggleGroup(key)}
+                    >
+                      <td className="px-5 py-3 text-muted-foreground">
+                        <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} />
+                      </td>
+                      <td className="px-5 py-3 font-medium text-card-foreground">
+                        {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground" colSpan={5}></td>
+                    </tr>
+                    <AnimatePresence>
+                      {expanded && items.map((p) => (
+                        <motion.tr
+                          key={p.id}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="hover:bg-secondary/20 transition-colors bg-secondary/10"
+                        >
+                          <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
+                          <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
+                          <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
+                          <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
+                          <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
+                          <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -222,6 +277,33 @@ export default function Proyectos() {
       {/* View detail dialog */}
       <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} />
     </div>
+  );
+}
+
+/* ── Single project row ── */
+function ProjectRow({ p, onView, onEdit, onDelete, onTemplate }: {
+  p: ProyectoWithEmpresas;
+  onView: (p: ProyectoWithEmpresas) => void;
+  onEdit: (p: ProyectoWithEmpresas) => void;
+  onDelete: (p: ProyectoWithEmpresas) => void;
+  onTemplate: (p: ProyectoWithEmpresas) => void;
+}) {
+  return (
+    <tr className="hover:bg-secondary/20 transition-colors">
+      <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
+      <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
+      <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
+      <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
+      <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
+      <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+      <td className="px-5 py-3 text-right">
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => onTemplate(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => onDelete(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
