@@ -81,18 +81,24 @@ export type Database = {
       }
       proyecto_empresas: {
         Row: {
+          adjudicado: boolean
           empresa_id: string
           id: string
+          monto_cotizacion: number | null
           proyecto_id: string
         }
         Insert: {
+          adjudicado?: boolean
           empresa_id: string
           id?: string
+          monto_cotizacion?: number | null
           proyecto_id: string
         }
         Update: {
+          adjudicado?: boolean
           empresa_id?: string
           id?: string
+          monto_cotizacion?: number | null
           proyecto_id?: string
         }
         Relationships: [

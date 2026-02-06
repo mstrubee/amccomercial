@@ -12,6 +12,12 @@ export type ProyectoWithEmpresas = ProyectoRow & {
   })[];
 };
 
+export interface EmpresaLink {
+  empresa_id: string;
+  monto_cotizacion: number;
+  adjudicado: boolean;
+}
+
 export function useProyectos() {
   return useQuery({
     queryKey: ["proyectos"],
@@ -33,7 +39,6 @@ export interface ProyectoInput {
   estado_obra: string;
   fecha_estado_obra: string | null;
   estado_amc: string;
-  adjudicado: boolean;
   monto_estimado: number | null;
   arq_nombre: string;
   arq_contacto: string;
@@ -51,25 +56,32 @@ export interface ProyectoInput {
   duenos_contacto: string;
   duenos_mail: string;
   duenos_telefono: string;
-  empresas_ids: string[];
+  empresa_links: EmpresaLink[];
 }
 
 export function useCreateProyecto() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ProyectoInput) => {
-      const { empresas_ids, ...rest } = input;
+      const { empresa_links, ...rest } = input;
+      // Determine adjudicado at project level from any empresa adjudicada
+      const adjudicado = empresa_links.some((el) => el.adjudicado);
       const { data: proyecto, error } = await supabase
         .from("proyectos")
-        .insert(rest)
+        .insert({ ...rest, adjudicado })
         .select()
         .single();
       if (error) throw error;
 
-      if (empresas_ids.length > 0) {
+      if (empresa_links.length > 0) {
         const { error: linkError } = await supabase
           .from("proyecto_empresas")
-          .insert(empresas_ids.map((eid) => ({ proyecto_id: proyecto.id, empresa_id: eid })));
+          .insert(empresa_links.map((el) => ({
+            proyecto_id: proyecto.id,
+            empresa_id: el.empresa_id,
+            monto_cotizacion: el.monto_cotizacion || 0,
+            adjudicado: el.adjudicado,
+          })));
         if (linkError) throw linkError;
       }
       return proyecto;
@@ -86,24 +98,29 @@ export function useUpdateProyecto() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ProyectoInput & { id: string }) => {
-      const { empresas_ids, id, ...rest } = input;
+      const { empresa_links, id, ...rest } = input;
+      const adjudicado = empresa_links.some((el) => el.adjudicado);
       const { error } = await supabase
         .from("proyectos")
-        .update(rest)
+        .update({ ...rest, adjudicado })
         .eq("id", id);
       if (error) throw error;
 
-      // Replace empresa links
       const { error: delError } = await supabase
         .from("proyecto_empresas")
         .delete()
         .eq("proyecto_id", id);
       if (delError) throw delError;
 
-      if (empresas_ids.length > 0) {
+      if (empresa_links.length > 0) {
         const { error: linkError } = await supabase
           .from("proyecto_empresas")
-          .insert(empresas_ids.map((eid) => ({ proyecto_id: id, empresa_id: eid })));
+          .insert(empresa_links.map((el) => ({
+            proyecto_id: id,
+            empresa_id: el.empresa_id,
+            monto_cotizacion: el.monto_cotizacion || 0,
+            adjudicado: el.adjudicado,
+          })));
         if (linkError) throw linkError;
       }
     },
