@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useEmpresas, EmpresaWithCondiciones } from "@/hooks/useEmpresas";
-import { ProyectoInput } from "@/hooks/useProyectos";
-import { ProyectoWithEmpresas } from "@/hooks/useProyectos";
+import { useEmpresas } from "@/hooks/useEmpresas";
+import { ProyectoInput, ProyectoWithEmpresas } from "@/hooks/useProyectos";
+import { formatCLP, ufToCLP } from "@/data/mock-data";
 
 interface Props {
   open: boolean;
@@ -167,8 +167,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
               </div>
               <div className="grid grid-cols-2 gap-3 items-end">
                 <div className="space-y-1">
-                  <Label>Monto Estimado (CLP)</Label>
-                  <Input type="number" min={0} value={monto} onChange={(e) => setMonto(Number(e.target.value))} />
+                  <Label>Monto Estimado (UF)</Label>
+                  <Input type="number" min={0} step={0.01} value={monto || ""} onChange={(e) => setMonto(Number(e.target.value))} placeholder="Ej: 1200.50" />
+                  {monto > 0 && (
+                    <p className="text-xs text-muted-foreground">≈ {formatCLP(ufToCLP(monto))}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 pb-1">
                   <Switch checked={adjudicado} onCheckedChange={setAdjudicado} />

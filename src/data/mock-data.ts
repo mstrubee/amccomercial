@@ -160,10 +160,24 @@ export const mockProyectos: Proyecto[] = [
   },
 ];
 
+// Valor UF de referencia (actualizar periódicamente)
+export const VALOR_UF = 38500;
+
 export function formatCLP(amount: number): string {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",
     currency: "CLP",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+export function formatUF(amount: number): string {
+  return new Intl.NumberFormat("es-CL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount) + " UF";
+}
+
+export function ufToCLP(uf: number): number {
+  return Math.round(uf * VALOR_UF);
 }
