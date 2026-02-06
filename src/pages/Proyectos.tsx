@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2 } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { formatCLP } from "@/data/mock-data";
+import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -31,6 +31,7 @@ export default function Proyectos() {
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
+  const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
 
   const filtered = (proyectos || []).filter((p) => {
     const matchSearch =
@@ -111,7 +112,7 @@ export default function Proyectos() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Adjudicado</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Monto Est.</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Monto Est. (UF)</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -136,10 +137,18 @@ export default function Proyectos() {
                     </div>
                   </td>
                   <td className="px-5 py-3 text-right font-medium text-card-foreground">
-                    {p.monto_estimado ? formatCLP(p.monto_estimado) : "—"}
+                    {p.monto_estimado ? (
+                      <div>
+                        <span>{formatUF(p.monto_estimado)}</span>
+                        <span className="block text-[10px] text-muted-foreground">{formatCLP(ufToCLP(p.monto_estimado))}</span>
+                      </div>
+                    ) : "—"}
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}>
+                        <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}>
                         <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                       </Button>
@@ -177,6 +186,20 @@ export default function Proyectos() {
           createProyecto.mutate(data, { onSuccess: () => setShowCreate(false) });
         }}
       />
+
+      {/* Template dialog */}
+      {templateSource && (
+        <ProyectoFormDialog
+          open={!!templateSource}
+          onOpenChange={(val) => !val && setTemplateSource(null)}
+          mode="create"
+          initialData={{ ...templateSource, nombre: `${templateSource.nombre} (copia)` }}
+          isLoading={createProyecto.isPending}
+          onSubmit={(data) => {
+            createProyecto.mutate(data, { onSuccess: () => setTemplateSource(null) });
+          }}
+        />
+      )}
 
       {/* Edit dialog */}
       {editTarget && (
@@ -246,7 +269,14 @@ export default function Proyectos() {
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Monto Estimado</p>
-                    <p className="text-card-foreground font-semibold">{viewTarget.monto_estimado ? formatCLP(viewTarget.monto_estimado) : "—"}</p>
+                    <p className="text-card-foreground font-semibold">
+                      {viewTarget.monto_estimado ? (
+                        <>
+                          {formatUF(viewTarget.monto_estimado)}
+                          <span className="text-xs text-muted-foreground font-normal ml-2">≈ {formatCLP(ufToCLP(viewTarget.monto_estimado))}</span>
+                        </>
+                      ) : "—"}
+                    </p>
                   </div>
                 </div>
 
