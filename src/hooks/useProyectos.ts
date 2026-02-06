@@ -9,6 +9,8 @@ export type ProyectoEmpresaRow = Tables<"proyecto_empresas">;
 export type ProyectoWithEmpresas = ProyectoRow & {
   proyecto_empresas: (ProyectoEmpresaRow & {
     empresas: Tables<"empresas"> | null;
+    categorias_proyecto: Tables<"categorias_proyecto"> | null;
+    subcategorias_proyecto: Tables<"subcategorias_proyecto"> | null;
   })[];
 };
 
@@ -16,6 +18,8 @@ export interface EmpresaLink {
   empresa_id: string;
   monto_cotizacion: number;
   adjudicado: boolean;
+  categoria_id: string | null;
+  subcategoria_id: string | null;
 }
 
 export function useProyectos() {
@@ -24,7 +28,7 @@ export function useProyectos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("proyectos")
-        .select("*, proyecto_empresas(*, empresas(*))")
+        .select("*, proyecto_empresas(*, empresas(*), categorias_proyecto(*), subcategorias_proyecto(*))")
         .order("numero", { ascending: true });
       if (error) throw error;
       return data as ProyectoWithEmpresas[];
@@ -81,6 +85,8 @@ export function useCreateProyecto() {
             empresa_id: el.empresa_id,
             monto_cotizacion: el.monto_cotizacion || 0,
             adjudicado: el.adjudicado,
+            categoria_id: el.categoria_id || null,
+            subcategoria_id: el.subcategoria_id || null,
           })));
         if (linkError) throw linkError;
       }
@@ -120,6 +126,8 @@ export function useUpdateProyecto() {
             empresa_id: el.empresa_id,
             monto_cotizacion: el.monto_cotizacion || 0,
             adjudicado: el.adjudicado,
+            categoria_id: el.categoria_id || null,
+            subcategoria_id: el.subcategoria_id || null,
           })));
         if (linkError) throw linkError;
       }
