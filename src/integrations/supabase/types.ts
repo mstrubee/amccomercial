@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      categorias_proyecto: {
+        Row: {
+          color: string
+          created_at: string
+          es_adjudicado: boolean
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          es_adjudicado?: boolean
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          es_adjudicado?: boolean
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       condiciones_comerciales: {
         Row: {
           created_at: string
@@ -82,26 +109,39 @@ export type Database = {
       proyecto_empresas: {
         Row: {
           adjudicado: boolean
+          categoria_id: string | null
           empresa_id: string
           id: string
           monto_cotizacion: number | null
           proyecto_id: string
+          subcategoria_id: string | null
         }
         Insert: {
           adjudicado?: boolean
+          categoria_id?: string | null
           empresa_id: string
           id?: string
           monto_cotizacion?: number | null
           proyecto_id: string
+          subcategoria_id?: string | null
         }
         Update: {
           adjudicado?: boolean
+          categoria_id?: string | null
           empresa_id?: string
           id?: string
           monto_cotizacion?: number | null
           proyecto_id?: string
+          subcategoria_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "proyecto_empresas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_proyecto"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "proyecto_empresas_empresa_id_fkey"
             columns: ["empresa_id"]
@@ -114,6 +154,13 @@ export type Database = {
             columns: ["proyecto_id"]
             isOneToOne: false
             referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proyecto_empresas_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_proyecto"
             referencedColumns: ["id"]
           },
         ]
@@ -210,6 +257,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      subcategorias_proyecto: {
+        Row: {
+          categoria_id: string
+          color: string
+          created_at: string
+          es_adjudicado: boolean
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          categoria_id: string
+          color?: string
+          created_at?: string
+          es_adjudicado?: boolean
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          categoria_id?: string
+          color?: string
+          created_at?: string
+          es_adjudicado?: boolean
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategorias_proyecto_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_proyecto"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

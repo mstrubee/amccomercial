@@ -235,23 +235,40 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
     <div className="space-y-1">
       {proyectoEmpresas.map((pe) => {
         if (!pe.empresas) return null;
-        const isAdj = (pe as any).adjudicado;
         const monto = (pe as any).monto_cotizacion || 0;
+        const sub = (pe as any).subcategorias_proyecto;
+        const cat = (pe as any).categorias_proyecto;
+        const statusColor = sub?.color || cat?.color || null;
+        const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
+        const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
+
         return (
           <div key={pe.id} className="leading-tight">
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                isAdj
-                  ? "bg-success text-success-foreground"
-                  : "bg-secondary text-secondary-foreground"
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                !isAdj && !statusColor ? "bg-secondary text-secondary-foreground" : ""
               }`}
+              style={isAdj
+                ? { backgroundColor: "#22c55e", color: "#000" }
+                : statusColor
+                  ? { backgroundColor: statusColor + "22", color: statusColor, border: `1px solid ${statusColor}44` }
+                  : undefined
+              }
             >
+              {statusColor && (
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />
+              )}
               {pe.empresas.nombre.split(" ")[0]}
             </span>
+            {statusName && (
+              <span className="ml-1 text-[10px] text-muted-foreground">{statusName}</span>
+            )}
             {monto > 0 && (
               <>
-                <span className="ml-1.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
-                <span className="ml-1 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
+                <br />
+                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
+                <br />
+                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
               </>
             )}
           </div>
@@ -308,13 +325,20 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
             <div className="space-y-2">
               {viewTarget.proyecto_empresas?.map((pe) => {
                 if (!pe.empresas) return null;
-                const isAdj = (pe as any).adjudicado;
+                const sub = (pe as any).subcategorias_proyecto;
+                const cat = (pe as any).categorias_proyecto;
+                const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
+                const statusColor = sub?.color || cat?.color || null;
+                const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
                 const monto = (pe as any).monto_cotizacion || 0;
                 return (
                   <div key={pe.id} className={`px-3 py-2 rounded-lg text-sm border ${isAdj ? "bg-success/10 border-success/30" : "bg-secondary/30 border-border"}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`font-medium ${isAdj ? "text-success" : "text-card-foreground"}`}>{pe.empresas.nombre}</span>
-                      {isAdj && <span className="text-[10px] font-semibold text-success uppercase">Adjudicada</span>}
+                      <div className="flex items-center gap-2">
+                        {statusColor && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: statusColor }} />}
+                        <span className={`font-medium ${isAdj ? "text-success" : "text-card-foreground"}`}>{pe.empresas.nombre}</span>
+                      </div>
+                      {statusName && <span className="text-[10px] font-semibold uppercase" style={{ color: statusColor || undefined }}>{statusName}</span>}
                     </div>
                     {monto > 0 && (
                       <p className="text-xs text-muted-foreground mt-0.5">

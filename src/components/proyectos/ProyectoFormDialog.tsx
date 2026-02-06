@@ -3,12 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Settings2 } from "lucide-react";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/useProyectos";
+import { useCategorias, CategoriaWithSubs } from "@/hooks/useCategorias";
 import { formatCLP, ufToCLP } from "@/data/mock-data";
+import CategoriasManagerDialog from "./CategoriasManagerDialog";
 
 interface Props {
   open: boolean;
@@ -21,8 +23,16 @@ interface Props {
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
 
+interface EmpresaLinkState {
+  selected: boolean;
+  monto: number;
+  categoria_id: string | null;
+  subcategoria_id: string | null;
+}
+
 export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode }: Props) {
   const { data: empresas } = useEmpresas();
+  const { data: categorias } = useCategorias();
 
   const [nombre, setNombre] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -31,7 +41,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const [fechaEstadoObra, setFechaEstadoObra] = useState("");
   const [estadoAmc, setEstadoAmc] = useState("Vigente");
   const [monto, setMonto] = useState(0);
-  const [empresaLinks, setEmpresaLinks] = useState<Record<string, { selected: boolean; monto: number; adjudicado: boolean }>>({});
+  const [empresaLinks, setEmpresaLinks] = useState<Record<string, EmpresaLinkState>>({});
+  const [showCategoriasManager, setShowCategoriasManager] = useState(false);
 
   // Contactos
   const [arqNombre, setArqNombre] = useState("");
@@ -55,16 +66,17 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
     if (!open) return;
 
     const buildLinks = () => {
-      const links: Record<string, { selected: boolean; monto: number; adjudicado: boolean }> = {};
+      const links: Record<string, EmpresaLinkState> = {};
       empresas?.forEach((emp) => {
-        links[emp.id] = { selected: false, monto: 0, adjudicado: false };
+        links[emp.id] = { selected: false, monto: 0, categoria_id: null, subcategoria_id: null };
       });
       if (initialData?.proyecto_empresas) {
         initialData.proyecto_empresas.forEach((pe) => {
           links[pe.empresa_id] = {
             selected: true,
             monto: (pe as any).monto_cotizacion || 0,
-            adjudicado: (pe as any).adjudicado || false,
+            categoria_id: (pe as any).categoria_id || null,
+            subcategoria_id: (pe as any).subcategoria_id || null,
           };
         });
       }
@@ -113,6 +125,52 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
     }));
   };
 
+  // Determine if adjudicado based on category/subcategory es_adjudicado flag
+  const isAdjudicado = (link: EmpresaLinkState): boolean => {
+    if (!categorias) return false;
+    if (link.subcategoria_id) {
+      for (const cat of categorias) {
+        const sub = cat.subcategorias_proyecto.find((s) => s.id === link.subcategoria_id);
+        if (sub) return sub.es_adjudicado;
+      }
+    }
+    if (link.categoria_id) {
+      const cat = categorias.find((c) => c.id === link.categoria_id);
+      if (cat) return cat.es_adjudicado;
+    }
+    return false;
+  };
+
+  const handleCategoryChange = (empresaId: string, value: string) => {
+    // value format: "cat:{id}" or "sub:{id}" or ""
+    if (!value || value === "none") {
+      updateEmpresaLink(empresaId, "categoria_id", null);
+      updateEmpresaLink(empresaId, "subcategoria_id", null);
+      return;
+    }
+    if (value.startsWith("sub:")) {
+      const subId = value.replace("sub:", "");
+      // Find parent category
+      const parentCat = categorias?.find((c) => c.subcategorias_proyecto.some((s) => s.id === subId));
+      setEmpresaLinks((prev) => ({
+        ...prev,
+        [empresaId]: { ...prev[empresaId], categoria_id: parentCat?.id || null, subcategoria_id: subId },
+      }));
+    } else {
+      const catId = value.replace("cat:", "");
+      setEmpresaLinks((prev) => ({
+        ...prev,
+        [empresaId]: { ...prev[empresaId], categoria_id: catId, subcategoria_id: null },
+      }));
+    }
+  };
+
+  const getSelectValue = (link: EmpresaLinkState): string => {
+    if (link.subcategoria_id) return `sub:${link.subcategoria_id}`;
+    if (link.categoria_id) return `cat:${link.categoria_id}`;
+    return "none";
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
@@ -122,7 +180,9 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       .map(([id, v]) => ({
         empresa_id: id,
         monto_cotizacion: v.monto,
-        adjudicado: v.adjudicado,
+        adjudicado: isAdjudicado(v),
+        categoria_id: v.categoria_id,
+        subcategoria_id: v.subcategoria_id,
       }));
 
     onSubmit({
@@ -140,138 +200,208 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] p-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="max-h-[70vh] px-6 pb-6">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Basic info */}
-            <div className="space-y-3">
-              <Label htmlFor="pnombre">Nombre del Proyecto *</Label>
-              <Input id="pnombre" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Dirección</Label>
-                  <Input value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[85vh] p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh] px-6 pb-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Basic info */}
+              <div className="space-y-3">
+                <Label htmlFor="pnombre">Nombre del Proyecto *</Label>
+                <Input id="pnombre" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Dirección</Label>
+                    <Input value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Comuna</Label>
+                    <Input value={comuna} onChange={(e) => setComuna(e.target.value)} />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Comuna</Label>
-                  <Input value={comuna} onChange={(e) => setComuna(e.target.value)} />
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>Estado Obra</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={estadoObra}
+                      onChange={(e) => setEstadoObra(e.target.value)}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {["Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"].map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Fecha Estado</Label>
+                    <Input type="date" value={fechaEstadoObra} onChange={(e) => setFechaEstadoObra(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Estado AMC</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={estadoAmc}
+                      onChange={(e) => setEstadoAmc(e.target.value)}
+                    >
+                      {ESTADOS_AMC.map((e) => (
+                        <option key={e} value={e}>{e}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label>Estado Obra</Label>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={estadoObra}
-                    onChange={(e) => setEstadoObra(e.target.value)}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {["Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"].map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Fecha Estado</Label>
-                  <Input type="date" value={fechaEstadoObra} onChange={(e) => setFechaEstadoObra(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Estado AMC</Label>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={estadoAmc}
-                    onChange={(e) => setEstadoAmc(e.target.value)}
-                  >
-                    {ESTADOS_AMC.map((e) => (
-                      <option key={e} value={e}>{e}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
 
-            {/* Empresas vinculadas con cotización y adjudicación */}
-            {empresas && empresas.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empresas Vinculadas</Label>
+              {/* Empresas vinculadas con cotización y categoría */}
+              {empresas && empresas.length > 0 && (
                 <div className="space-y-2">
-                  {empresas.map((emp) => {
-                    const link = empresaLinks[emp.id] || { selected: false, monto: 0, adjudicado: false };
-                    return (
-                      <div key={emp.id} className={`p-3 rounded-lg border transition-colors ${link.selected ? "bg-secondary/50 border-primary/30" : "bg-secondary/20 border-border"}`}>
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={link.selected}
-                            onCheckedChange={(checked) => updateEmpresaLink(emp.id, "selected", !!checked)}
-                          />
-                          <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
-                          {link.selected && (
-                            <div className="flex items-center gap-2">
-                              <Switch
-                                checked={link.adjudicado}
-                                onCheckedChange={(checked) => updateEmpresaLink(emp.id, "adjudicado", checked)}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empresas Vinculadas</Label>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
+                      <Settings2 className="w-3 h-3" /> Categorías
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {empresas.map((emp) => {
+                      const link = empresaLinks[emp.id] || { selected: false, monto: 0, categoria_id: null, subcategoria_id: null };
+                      const adj = isAdjudicado(link);
+                      return (
+                        <div key={emp.id} className={`p-3 rounded-lg border transition-colors ${link.selected ? (adj ? "bg-success/10 border-success/30" : "bg-secondary/50 border-primary/30") : "bg-secondary/20 border-border"}`}>
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={link.selected}
+                              onCheckedChange={(checked) => updateEmpresaLink(emp.id, "selected", !!checked)}
+                            />
+                            <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
+                            {link.selected && (
+                              <CategoriaSelect
+                                categorias={categorias || []}
+                                value={getSelectValue(link)}
+                                onChange={(val) => handleCategoryChange(emp.id, val)}
                               />
-                              <span className={`text-xs font-medium ${link.adjudicado ? "text-success" : "text-muted-foreground"}`}>
-                                {link.adjudicado ? "Adjudicada" : "No adjudicada"}
-                              </span>
+                            )}
+                          </div>
+                          {link.selected && (
+                            <div className="mt-2 ml-7">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  className="h-8 w-40 text-sm"
+                                  placeholder="Cotización UF"
+                                  value={link.monto || ""}
+                                  onChange={(e) => updateEmpresaLink(emp.id, "monto", Number(e.target.value))}
+                                />
+                                <span className="text-xs text-muted-foreground">UF</span>
+                                {link.monto > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(link.monto))}</span>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
-                        {link.selected && (
-                          <div className="mt-2 ml-7">
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                className="h-8 w-40 text-sm"
-                                placeholder="Cotización UF"
-                                value={link.monto || ""}
-                                onChange={(e) => updateEmpresaLink(emp.id, "monto", Number(e.target.value))}
-                              />
-                              <span className="text-xs text-muted-foreground">UF</span>
-                              {link.monto > 0 && (
-                                <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(link.monto))}</span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Contactos sections */}
-            {[
-              { title: "Arquitectura", values: [arqNombre, arqContacto, arqMail, arqTelefono], setters: [setArqNombre, setArqContacto, setArqMail, setArqTelefono] },
-              { title: "Constructora", values: [constNombre, constContacto, constMail, constTelefono], setters: [setConstNombre, setConstContacto, setConstMail, setConstTelefono] },
-              { title: "ITO", values: [itoNombre, itoContacto, itoMail, itoTelefono], setters: [setItoNombre, setItoContacto, setItoMail, setItoTelefono] },
-              { title: "Dueños", values: [duenosNombre, duenosContacto, duenosMail, duenosTelefono], setters: [setDuenosNombre, setDuenosContacto, setDuenosMail, setDuenosTelefono] },
-            ].map(({ title, values, setters }) => (
-              <div key={title} className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Nombre" value={values[0]} onChange={(e) => setters[0](e.target.value)} />
-                  <Input placeholder="Contacto" value={values[1]} onChange={(e) => setters[1](e.target.value)} />
-                  <Input placeholder="Email" value={values[2]} onChange={(e) => setters[2](e.target.value)} />
-                  <Input placeholder="Teléfono" value={values[3]} onChange={(e) => setters[3](e.target.value)} />
+              {/* Contactos sections */}
+              {[
+                { title: "Arquitectura", values: [arqNombre, arqContacto, arqMail, arqTelefono], setters: [setArqNombre, setArqContacto, setArqMail, setArqTelefono] },
+                { title: "Constructora", values: [constNombre, constContacto, constMail, constTelefono], setters: [setConstNombre, setConstContacto, setConstMail, setConstTelefono] },
+                { title: "ITO", values: [itoNombre, itoContacto, itoMail, itoTelefono], setters: [setItoNombre, setItoContacto, setItoMail, setItoTelefono] },
+                { title: "Dueños", values: [duenosNombre, duenosContacto, duenosMail, duenosTelefono], setters: [setDuenosNombre, setDuenosContacto, setDuenosMail, setDuenosTelefono] },
+              ].map(({ title, values, setters }) => (
+                <div key={title} className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Nombre" value={values[0]} onChange={(e) => setters[0](e.target.value)} />
+                    <Input placeholder="Contacto" value={values[1]} onChange={(e) => setters[1](e.target.value)} />
+                    <Input placeholder="Email" value={values[2]} onChange={(e) => setters[2](e.target.value)} />
+                    <Input placeholder="Teléfono" value={values[3]} onChange={(e) => setters[3](e.target.value)} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-border">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
-            </div>
-          </form>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
+              </div>
+            </form>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <CategoriasManagerDialog open={showCategoriasManager} onOpenChange={setShowCategoriasManager} />
+    </>
+  );
+}
+
+/* ── Category select dropdown ── */
+function CategoriaSelect({
+  categorias,
+  value,
+  onChange,
+}: {
+  categorias: CategoriaWithSubs[];
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  // Find display info
+  let displayColor = "#6b7280";
+  let displayName = "Sin estado";
+
+  if (value.startsWith("sub:")) {
+    const subId = value.replace("sub:", "");
+    for (const cat of categorias) {
+      const sub = cat.subcategorias_proyecto.find((s) => s.id === subId);
+      if (sub) {
+        displayColor = sub.color;
+        displayName = `${cat.nombre} › ${sub.nombre}`;
+        break;
+      }
+    }
+  } else if (value.startsWith("cat:")) {
+    const catId = value.replace("cat:", "");
+    const cat = categorias.find((c) => c.id === catId);
+    if (cat) {
+      displayColor = cat.color;
+      displayName = cat.nombre;
+    }
+  }
+
+  return (
+    <div className="relative">
+      <select
+        className="h-7 pl-6 pr-2 text-xs rounded-md border border-input bg-card appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-[140px]"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="none">Sin estado</option>
+        {categorias.map((cat) => (
+          cat.subcategorias_proyecto.length > 0 ? (
+            <optgroup key={cat.id} label={cat.nombre}>
+              <option value={`cat:${cat.id}`}>{cat.nombre} (general)</option>
+              {cat.subcategorias_proyecto.map((sub) => (
+                <option key={sub.id} value={`sub:${sub.id}`}>
+                  {sub.nombre}
+                </option>
+              ))}
+            </optgroup>
+          ) : (
+            <option key={cat.id} value={`cat:${cat.id}`}>{cat.nombre}</option>
+          )
+        ))}
+      </select>
+      <div
+        className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-border pointer-events-none"
+        style={{ backgroundColor: displayColor }}
+      />
+    </div>
   );
 }
