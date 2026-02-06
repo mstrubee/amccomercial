@@ -192,13 +192,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                   </select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label>Monto Estimado (UF)</Label>
-                <Input type="number" min={0} step={0.01} value={monto || ""} onChange={(e) => setMonto(Number(e.target.value))} placeholder="Ej: 1200.50" />
-                {monto > 0 && (
-                  <p className="text-xs text-muted-foreground">≈ {formatCLP(ufToCLP(monto))}</p>
-                )}
-              </div>
             </div>
 
             {/* Empresas vinculadas con cotización y adjudicación */}
