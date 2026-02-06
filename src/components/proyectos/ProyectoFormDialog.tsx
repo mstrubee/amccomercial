@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings2 } from "lucide-react";
 import { useEmpresas } from "@/hooks/useEmpresas";
@@ -23,8 +23,8 @@ interface Props {
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
 
-interface EmpresaLinkState {
-  selected: boolean;
+interface EmpresaSelection {
+  empresa_id: string | null;
   monto: number;
   categoria_id: string | null;
   subcategoria_id: string | null;
@@ -40,8 +40,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const [estadoObra, setEstadoObra] = useState("");
   const [fechaEstadoObra, setFechaEstadoObra] = useState("");
   const [estadoAmc, setEstadoAmc] = useState("Vigente");
-  const [monto, setMonto] = useState(0);
-  const [empresaLinks, setEmpresaLinks] = useState<Record<string, EmpresaLinkState>>({});
+  const [empresaSelection, setEmpresaSelection] = useState<EmpresaSelection>({ empresa_id: null, monto: 0, categoria_id: null, subcategoria_id: null });
   const [showCategoriasManager, setShowCategoriasManager] = useState(false);
 
   // Contactos
@@ -65,24 +64,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   useEffect(() => {
     if (!open) return;
 
-    const buildLinks = () => {
-      const links: Record<string, EmpresaLinkState> = {};
-      empresas?.forEach((emp) => {
-        links[emp.id] = { selected: false, monto: 0, categoria_id: null, subcategoria_id: null };
-      });
-      if (initialData?.proyecto_empresas) {
-        initialData.proyecto_empresas.forEach((pe) => {
-          links[pe.empresa_id] = {
-            selected: true,
-            monto: (pe as any).monto_cotizacion || 0,
-            categoria_id: (pe as any).categoria_id || null,
-            subcategoria_id: (pe as any).subcategoria_id || null,
-          };
-        });
-      }
-      return links;
-    };
-
     if (initialData) {
       setNombre(initialData.nombre);
       setDireccion(initialData.direccion);
@@ -90,7 +71,13 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       setEstadoObra(initialData.estado_obra);
       setFechaEstadoObra(initialData.fecha_estado_obra || "");
       setEstadoAmc(initialData.estado_amc);
-      setMonto(initialData.monto_estimado || 0);
+      const pe = initialData.proyecto_empresas?.[0];
+      setEmpresaSelection({
+        empresa_id: pe?.empresa_id || null,
+        monto: (pe as any)?.monto_cotizacion || 0,
+        categoria_id: (pe as any)?.categoria_id || null,
+        subcategoria_id: (pe as any)?.subcategoria_id || null,
+      });
       setArqNombre(initialData.arq_nombre || "");
       setArqContacto(initialData.arq_contacto || "");
       setArqMail(initialData.arq_mail || "");
@@ -109,65 +96,49 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       setDuenosTelefono(initialData.duenos_telefono || "");
     } else {
       setNombre(""); setDireccion(""); setComuna(""); setEstadoObra(""); setFechaEstadoObra("");
-      setEstadoAmc("Vigente"); setMonto(0);
+      setEstadoAmc("Vigente");
+      setEmpresaSelection({ empresa_id: null, monto: 0, categoria_id: null, subcategoria_id: null });
       setArqNombre(""); setArqContacto(""); setArqMail(""); setArqTelefono("");
       setConstNombre(""); setConstContacto(""); setConstMail(""); setConstTelefono("");
       setItoNombre(""); setItoContacto(""); setItoMail(""); setItoTelefono("");
       setDuenosNombre(""); setDuenosContacto(""); setDuenosMail(""); setDuenosTelefono("");
     }
-    setEmpresaLinks(buildLinks());
   }, [open, initialData, empresas]);
 
-  const updateEmpresaLink = (id: string, field: string, value: any) => {
-    setEmpresaLinks((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], [field]: value },
-    }));
-  };
-
   // Determine if adjudicado based on category/subcategory es_adjudicado flag
-  const isAdjudicado = (link: EmpresaLinkState): boolean => {
+  const isAdjudicado = (sel: EmpresaSelection): boolean => {
     if (!categorias) return false;
-    if (link.subcategoria_id) {
+    if (sel.subcategoria_id) {
       for (const cat of categorias) {
-        const sub = cat.subcategorias_proyecto.find((s) => s.id === link.subcategoria_id);
+        const sub = cat.subcategorias_proyecto.find((s) => s.id === sel.subcategoria_id);
         if (sub) return sub.es_adjudicado;
       }
     }
-    if (link.categoria_id) {
-      const cat = categorias.find((c) => c.id === link.categoria_id);
+    if (sel.categoria_id) {
+      const cat = categorias.find((c) => c.id === sel.categoria_id);
       if (cat) return cat.es_adjudicado;
     }
     return false;
   };
 
-  const handleCategoryChange = (empresaId: string, value: string) => {
-    // value format: "cat:{id}" or "sub:{id}" or ""
+  const handleCategoryChange = (value: string) => {
     if (!value || value === "none") {
-      updateEmpresaLink(empresaId, "categoria_id", null);
-      updateEmpresaLink(empresaId, "subcategoria_id", null);
+      setEmpresaSelection((prev) => ({ ...prev, categoria_id: null, subcategoria_id: null }));
       return;
     }
     if (value.startsWith("sub:")) {
       const subId = value.replace("sub:", "");
-      // Find parent category
       const parentCat = categorias?.find((c) => c.subcategorias_proyecto.some((s) => s.id === subId));
-      setEmpresaLinks((prev) => ({
-        ...prev,
-        [empresaId]: { ...prev[empresaId], categoria_id: parentCat?.id || null, subcategoria_id: subId },
-      }));
+      setEmpresaSelection((prev) => ({ ...prev, categoria_id: parentCat?.id || null, subcategoria_id: subId }));
     } else {
       const catId = value.replace("cat:", "");
-      setEmpresaLinks((prev) => ({
-        ...prev,
-        [empresaId]: { ...prev[empresaId], categoria_id: catId, subcategoria_id: null },
-      }));
+      setEmpresaSelection((prev) => ({ ...prev, categoria_id: catId, subcategoria_id: null }));
     }
   };
 
-  const getSelectValue = (link: EmpresaLinkState): string => {
-    if (link.subcategoria_id) return `sub:${link.subcategoria_id}`;
-    if (link.categoria_id) return `cat:${link.categoria_id}`;
+  const getSelectValue = (): string => {
+    if (empresaSelection.subcategoria_id) return `sub:${empresaSelection.subcategoria_id}`;
+    if (empresaSelection.categoria_id) return `cat:${empresaSelection.categoria_id}`;
     return "none";
   };
 
@@ -175,22 +146,22 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
     e.preventDefault();
     if (!nombre.trim()) return;
 
-    const empresa_links: EmpresaLink[] = Object.entries(empresaLinks)
-      .filter(([, v]) => v.selected)
-      .map(([id, v]) => ({
-        empresa_id: id,
-        monto_cotizacion: v.monto,
-        adjudicado: isAdjudicado(v),
-        categoria_id: v.categoria_id,
-        subcategoria_id: v.subcategoria_id,
-      }));
+    const empresa_links: EmpresaLink[] = empresaSelection.empresa_id
+      ? [{
+          empresa_id: empresaSelection.empresa_id,
+          monto_cotizacion: empresaSelection.monto,
+          adjudicado: isAdjudicado(empresaSelection),
+          categoria_id: empresaSelection.categoria_id,
+          subcategoria_id: empresaSelection.subcategoria_id,
+        }]
+      : [];
 
     onSubmit({
       nombre: nombre.trim(),
       direccion, comuna, estado_obra: estadoObra,
       fecha_estado_obra: fechaEstadoObra || null,
       estado_amc: estadoAmc,
-      monto_estimado: monto || null,
+      monto_estimado: null,
       arq_nombre: arqNombre, arq_contacto: arqContacto, arq_mail: arqMail, arq_telefono: arqTelefono,
       const_nombre: constNombre, const_contacto: constContacto, const_mail: constMail, const_telefono: constTelefono,
       ito_nombre: itoNombre, ito_contacto: itoContacto, ito_mail: itoMail, ito_telefono: itoTelefono,
@@ -255,58 +226,53 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                 </div>
               </div>
 
-              {/* Empresas vinculadas con cotización y categoría */}
+              {/* Empresa y cotización */}
               {empresas && empresas.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empresas Vinculadas</Label>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empresa</Label>
                     <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
                       <Settings2 className="w-3 h-3" /> Categorías
                     </Button>
                   </div>
-                  <div className="space-y-2">
-                    {empresas.map((emp) => {
-                      const link = empresaLinks[emp.id] || { selected: false, monto: 0, categoria_id: null, subcategoria_id: null };
-                      const adj = isAdjudicado(link);
-                      return (
-                        <div key={emp.id} className={`p-3 rounded-lg border transition-colors ${link.selected ? (adj ? "bg-success/10 border-success/30" : "bg-secondary/50 border-primary/30") : "bg-secondary/20 border-border"}`}>
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={link.selected}
-                              onCheckedChange={(checked) => updateEmpresaLink(emp.id, "selected", !!checked)}
-                            />
-                            <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
-                            {link.selected && (
-                              <CategoriaSelect
-                                categorias={categorias || []}
-                                value={getSelectValue(link)}
-                                onChange={(val) => handleCategoryChange(emp.id, val)}
-                              />
-                            )}
-                          </div>
-                          {link.selected && (
-                            <div className="mt-2 ml-7">
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step={0.01}
-                                  className="h-8 w-40 text-sm"
-                                  placeholder="Cotización UF"
-                                  value={link.monto || ""}
-                                  onChange={(e) => updateEmpresaLink(emp.id, "monto", Number(e.target.value))}
-                                />
-                                <span className="text-xs text-muted-foreground">UF</span>
-                                {link.monto > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(link.monto))}</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <select
+                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={empresaSelection.empresa_id || ""}
+                    onChange={(e) => setEmpresaSelection((prev) => ({ ...prev, empresa_id: e.target.value || null }))}
+                  >
+                    <option value="">Seleccionar empresa...</option>
+                    {empresas.map((emp) => (
+                      <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                    ))}
+                  </select>
+
+                  {empresaSelection.empresa_id && (
+                    <div className="p-3 rounded-lg border border-primary/30 bg-secondary/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground">Categoría</Label>
+                        <CategoriaSelect
+                          categorias={categorias || []}
+                          value={getSelectValue()}
+                          onChange={handleCategoryChange}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className="h-8 w-40 text-sm"
+                          placeholder="Cotización UF"
+                          value={empresaSelection.monto || ""}
+                          onChange={(e) => setEmpresaSelection((prev) => ({ ...prev, monto: Number(e.target.value) }))}
+                        />
+                        <span className="text-xs text-muted-foreground">UF</span>
+                        {empresaSelection.monto > 0 && (
+                          <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(empresaSelection.monto))}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -382,7 +348,7 @@ function CategoriaSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="none">Sin estado</option>
+        <option value="none">Elegir Categoría</option>
         {categorias.map((cat) => (
           cat.subcategorias_proyecto.length > 0 ? (
             <optgroup key={cat.id} label={cat.nombre}>
