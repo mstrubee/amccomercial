@@ -79,6 +79,132 @@ export type Database = {
         }
         Relationships: []
       }
+      proyecto_empresas: {
+        Row: {
+          empresa_id: string
+          id: string
+          proyecto_id: string
+        }
+        Insert: {
+          empresa_id: string
+          id?: string
+          proyecto_id: string
+        }
+        Update: {
+          empresa_id?: string
+          id?: string
+          proyecto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proyecto_empresas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proyecto_empresas_proyecto_id_fkey"
+            columns: ["proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proyectos: {
+        Row: {
+          adjudicado: boolean
+          arq_contacto: string | null
+          arq_mail: string | null
+          arq_nombre: string | null
+          arq_telefono: string | null
+          comuna: string
+          const_contacto: string | null
+          const_mail: string | null
+          const_nombre: string | null
+          const_telefono: string | null
+          created_at: string
+          direccion: string
+          duenos_contacto: string | null
+          duenos_mail: string | null
+          duenos_nombre: string | null
+          duenos_telefono: string | null
+          estado_amc: string
+          estado_obra: string
+          fecha_estado_obra: string | null
+          id: string
+          ito_contacto: string | null
+          ito_mail: string | null
+          ito_nombre: string | null
+          ito_telefono: string | null
+          monto_estimado: number | null
+          nombre: string
+          numero: number
+          updated_at: string
+        }
+        Insert: {
+          adjudicado?: boolean
+          arq_contacto?: string | null
+          arq_mail?: string | null
+          arq_nombre?: string | null
+          arq_telefono?: string | null
+          comuna?: string
+          const_contacto?: string | null
+          const_mail?: string | null
+          const_nombre?: string | null
+          const_telefono?: string | null
+          created_at?: string
+          direccion?: string
+          duenos_contacto?: string | null
+          duenos_mail?: string | null
+          duenos_nombre?: string | null
+          duenos_telefono?: string | null
+          estado_amc?: string
+          estado_obra?: string
+          fecha_estado_obra?: string | null
+          id?: string
+          ito_contacto?: string | null
+          ito_mail?: string | null
+          ito_nombre?: string | null
+          ito_telefono?: string | null
+          monto_estimado?: number | null
+          nombre: string
+          numero?: number
+          updated_at?: string
+        }
+        Update: {
+          adjudicado?: boolean
+          arq_contacto?: string | null
+          arq_mail?: string | null
+          arq_nombre?: string | null
+          arq_telefono?: string | null
+          comuna?: string
+          const_contacto?: string | null
+          const_mail?: string | null
+          const_nombre?: string | null
+          const_telefono?: string | null
+          created_at?: string
+          direccion?: string
+          duenos_contacto?: string | null
+          duenos_mail?: string | null
+          duenos_nombre?: string | null
+          duenos_telefono?: string | null
+          estado_amc?: string
+          estado_obra?: string
+          fecha_estado_obra?: string | null
+          id?: string
+          ito_contacto?: string | null
+          ito_mail?: string | null
+          ito_nombre?: string | null
+          ito_telefono?: string | null
+          monto_estimado?: number | null
+          nombre?: string
+          numero?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -133,3 +133,28 @@ export function useAddCondicion() {
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
+
+export function useUpdateCondicion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      fee_fijo_mensual: number;
+      esquema_comision: number;
+      fecha_vigencia: string;
+      descripcion?: string;
+    }) => {
+      const { id, ...rest } = input;
+      const { error } = await supabase
+        .from("condiciones_comerciales")
+        .update(rest)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["empresas"] });
+      toast.success("Condición comercial actualizada");
+    },
+    onError: (e) => toast.error("Error: " + e.message),
+  });
+}

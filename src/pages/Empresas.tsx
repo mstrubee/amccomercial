@@ -9,11 +9,14 @@ import {
   useUpdateEmpresa,
   useDeleteEmpresa,
   useAddCondicion,
+  useUpdateCondicion,
   EmpresaWithCondiciones,
+  CondicionRow,
 } from "@/hooks/useEmpresas";
 import { formatCLP } from "@/data/mock-data";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import CondicionFormDialog from "@/components/empresas/CondicionFormDialog";
+import EditCondicionDialog from "@/components/empresas/EditCondicionDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,12 +34,14 @@ export default function Empresas() {
   const updateEmpresa = useUpdateEmpresa();
   const deleteEmpresa = useDeleteEmpresa();
   const addCondicion = useAddCondicion();
+  const updateCondicion = useUpdateCondicion();
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editEmpresa, setEditEmpresa] = useState<EmpresaWithCondiciones | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EmpresaWithCondiciones | null>(null);
   const [condicionTarget, setCondicionTarget] = useState<EmpresaWithCondiciones | null>(null);
+  const [editCondicion, setEditCondicion] = useState<CondicionRow | null>(null);
 
   if (isLoading) {
     return (
@@ -102,27 +107,13 @@ export default function Empresas() {
                 </button>
                 <div className="flex items-center gap-2 shrink-0 ml-4">
                   <StatusBadge status={empresa.estado} />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setEditEmpresa(empresa)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditEmpresa(empresa)}>
                     <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:text-destructive"
-                    onClick={() => setDeleteTarget(empresa)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => setDeleteTarget(empresa)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  )}
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                 </div>
               </div>
 
@@ -141,12 +132,7 @@ export default function Empresas() {
                           <Calendar className="w-3.5 h-3.5" />
                           Historial de Condiciones Comerciales
                         </h4>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 text-xs h-7"
-                          onClick={() => setCondicionTarget(empresa)}
-                        >
+                        <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7" onClick={() => setCondicionTarget(empresa)}>
                           <PlusCircle className="w-3.5 h-3.5" />
                           Nueva Condición
                         </Button>
@@ -184,6 +170,14 @@ export default function Empresas() {
                                       Vigente
                                     </span>
                                   )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => setEditCondicion(cc)}
+                                  >
+                                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                                  </Button>
                                 </div>
                               </div>
                             );
@@ -245,9 +239,7 @@ export default function Empresas() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                if (deleteTarget) {
-                  deleteEmpresa.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
-                }
+                if (deleteTarget) deleteEmpresa.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
               }}
             >
               Eliminar
@@ -268,6 +260,19 @@ export default function Empresas() {
               { empresa_id: condicionTarget.id, ...data },
               { onSuccess: () => setCondicionTarget(null) }
             );
+          }}
+        />
+      )}
+
+      {/* Edit condicion dialog */}
+      {editCondicion && (
+        <EditCondicionDialog
+          open={!!editCondicion}
+          onOpenChange={(val) => !val && setEditCondicion(null)}
+          condicion={editCondicion}
+          isLoading={updateCondicion.isPending}
+          onSubmit={(data) => {
+            updateCondicion.mutate(data, { onSuccess: () => setEditCondicion(null) });
           }}
         />
       )}
