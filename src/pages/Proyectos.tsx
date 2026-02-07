@@ -1,11 +1,11 @@
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/dashboard/StatusBadge";
-import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, ProyectoWithEmpresas } from "@/hooks/useProyectos";
+import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
@@ -23,6 +23,7 @@ export default function Proyectos() {
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
   const deleteProyecto = useDeleteProyecto();
+  const updateNotas = useUpdateNotas();
 
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState("Todos");
@@ -173,27 +174,28 @@ export default function Proyectos() {
                     </tr>
                     <AnimatePresence>
                       {expanded && items.map((p) => (
-                        <motion.tr
-                          key={p.id}
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="hover:bg-secondary/20 transition-colors bg-secondary/10"
-                        >
-                          <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
-                          <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
-                          <td className="px-5 py-3"></td>
-                          <td className="px-5 py-3"></td>
-                          <td className="px-5 py-3"></td>
-                          <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
-                          <td className="px-5 py-3 text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                            </div>
-                          </td>
-                        </motion.tr>
+                        <Fragment key={p.id}>
+                          <motion.tr
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="hover:bg-secondary/20 transition-colors bg-secondary/10"
+                          >
+                            <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
+                            <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
+                            <td className="px-5 py-3" colSpan={3}>
+                              <NotasCell proyecto={p} onSave={updateNotas.mutate} />
+                            </td>
+                            <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+                            <td className="px-5 py-3 text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        </Fragment>
                       ))}
                     </AnimatePresence>
                   </Fragment>
@@ -459,5 +461,39 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Inline notas cell ── */
+function NotasCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void }) {
+  const [value, setValue] = useState((proyecto as any).notas || "");
+  const [saved, setSaved] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleChange = (text: string) => {
+    if (text.length > 500) return;
+    setValue(text);
+    setSaved(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onSave({ id: proyecto.id, notas: text });
+      setSaved(true);
+    }, 800);
+  };
+
+  return (
+    <div className="relative">
+      <textarea
+        className="w-full min-h-[48px] max-h-[100px] resize-y rounded-md border border-border bg-card/50 px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        placeholder="Notas del proyecto..."
+        value={value}
+        maxLength={500}
+        onChange={(e) => handleChange(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+      />
+      <span className="absolute bottom-1 right-2 text-[9px] text-muted-foreground">
+        {value.length}/500{!saved && " · guardando..."}
+      </span>
+    </div>
   );
 }
