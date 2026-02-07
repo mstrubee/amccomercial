@@ -149,7 +149,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} />;
+                  return <ProjectRow key={p.id} p={p} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} />;
                 }
 
                 // Grouped header
@@ -287,29 +287,37 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, onView, onEdit, onDelete, onTemplate }: {
+function ProjectRow({ p, onView, onEdit, onDelete, onTemplate, updateNotas }: {
   p: ProyectoWithEmpresas;
   onView: (p: ProyectoWithEmpresas) => void;
   onEdit: (p: ProyectoWithEmpresas) => void;
   onDelete: (p: ProyectoWithEmpresas) => void;
   onTemplate: (p: ProyectoWithEmpresas) => void;
+  updateNotas: (data: { id: string; notas: string }) => void;
 }) {
   return (
-    <tr className="hover:bg-secondary/20 transition-colors">
-      <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
-      <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
-      <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
-      <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
-      <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
-      <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
-      <td className="px-5 py-3 text-right">
-        <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => onTemplate(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => onDelete(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
-        </div>
-      </td>
-    </tr>
+    <>
+      <tr className="hover:bg-secondary/20 transition-colors">
+        <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
+        <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
+        <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
+        <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
+        <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
+        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+        <td className="px-5 py-3 text-right">
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => onTemplate(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => onDelete(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+          </div>
+        </td>
+      </tr>
+      <tr className="bg-secondary/10">
+        <td className="px-5 py-1" colSpan={7}>
+          <NotasCell proyecto={p} onSave={updateNotas} />
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -391,17 +399,6 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Estado Obra</p>
               <p className="text-card-foreground">{viewTarget.estado_obra || "—"} {viewTarget.fecha_estado_obra ? `— ${new Date(viewTarget.fecha_estado_obra).toLocaleDateString("es-CL")}` : ""}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Monto Estimado</p>
-              <p className="text-card-foreground font-semibold">
-                {viewTarget.monto_estimado ? (
-                  <>
-                    {formatUF(viewTarget.monto_estimado)}
-                    <span className="text-xs text-muted-foreground font-normal ml-2">≈ {formatCLP(ufToCLP(viewTarget.monto_estimado))}</span>
-                  </>
-                ) : "—"}
-              </p>
             </div>
           </div>
 
