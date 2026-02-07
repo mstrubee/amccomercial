@@ -155,3 +155,20 @@ export function useDeleteProyecto() {
     onError: (e) => toast.error("Error al eliminar: " + e.message),
   });
 }
+
+export function useUpdateNotas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, notas }: { id: string; notas: string }) => {
+      const { error } = await supabase
+        .from("proyectos")
+        .update({ notas } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["proyectos"] });
+    },
+    onError: (e) => toast.error("Error al guardar notas: " + e.message),
+  });
+}

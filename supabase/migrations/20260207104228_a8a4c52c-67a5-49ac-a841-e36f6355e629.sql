@@ -1,0 +1,1 @@
+ALTER TABLE public.proyectos ADD COLUMN notas text NOT NULL DEFAULT '';
