@@ -45,6 +45,7 @@ export interface ProyectoInput {
   fecha_estado_obra: string | null;
   estado_amc: string;
   monto_estimado: number | null;
+  notas: string;
   arq_nombre: string;
   arq_contacto: string;
   arq_mail: string;
