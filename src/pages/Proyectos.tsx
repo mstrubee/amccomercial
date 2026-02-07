@@ -165,7 +165,11 @@ export default function Proyectos() {
                       <td className="px-5 py-3 font-medium text-card-foreground">
                         {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground" colSpan={5}></td>
+                      <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{first.estado_obra}</td>
+                      <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
+                      <td className="px-5 py-3"></td>
+                      <td className="px-5 py-3"></td>
                     </tr>
                     <AnimatePresence>
                       {expanded && items.map((p) => (
@@ -178,9 +182,9 @@ export default function Proyectos() {
                         >
                           <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
                           <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
-                          <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
-                          <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
-                          <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
+                          <td className="px-5 py-3"></td>
+                          <td className="px-5 py-3"></td>
+                          <td className="px-5 py-3"></td>
                           <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
                           <td className="px-5 py-3 text-right">
                             <div className="flex justify-end gap-1">
