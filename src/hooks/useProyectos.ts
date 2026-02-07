@@ -38,6 +38,7 @@ export function useProyectos() {
 
 export interface ProyectoInput {
   nombre: string;
+  region: string;
   direccion: string;
   comuna: string;
   estado_obra: string;
