@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useRef } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -469,6 +469,11 @@ function NotasCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; onSav
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync when external data changes (e.g. after editing in dialog)
+  useEffect(() => {
+    setValue((proyecto as any).notas || "");
+  }, [(proyecto as any).notas]);
 
   const handleChange = (text: string) => {
     if (text.length > 500) return;
