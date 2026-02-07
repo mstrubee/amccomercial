@@ -14,6 +14,7 @@ import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/usePro
 import { useCategorias, CategoriaWithSubs } from "@/hooks/useCategorias";
 import { formatCLP, ufToCLP } from "@/data/mock-data";
 import CategoriasManagerDialog from "./CategoriasManagerDialog";
+import { REGIONES_CHILE } from "@/data/chile-geo";
 
 interface Props {
   open: boolean;
@@ -38,6 +39,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const { data: categorias } = useCategorias();
 
   const [nombre, setNombre] = useState("");
+  const [region, setRegion] = useState("");
   const [direccion, setDireccion] = useState("");
   const [comuna, setComuna] = useState("");
   const [estadoObra, setEstadoObra] = useState("");
@@ -70,7 +72,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
   const buildSnapshot = () =>
     JSON.stringify({
-      nombre, direccion, comuna, estadoObra, fechaEstadoObra, estadoAmc, empresaSelection,
+      nombre, region, direccion, comuna, estadoObra, fechaEstadoObra, estadoAmc, empresaSelection,
       arqNombre, arqContacto, arqMail, arqTelefono,
       constNombre, constContacto, constMail, constTelefono,
       itoNombre, itoContacto, itoMail, itoTelefono,
@@ -84,6 +86,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
     if (initialData) {
       setNombre(initialData.nombre);
+      setRegion((initialData as any).region || "");
       setDireccion(initialData.direccion);
       setComuna(initialData.comuna);
       setEstadoObra(initialData.estado_obra);
@@ -113,7 +116,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       setDuenosMail(initialData.duenos_mail || "");
       setDuenosTelefono(initialData.duenos_telefono || "");
     } else {
-      setNombre(""); setDireccion(""); setComuna(""); setEstadoObra(""); setFechaEstadoObra("");
+      setNombre(""); setRegion(""); setDireccion(""); setComuna(""); setEstadoObra(""); setFechaEstadoObra("");
       setEstadoAmc("Vigente");
       setEmpresaSelection({ empresa_id: null, monto: 0, categoria_id: null, subcategoria_id: null });
       setArqNombre(""); setArqContacto(""); setArqMail(""); setArqTelefono("");
@@ -207,7 +210,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
     onSubmit({
       nombre: nombre.trim(),
-      direccion, comuna, estado_obra: estadoObra,
+      region, direccion, comuna, estado_obra: estadoObra,
       fecha_estado_obra: fechaEstadoObra || null,
       estado_amc: estadoAmc,
       monto_estimado: null,
@@ -232,14 +235,37 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
               <div className="space-y-3">
                 <Label htmlFor="pnombre">Nombre del Proyecto *</Label>
                 <Input id="pnombre" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                <div className="space-y-1">
+                  <Label>Dirección</Label>
+                  <Input value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label>Dirección</Label>
-                    <Input value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+                    <Label>Región</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={region}
+                      onChange={(e) => { setRegion(e.target.value); setComuna(""); }}
+                    >
+                      <option value="">Seleccionar región...</option>
+                      {REGIONES_CHILE.map((r) => (
+                        <option key={r.nombre} value={r.nombre}>{r.nombre}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <Label>Comuna</Label>
-                    <Input value={comuna} onChange={(e) => setComuna(e.target.value)} />
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={comuna}
+                      onChange={(e) => setComuna(e.target.value)}
+                      disabled={!region}
+                    >
+                      <option value="">{region ? "Seleccionar comuna..." : "Seleccione región primero"}</option>
+                      {(REGIONES_CHILE.find((r) => r.nombre === region)?.comunas || []).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">

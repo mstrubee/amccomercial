@@ -194,6 +194,7 @@ export type Database = {
           monto_estimado: number | null
           nombre: string
           numero: number
+          region: string
           updated_at: string
         }
         Insert: {
@@ -224,6 +225,7 @@ export type Database = {
           monto_estimado?: number | null
           nombre: string
           numero?: number
+          region?: string
           updated_at?: string
         }
         Update: {
@@ -254,6 +256,7 @@ export type Database = {
           monto_estimado?: number | null
           nombre?: string
           numero?: number
+          region?: string
           updated_at?: string
         }
         Relationships: []

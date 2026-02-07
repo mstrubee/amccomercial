@@ -1,0 +1,1 @@
+ALTER TABLE public.proyectos ADD COLUMN region text NOT NULL DEFAULT '';
