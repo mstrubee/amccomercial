@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings2 } from "lucide-react";
 import { useEmpresas } from "@/hooks/useEmpresas";
@@ -61,6 +64,21 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const [duenosMail, setDuenosMail] = useState("");
   const [duenosTelefono, setDuenosTelefono] = useState("");
 
+  // Dirty tracking
+  const snapshotRef = useRef<string>("");
+  const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
+
+  const buildSnapshot = () =>
+    JSON.stringify({
+      nombre, direccion, comuna, estadoObra, fechaEstadoObra, estadoAmc, empresaSelection,
+      arqNombre, arqContacto, arqMail, arqTelefono,
+      constNombre, constContacto, constMail, constTelefono,
+      itoNombre, itoContacto, itoMail, itoTelefono,
+      duenosNombre, duenosContacto, duenosMail, duenosTelefono,
+    });
+
+  const isDirty = () => snapshotRef.current !== "" && snapshotRef.current !== buildSnapshot();
+
   useEffect(() => {
     if (!open) return;
 
@@ -104,6 +122,34 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       setDuenosNombre(""); setDuenosContacto(""); setDuenosMail(""); setDuenosTelefono("");
     }
   }, [open, initialData, empresas]);
+
+  // Capture snapshot AFTER state has settled from the effect above
+  useEffect(() => {
+    if (!open) {
+      snapshotRef.current = "";
+      return;
+    }
+    // Use a microtask to capture after all state setters have flushed
+    const timer = setTimeout(() => {
+      snapshotRef.current = buildSnapshot();
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialData]);
+
+  const handleRequestClose = (nextOpen: boolean) => {
+    if (!nextOpen && isDirty()) {
+      setShowUnsavedAlert(true);
+      return;
+    }
+    onOpenChange(nextOpen);
+  };
+
+  const handleDiscardClose = () => {
+    setShowUnsavedAlert(false);
+    snapshotRef.current = ""; // prevent re-trigger
+    onOpenChange(false);
+  };
 
   // Determine if adjudicado based on category/subcategory es_adjudicado flag
   const isAdjudicado = (sel: EmpresaSelection): boolean => {
@@ -156,6 +202,9 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
         }]
       : [];
 
+    // Reset snapshot so closing after save doesn't trigger alert
+    snapshotRef.current = "";
+
     onSubmit({
       nombre: nombre.trim(),
       direccion, comuna, estado_obra: estadoObra,
@@ -172,7 +221,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleRequestClose}>
         <DialogContent className="max-w-2xl max-h-[85vh] p-0">
           <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
@@ -295,13 +344,34 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
               ))}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-border">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button type="button" variant="outline" onClick={() => handleRequestClose(false)}>Cancelar</Button>
                 <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
               </div>
             </form>
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Unsaved changes confirmation */}
+      <AlertDialog open={showUnsavedAlert} onOpenChange={setShowUnsavedAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Descartar cambios?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tienes cambios sin guardar. ¿Deseas descartarlos o volver al formulario para guardarlos?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver al formulario</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDiscardClose}
+            >
+              Descartar cambios
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <CategoriasManagerDialog open={showCategoriasManager} onOpenChange={setShowCategoriasManager} />
     </>
@@ -318,27 +388,18 @@ function CategoriaSelect({
   value: string;
   onChange: (val: string) => void;
 }) {
-  // Find display info
   let displayColor = "#6b7280";
-  let displayName = "Sin estado";
 
   if (value.startsWith("sub:")) {
     const subId = value.replace("sub:", "");
     for (const cat of categorias) {
       const sub = cat.subcategorias_proyecto.find((s) => s.id === subId);
-      if (sub) {
-        displayColor = sub.color;
-        displayName = `${cat.nombre} › ${sub.nombre}`;
-        break;
-      }
+      if (sub) { displayColor = sub.color; break; }
     }
   } else if (value.startsWith("cat:")) {
     const catId = value.replace("cat:", "");
     const cat = categorias.find((c) => c.id === catId);
-    if (cat) {
-      displayColor = cat.color;
-      displayName = cat.nombre;
-    }
+    if (cat) displayColor = cat.color;
   }
 
   return (
