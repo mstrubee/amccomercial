@@ -16,7 +16,7 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/useProyectos";
 import { useCategorias, CategoriaWithSubs } from "@/hooks/useCategorias";
 import { useClasificaciones } from "@/hooks/useClasificaciones";
-import { formatCLP, ufToCLP } from "@/data/mock-data";
+import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import CategoriasManagerDialog from "./CategoriasManagerDialog";
 import { REGIONES_CHILE } from "@/data/chile-geo";
 
@@ -27,8 +27,10 @@ interface Props {
   isLoading?: boolean;
   initialData?: ProyectoWithEmpresas;
   mode: "create" | "edit";
-  /** When true, hides Ubicación and Contactos (child row editing) */
+  /** When true, hides Ubicación, Contactos, and Empresas (child row editing) */
   isChildRow?: boolean;
+  /** All group items for parent edit - used to show all empresas across the group */
+  groupItems?: ProyectoWithEmpresas[];
 }
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
@@ -41,7 +43,7 @@ interface EmpresaRow {
   subcategoria_id: string | null;
 }
 
-export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow }: Props) {
+export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow, groupItems }: Props) {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -326,7 +328,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {mode === "create" ? "Empresas Asignadas" : "Empresa"}
+                      {mode === "create" ? "Empresas Asignadas" : isChildRow ? "Empresa" : "Empresas del Proyecto"}
                     </Label>
                     <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
                       <Settings2 className="w-3 h-3" /> Categorías
@@ -374,8 +376,35 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                         );
                       })}
                     </div>
+                  ) : !isChildRow && groupItems ? (
+                    /* Parent edit: show all empresas from all group items (read-only overview) */
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {groupItems.map((p) => {
+                        const pe = p.proyecto_empresas?.[0];
+                        if (!pe?.empresas) return null;
+                        const sub = (pe as any).subcategorias_proyecto;
+                        const cat = (pe as any).categorias_proyecto;
+                        const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
+                        const statusColor = sub?.color || cat?.color || null;
+                        const monto = (pe as any).monto_cotizacion || 0;
+                        return (
+                          <div key={p.id} className="rounded-lg border border-border bg-secondary/30 p-2">
+                            <div className="flex items-center gap-2">
+                              {statusColor && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />}
+                              <span className="text-sm font-medium text-card-foreground">{pe.empresas.nombre}</span>
+                              {statusName && <span className="text-[10px] text-muted-foreground ml-auto">{statusName}</span>}
+                            </div>
+                            {monto > 0 && (
+                              <p className="text-[10px] text-muted-foreground mt-1 pl-5">
+                                {formatUF(monto)} ≈ {formatCLP(ufToCLP(monto))}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    /* Edit mode: show only the linked empresa (no checkbox) */
+                    /* Child edit: show only the linked empresa (no checkbox) */
                     <div className="space-y-2">
                       {empresaRows.filter((r) => r.selected).map((row) => {
                         const emp = empresas.find((e) => e.id === row.empresa_id);
@@ -411,18 +440,20 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                 </div>
               )}
 
-              {/* Notas */}
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notas</Label>
-                <Textarea
-                  placeholder="Notas del proyecto..."
-                  maxLength={500}
-                  value={notas}
-                  onChange={(e) => setNotas(e.target.value)}
-                  className="min-h-[80px] resize-none text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground text-right">{notas.length}/500</p>
-              </div>
+              {/* Notas (hidden for parent edit) */}
+              {!(!isChildRow && groupItems) && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notas</Label>
+                  <Textarea
+                    placeholder="Notas del proyecto..."
+                    maxLength={500}
+                    value={notas}
+                    onChange={(e) => setNotas(e.target.value)}
+                    className="min-h-[80px] resize-none text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground text-right">{notas.length}/500</p>
+                </div>
+              )}
 
               {!isChildRow && (<>
               {/* Collapsible: Ubicación */}
