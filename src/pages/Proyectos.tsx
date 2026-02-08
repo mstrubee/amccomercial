@@ -311,7 +311,6 @@ export default function Proyectos() {
           groupItems={editParentGroup}
           isLoading={updateProyecto.isPending}
           onSubmit={async (data) => {
-            // Update all rows in the group with shared fields (ubicación, contactos, estados)
             const sharedFields = {
               nombre: data.nombre,
               region: data.region,
@@ -322,40 +321,56 @@ export default function Proyectos() {
               estado_amc: data.estado_amc,
               fecha_ingreso: data.fecha_ingreso,
               clasificacion_id: data.clasificacion_id,
-              arq_nombre: data.arq_nombre,
-              arq_contacto: data.arq_contacto,
-              arq_mail: data.arq_mail,
-              arq_telefono: data.arq_telefono,
-              const_nombre: data.const_nombre,
-              const_contacto: data.const_contacto,
-              const_mail: data.const_mail,
-              const_telefono: data.const_telefono,
-              ito_nombre: data.ito_nombre,
-              ito_contacto: data.ito_contacto,
-              ito_mail: data.ito_mail,
-              ito_telefono: data.ito_telefono,
-              duenos_nombre: data.duenos_nombre,
-              duenos_contacto: data.duenos_contacto,
-              duenos_mail: data.duenos_mail,
-              duenos_telefono: data.duenos_telefono,
+              arq_nombre: data.arq_nombre, arq_contacto: data.arq_contacto,
+              arq_mail: data.arq_mail, arq_telefono: data.arq_telefono,
+              const_nombre: data.const_nombre, const_contacto: data.const_contacto,
+              const_mail: data.const_mail, const_telefono: data.const_telefono,
+              ito_nombre: data.ito_nombre, ito_contacto: data.ito_contacto,
+              ito_mail: data.ito_mail, ito_telefono: data.ito_telefono,
+              duenos_nombre: data.duenos_nombre, duenos_contacto: data.duenos_contacto,
+              duenos_mail: data.duenos_mail, duenos_telefono: data.duenos_telefono,
             };
-            // Update each row preserving its own empresa_links
+
+            // Build map of currently assigned empresas -> project id
+            const existingMap = new Map<string, ProyectoWithEmpresas>();
             for (const p of editParentGroup) {
-              const existingLinks = (p.proyecto_empresas || []).map((pe) => ({
-                empresa_id: pe.empresa_id,
-                monto_cotizacion: (pe as any).monto_cotizacion || 0,
-                adjudicado: pe.adjudicado,
-                categoria_id: (pe as any).categoria_id || null,
-                subcategoria_id: (pe as any).subcategoria_id || null,
-              }));
-              await updateProyecto.mutateAsync({
+              for (const pe of (p.proyecto_empresas || [])) {
+                existingMap.set(pe.empresa_id, p);
+              }
+            }
+
+            const selectedLinks = data.empresa_links;
+            const selectedEmpresaIds = new Set(selectedLinks.map((l) => l.empresa_id));
+
+            // 1. Update existing projects that still have their empresa selected
+            for (const p of editParentGroup) {
+              const pe = p.proyecto_empresas?.[0];
+              if (pe && selectedEmpresaIds.has(pe.empresa_id)) {
+                const link = selectedLinks.find((l) => l.empresa_id === pe.empresa_id)!;
+                await updateProyecto.mutateAsync({
+                  ...sharedFields,
+                  notas: p.notas || "",
+                  monto_estimado: null,
+                  empresa_links: [link],
+                  id: p.id,
+                });
+              } else {
+                // Empresa was deselected - delete this project row
+                await deleteProyecto.mutateAsync(p.id);
+              }
+            }
+
+            // 2. Create new project rows for newly added empresas
+            const newLinks = selectedLinks.filter((l) => !existingMap.has(l.empresa_id));
+            for (const link of newLinks) {
+              await createProyecto.mutateAsync({
                 ...sharedFields,
-                notas: p.notas || "",
+                notas: "",
                 monto_estimado: null,
-                empresa_links: existingLinks,
-                id: p.id,
+                empresa_links: [link],
               });
             }
+
             setEditParentGroup(null);
           }}
         />

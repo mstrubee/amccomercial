@@ -110,17 +110,31 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       setFechaIngreso((initialData as any).fecha_ingreso || new Date().toISOString().split("T")[0]);
       setClasificacionId((initialData as any).clasificacion_id || null);
 
-      // Build empresa rows from existing links
+      // Build empresa rows from existing links (or from all group items for parent edit)
       if (empresas) {
-        const existingLinks = initialData.proyecto_empresas || [];
+        // Collect all empresa links across group items (parent edit) or just from this project
+        const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null }[] = [];
+        const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
+        for (const item of sourceItems) {
+          for (const pe of (item.proyecto_empresas || [])) {
+            if (!allLinks.some((l) => l.empresa_id === pe.empresa_id)) {
+              allLinks.push({
+                empresa_id: pe.empresa_id,
+                monto_cotizacion: (pe as any).monto_cotizacion || 0,
+                categoria_id: (pe as any).categoria_id || null,
+                subcategoria_id: (pe as any).subcategoria_id || null,
+              });
+            }
+          }
+        }
         const rows = empresas.map((emp) => {
-          const link = existingLinks.find((l) => l.empresa_id === emp.id);
+          const link = allLinks.find((l) => l.empresa_id === emp.id);
           return {
             empresa_id: emp.id,
             selected: !!link,
-            monto: (link as any)?.monto_cotizacion || 0,
-            categoria_id: (link as any)?.categoria_id || null,
-            subcategoria_id: (link as any)?.subcategoria_id || null,
+            monto: link?.monto_cotizacion || 0,
+            categoria_id: link?.categoria_id || null,
+            subcategoria_id: link?.subcategoria_id || null,
           };
         });
         setEmpresaRows(rows);
@@ -377,27 +391,41 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                       })}
                     </div>
                   ) : !isChildRow && groupItems ? (
-                    /* Parent edit: show all empresas from all group items (read-only overview) */
+                    /* Parent edit: editable empresas with checkboxes (pre-populated from group) */
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {groupItems.map((p) => {
-                        const pe = p.proyecto_empresas?.[0];
-                        if (!pe?.empresas) return null;
-                        const sub = (pe as any).subcategorias_proyecto;
-                        const cat = (pe as any).categorias_proyecto;
-                        const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
-                        const statusColor = sub?.color || cat?.color || null;
-                        const monto = (pe as any).monto_cotizacion || 0;
+                      {empresaRows.map((row) => {
+                        const emp = empresas.find((e) => e.id === row.empresa_id);
+                        if (!emp) return null;
                         return (
-                          <div key={p.id} className="rounded-lg border border-border bg-secondary/30 p-2">
+                          <div key={row.empresa_id} className={`rounded-lg border p-2 transition-colors ${row.selected ? "border-primary/30 bg-secondary/50" : "border-border bg-card/50 opacity-60"}`}>
                             <div className="flex items-center gap-2">
-                              {statusColor && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />}
-                              <span className="text-sm font-medium text-card-foreground">{pe.empresas.nombre}</span>
-                              {statusName && <span className="text-[10px] text-muted-foreground ml-auto">{statusName}</span>}
+                              <Checkbox
+                                checked={row.selected}
+                                onCheckedChange={(checked) => updateEmpresaRow(row.empresa_id, { selected: !!checked })}
+                              />
+                              <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
                             </div>
-                            {monto > 0 && (
-                              <p className="text-[10px] text-muted-foreground mt-1 pl-5">
-                                {formatUF(monto)} ≈ {formatCLP(ufToCLP(monto))}
-                              </p>
+                            {row.selected && (
+                              <div className="mt-2 pl-6 flex items-center gap-2 flex-wrap">
+                                <CategoriaSelect
+                                  categorias={categorias || []}
+                                  value={getSelectValue(row)}
+                                  onChange={(val) => handleCategoryChange(row.empresa_id, val)}
+                                />
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  className="h-7 w-32 text-xs"
+                                  placeholder="Cotización UF"
+                                  value={row.monto || ""}
+                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                />
+                                <span className="text-[10px] text-muted-foreground">UF</span>
+                                {row.monto > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
+                                )}
+                              </div>
                             )}
                           </div>
                         );
