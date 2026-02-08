@@ -243,7 +243,7 @@ export default function Proyectos() {
                             className={`hover:bg-secondary/30 transition-colors ${isEven ? "bg-muted/30" : "bg-secondary/10"}`}
                           >
                             <td className="px-5 py-3 text-muted-foreground pl-10">{parentNum}.{childIdx + 1}</td>
-                            <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
+                            <td className="px-5 py-3 pl-10"></td>
                             <td className="px-5 py-3" colSpan={4}>
                               <NotasCell proyecto={p} onSave={updateNotas.mutate} />
                             </td>
