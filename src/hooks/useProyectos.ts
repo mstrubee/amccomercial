@@ -195,3 +195,20 @@ export function useUpdateNotas() {
     onError: (e) => toast.error("Error al guardar notas: " + e.message),
   });
 }
+
+export function useUpdateNotaGrupo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, nota_grupo }: { id: string; nota_grupo: string }) => {
+      const { error } = await supabase
+        .from("proyectos")
+        .update({ nota_grupo } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["proyectos"] });
+    },
+    onError: (e) => toast.error("Error al guardar nota: " + e.message),
+  });
+}

@@ -243,6 +243,7 @@ export type Database = {
           ito_telefono: string | null
           monto_estimado: number | null
           nombre: string
+          nota_grupo: string
           notas: string
           numero: number
           region: string
@@ -277,6 +278,7 @@ export type Database = {
           ito_telefono?: string | null
           monto_estimado?: number | null
           nombre: string
+          nota_grupo?: string
           notas?: string
           numero?: number
           region?: string
@@ -311,6 +313,7 @@ export type Database = {
           ito_telefono?: string | null
           monto_estimado?: number | null
           nombre?: string
+          nota_grupo?: string
           notas?: string
           numero?: number
           region?: string
