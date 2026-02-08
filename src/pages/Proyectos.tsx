@@ -151,10 +151,12 @@ export default function Proyectos() {
                 const isGroup = items.length > 1;
                 const expanded = expandedGroups[key] ?? false;
                 const parentNum = groupIdx + 1;
+                const isEven = groupIdx % 2 === 1;
+                const evenBg = isEven ? "bg-muted/40" : "";
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} />;
                 }
 
                 // Grouped header
@@ -162,7 +164,7 @@ export default function Proyectos() {
                 return (
                   <Fragment key={key}>
                     <tr
-                      className="hover:bg-secondary/20 transition-colors cursor-pointer border-t-2 border-border"
+                      className={`hover:bg-secondary/30 transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg}`}
                       onClick={() => toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
@@ -190,7 +192,7 @@ export default function Proyectos() {
                       </td>
                     </tr>
                     {/* Parent note row - no separator from above */}
-                    <tr>
+                    <tr className={evenBg}>
                       <td className="px-5 pb-2 pt-0" colSpan={8}>
                         <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} />
                       </td>
@@ -202,7 +204,7 @@ export default function Proyectos() {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="hover:bg-secondary/20 transition-colors bg-secondary/10"
+                            className={`hover:bg-secondary/30 transition-colors ${isEven ? "bg-muted/30" : "bg-secondary/10"}`}
                           >
                             <td className="px-5 py-3 text-muted-foreground pl-10">{parentNum}.{childIdx + 1}</td>
                             <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
@@ -384,18 +386,20 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, onView, onEdit, onDelete, onTemplate, updateNotas }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, updateNotas }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
+  isEven: boolean;
   onView: (p: ProyectoWithEmpresas) => void;
   onEdit: (p: ProyectoWithEmpresas) => void;
   onDelete: (p: ProyectoWithEmpresas) => void;
   onTemplate: (p: ProyectoWithEmpresas) => void;
   updateNotas: (data: { id: string; notas: string }) => void;
 }) {
+  const evenBg = isEven ? "bg-muted/40" : "";
   return (
     <>
-      <tr className="hover:bg-secondary/20 transition-colors border-t-2 border-border">
+      <tr className={`hover:bg-secondary/30 transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`}>
         <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
         <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
@@ -411,7 +415,7 @@ function ProjectRow({ p, displayNum, onView, onEdit, onDelete, onTemplate, updat
           </div>
         </td>
       </tr>
-      <tr>
+      <tr className={evenBg}>
         <td className="px-5 pb-2 pt-0" colSpan={8}>
           <NotasCell proyecto={p} onSave={updateNotas} />
         </td>
