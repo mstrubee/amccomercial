@@ -292,6 +292,7 @@ export default function Proyectos() {
           onOpenChange={(val) => !val && setEditParentGroup(null)}
           mode="edit"
           initialData={editParentGroup[0]}
+          groupItems={editParentGroup}
           isLoading={updateProyecto.isPending}
           onSubmit={async (data) => {
             // Update all rows in the group with shared fields (ubicación, contactos, estados)
