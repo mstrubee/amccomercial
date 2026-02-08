@@ -34,8 +34,8 @@ export default function Proyectos() {
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
-  const [addLineSource, setAddLineSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
+  const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -73,6 +73,40 @@ export default function Proyectos() {
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const executeParentSubmit = async (
+    data: any,
+    sharedFields: any,
+    group: ProyectoWithEmpresas[],
+    toDelete: ProyectoWithEmpresas[],
+    selectedEmpresaIds: Set<string>,
+  ) => {
+    const existingMap = new Map<string, ProyectoWithEmpresas>();
+    for (const p of group) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        existingMap.set(pe.empresa_id, p);
+      }
+    }
+
+    for (const p of group) {
+      const pe = p.proyecto_empresas?.[0];
+      if (pe && selectedEmpresaIds.has(pe.empresa_id)) {
+        const link = data.empresa_links.find((l: any) => l.empresa_id === pe.empresa_id)!;
+        await updateProyecto.mutateAsync({
+          ...sharedFields, notas: p.notas || "", monto_estimado: null, empresa_links: [link], id: p.id,
+        });
+      } else if (toDelete.some((d) => d.id === p.id)) {
+        await deleteProyecto.mutateAsync(p.id);
+      }
+    }
+
+    const newLinks = data.empresa_links.filter((l: any) => !existingMap.has(l.empresa_id));
+    for (const link of newLinks) {
+      await createProyecto.mutateAsync({
+        ...sharedFields, notas: "", monto_estimado: null, empresa_links: [link],
+      });
+    }
   };
 
   if (isLoading) {
@@ -190,9 +224,6 @@ export default function Proyectos() {
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Agregar línea" onClick={(e) => { e.stopPropagation(); setAddLineSource(items[0]); }}>
-                            <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -273,19 +304,7 @@ export default function Proyectos() {
         />
       )}
 
-      {/* Add line from parent dialog */}
-      {addLineSource && (
-        <ProyectoFormDialog
-          open={!!addLineSource}
-          onOpenChange={(val) => !val && setAddLineSource(null)}
-          mode="create"
-          initialData={{ ...addLineSource, nombre: addLineSource.nombre }}
-          isLoading={createProyecto.isPending}
-          onSubmit={(data) => {
-            createProyecto.mutate(data, { onSuccess: () => setAddLineSource(null) });
-          }}
-        />
-      )}
+      {/* (Add line dialog removed - managed via parent edit) */}
       {/* Edit child row dialog */}
       {editTarget && (
         <ProyectoFormDialog
@@ -312,65 +331,29 @@ export default function Proyectos() {
           isLoading={updateProyecto.isPending}
           onSubmit={async (data) => {
             const sharedFields = {
-              nombre: data.nombre,
-              region: data.region,
-              direccion: data.direccion,
-              comuna: data.comuna,
-              estado_obra: data.estado_obra,
-              fecha_estado_obra: data.fecha_estado_obra,
-              estado_amc: data.estado_amc,
-              fecha_ingreso: data.fecha_ingreso,
-              clasificacion_id: data.clasificacion_id,
-              arq_nombre: data.arq_nombre, arq_contacto: data.arq_contacto,
-              arq_mail: data.arq_mail, arq_telefono: data.arq_telefono,
-              const_nombre: data.const_nombre, const_contacto: data.const_contacto,
-              const_mail: data.const_mail, const_telefono: data.const_telefono,
-              ito_nombre: data.ito_nombre, ito_contacto: data.ito_contacto,
-              ito_mail: data.ito_mail, ito_telefono: data.ito_telefono,
-              duenos_nombre: data.duenos_nombre, duenos_contacto: data.duenos_contacto,
-              duenos_mail: data.duenos_mail, duenos_telefono: data.duenos_telefono,
+              nombre: data.nombre, region: data.region, direccion: data.direccion, comuna: data.comuna,
+              estado_obra: data.estado_obra, fecha_estado_obra: data.fecha_estado_obra,
+              estado_amc: data.estado_amc, fecha_ingreso: data.fecha_ingreso, clasificacion_id: data.clasificacion_id,
+              arq_nombre: data.arq_nombre, arq_contacto: data.arq_contacto, arq_mail: data.arq_mail, arq_telefono: data.arq_telefono,
+              const_nombre: data.const_nombre, const_contacto: data.const_contacto, const_mail: data.const_mail, const_telefono: data.const_telefono,
+              ito_nombre: data.ito_nombre, ito_contacto: data.ito_contacto, ito_mail: data.ito_mail, ito_telefono: data.ito_telefono,
+              duenos_nombre: data.duenos_nombre, duenos_contacto: data.duenos_contacto, duenos_mail: data.duenos_mail, duenos_telefono: data.duenos_telefono,
             };
 
-            // Build map of currently assigned empresas -> project id
-            const existingMap = new Map<string, ProyectoWithEmpresas>();
-            for (const p of editParentGroup) {
-              for (const pe of (p.proyecto_empresas || [])) {
-                existingMap.set(pe.empresa_id, p);
-              }
-            }
+            const selectedEmpresaIds = new Set(data.empresa_links.map((l) => l.empresa_id));
 
-            const selectedLinks = data.empresa_links;
-            const selectedEmpresaIds = new Set(selectedLinks.map((l) => l.empresa_id));
-
-            // 1. Update existing projects that still have their empresa selected
-            for (const p of editParentGroup) {
+            // Find projects that would be deleted (empresa deselected)
+            const toDelete = editParentGroup.filter((p) => {
               const pe = p.proyecto_empresas?.[0];
-              if (pe && selectedEmpresaIds.has(pe.empresa_id)) {
-                const link = selectedLinks.find((l) => l.empresa_id === pe.empresa_id)!;
-                await updateProyecto.mutateAsync({
-                  ...sharedFields,
-                  notas: p.notas || "",
-                  monto_estimado: null,
-                  empresa_links: [link],
-                  id: p.id,
-                });
-              } else {
-                // Empresa was deselected - delete this project row
-                await deleteProyecto.mutateAsync(p.id);
-              }
+              return pe && !selectedEmpresaIds.has(pe.empresa_id);
+            });
+
+            if (toDelete.length > 0) {
+              setPendingParentSubmit({ data: { ...data, sharedFields }, toDelete });
+              return;
             }
 
-            // 2. Create new project rows for newly added empresas
-            const newLinks = selectedLinks.filter((l) => !existingMap.has(l.empresa_id));
-            for (const link of newLinks) {
-              await createProyecto.mutateAsync({
-                ...sharedFields,
-                notas: "",
-                monto_estimado: null,
-                empresa_links: [link],
-              });
-            }
-
+            await executeParentSubmit(data, sharedFields, editParentGroup, [], selectedEmpresaIds);
             setEditParentGroup(null);
           }}
         />
@@ -394,6 +377,41 @@ export default function Proyectos() {
               }}
             >
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm delete from parent edit */}
+      <AlertDialog open={!!pendingParentSubmit} onOpenChange={(val) => !val && setPendingParentSubmit(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar sublíneas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán {pendingParentSubmit?.toDelete.length} sublínea(s) con empresas desvinculadas:
+              <ul className="mt-2 list-disc pl-5">
+                {pendingParentSubmit?.toDelete.map((p) => {
+                  const empName = p.proyecto_empresas?.[0]?.empresas?.nombre || "Sin empresa";
+                  return <li key={p.id}>{empName}</li>;
+                })}
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (pendingParentSubmit && editParentGroup) {
+                  const { data, toDelete } = pendingParentSubmit;
+                  const selectedEmpresaIds = new Set<string>(data.empresa_links.map((l: any) => l.empresa_id));
+                  await executeParentSubmit(data, data.sharedFields, editParentGroup, toDelete, selectedEmpresaIds);
+                  setPendingParentSubmit(null);
+                  setEditParentGroup(null);
+                }
+              }}
+            >
+              Eliminar y guardar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
