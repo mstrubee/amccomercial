@@ -144,13 +144,14 @@ export default function Proyectos() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {groupedRows.map(({ key, items }) => {
+              {groupedRows.map(({ key, items }, groupIdx) => {
                 const isGroup = items.length > 1;
                 const expanded = expandedGroups[key] ?? false;
+                const parentNum = groupIdx + 1;
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} />;
                 }
 
                 // Grouped header
@@ -162,7 +163,7 @@ export default function Proyectos() {
                       onClick={() => toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
-                        <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} />
+                        <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} /> {parentNum}
                       </td>
                       <td className="px-5 py-3 font-medium text-card-foreground">
                         {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
@@ -175,7 +176,7 @@ export default function Proyectos() {
                       <td className="px-5 py-3"></td>
                     </tr>
                     <AnimatePresence>
-                      {expanded && items.map((p) => (
+                      {expanded && items.map((p, childIdx) => (
                         <Fragment key={p.id}>
                           <motion.tr
                             initial={{ opacity: 0, height: 0 }}
@@ -183,7 +184,7 @@ export default function Proyectos() {
                             exit={{ opacity: 0, height: 0 }}
                             className="hover:bg-secondary/20 transition-colors bg-secondary/10"
                           >
-                            <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
+                            <td className="px-5 py-3 text-muted-foreground pl-10">{parentNum}.{childIdx + 1}</td>
                             <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
                             <td className="px-5 py-3" colSpan={4}>
                               <NotasCell proyecto={p} onSave={updateNotas.mutate} />
@@ -289,8 +290,9 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, onView, onEdit, onDelete, onTemplate, updateNotas }: {
+function ProjectRow({ p, displayNum, onView, onEdit, onDelete, onTemplate, updateNotas }: {
   p: ProyectoWithEmpresas;
+  displayNum: string;
   onView: (p: ProyectoWithEmpresas) => void;
   onEdit: (p: ProyectoWithEmpresas) => void;
   onDelete: (p: ProyectoWithEmpresas) => void;
@@ -300,7 +302,7 @@ function ProjectRow({ p, onView, onEdit, onDelete, onTemplate, updateNotas }: {
   return (
     <>
       <tr className="hover:bg-secondary/20 transition-colors">
-        <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
+        <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
         <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
