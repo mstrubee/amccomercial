@@ -175,7 +175,12 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3 text-muted-foreground text-xs">{(first as any).fecha_ingreso ? new Date((first as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
-                      <td className="px-5 py-3 text-muted-foreground">{first.estado_obra}</td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        <div>{first.estado_obra}</div>
+                        {first.fecha_estado_obra && (
+                          <div className="text-[10px] text-muted-foreground/70">{new Date(first.fecha_estado_obra).toLocaleDateString("es-CL")}</div>
+                        )}
+                      </td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} />
