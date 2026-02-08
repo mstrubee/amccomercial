@@ -167,7 +167,7 @@ export default function Proyectos() {
                       <td className="px-5 py-3 font-medium text-card-foreground">
                         {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground text-xs"></td>
+                      <td className="px-5 py-3 text-muted-foreground text-xs">{(first as any).fecha_ingreso ? new Date((first as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.estado_obra}</td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
@@ -185,7 +185,7 @@ export default function Proyectos() {
                           >
                             <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
                             <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
-                            <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
+                            <td className="px-5 py-3"></td>
                             <td className="px-5 py-3" colSpan={3}>
                               <NotasCell proyecto={p} onSave={updateNotas.mutate} />
                             </td>
