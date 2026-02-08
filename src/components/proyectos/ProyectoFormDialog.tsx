@@ -319,30 +319,69 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                 </div>
               </div>
 
-              {/* Empresas con checkboxes */}
+              {/* Empresas section */}
               {empresas && empresas.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Empresas Asignadas</Label>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {mode === "create" ? "Empresas Asignadas" : "Empresa"}
+                    </Label>
                     <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
                       <Settings2 className="w-3 h-3" /> Categorías
                     </Button>
                   </div>
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                    {empresaRows.map((row) => {
-                      const emp = empresas.find((e) => e.id === row.empresa_id);
-                      if (!emp) return null;
-                      return (
-                        <div key={row.empresa_id} className={`rounded-lg border p-2 transition-colors ${row.selected ? "border-primary/30 bg-secondary/50" : "border-border bg-card/50 opacity-60"}`}>
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={row.selected}
-                              onCheckedChange={(checked) => updateEmpresaRow(row.empresa_id, { selected: !!checked })}
-                            />
-                            <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
+
+                  {mode === "create" ? (
+                    /* Create mode: checkboxes for all empresas */
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {empresaRows.map((row) => {
+                        const emp = empresas.find((e) => e.id === row.empresa_id);
+                        if (!emp) return null;
+                        return (
+                          <div key={row.empresa_id} className={`rounded-lg border p-2 transition-colors ${row.selected ? "border-primary/30 bg-secondary/50" : "border-border bg-card/50 opacity-60"}`}>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={row.selected}
+                                onCheckedChange={(checked) => updateEmpresaRow(row.empresa_id, { selected: !!checked })}
+                              />
+                              <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
+                            </div>
+                            {row.selected && (
+                              <div className="mt-2 pl-6 flex items-center gap-2 flex-wrap">
+                                <CategoriaSelect
+                                  categorias={categorias || []}
+                                  value={getSelectValue(row)}
+                                  onChange={(val) => handleCategoryChange(row.empresa_id, val)}
+                                />
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  className="h-7 w-32 text-xs"
+                                  placeholder="Cotización UF"
+                                  value={row.monto || ""}
+                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                />
+                                <span className="text-[10px] text-muted-foreground">UF</span>
+                                {row.monto > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          {row.selected && (
-                            <div className="mt-2 pl-6 flex items-center gap-2 flex-wrap">
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Edit mode: show only the linked empresa (no checkbox) */
+                    <div className="space-y-2">
+                      {empresaRows.filter((r) => r.selected).map((row) => {
+                        const emp = empresas.find((e) => e.id === row.empresa_id);
+                        if (!emp) return null;
+                        return (
+                          <div key={row.empresa_id} className="rounded-lg border border-primary/30 bg-secondary/50 p-2">
+                            <span className="text-sm font-medium text-card-foreground">{emp.nombre}</span>
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <CategoriaSelect
                                 categorias={categorias || []}
                                 value={getSelectValue(row)}
@@ -362,11 +401,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                 <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
                               )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
