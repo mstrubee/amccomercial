@@ -41,6 +41,27 @@ export type Database = {
         }
         Relationships: []
       }
+      clasificaciones_proyecto: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       condiciones_comerciales: {
         Row: {
           created_at: string
@@ -103,6 +124,33 @@ export type Database = {
           id?: string
           nombre?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          email: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          email?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -172,6 +220,7 @@ export type Database = {
           arq_mail: string | null
           arq_nombre: string | null
           arq_telefono: string | null
+          clasificacion_id: string | null
           comuna: string
           const_contacto: string | null
           const_mail: string | null
@@ -186,6 +235,7 @@ export type Database = {
           estado_amc: string
           estado_obra: string
           fecha_estado_obra: string | null
+          fecha_ingreso: string
           id: string
           ito_contacto: string | null
           ito_mail: string | null
@@ -204,6 +254,7 @@ export type Database = {
           arq_mail?: string | null
           arq_nombre?: string | null
           arq_telefono?: string | null
+          clasificacion_id?: string | null
           comuna?: string
           const_contacto?: string | null
           const_mail?: string | null
@@ -218,6 +269,7 @@ export type Database = {
           estado_amc?: string
           estado_obra?: string
           fecha_estado_obra?: string | null
+          fecha_ingreso?: string
           id?: string
           ito_contacto?: string | null
           ito_mail?: string | null
@@ -236,6 +288,7 @@ export type Database = {
           arq_mail?: string | null
           arq_nombre?: string | null
           arq_telefono?: string | null
+          clasificacion_id?: string | null
           comuna?: string
           const_contacto?: string | null
           const_mail?: string | null
@@ -250,6 +303,7 @@ export type Database = {
           estado_amc?: string
           estado_obra?: string
           fecha_estado_obra?: string | null
+          fecha_ingreso?: string
           id?: string
           ito_contacto?: string | null
           ito_mail?: string | null
@@ -262,7 +316,15 @@ export type Database = {
           region?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "proyectos_clasificacion_id_fkey"
+            columns: ["clasificacion_id"]
+            isOneToOne: false
+            referencedRelation: "clasificaciones_proyecto"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subcategorias_proyecto: {
         Row: {
@@ -302,15 +364,39 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "usuario_tipo_1" | "usuario_tipo_2"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -437,6 +523,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "usuario_tipo_1", "usuario_tipo_2"],
+    },
   },
 } as const

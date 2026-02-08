@@ -135,6 +135,7 @@ export default function Proyectos() {
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">N°</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingreso</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
@@ -166,6 +167,7 @@ export default function Proyectos() {
                       <td className="px-5 py-3 font-medium text-card-foreground">
                         {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
                       </td>
+                      <td className="px-5 py-3 text-muted-foreground text-xs"></td>
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.estado_obra}</td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
@@ -183,6 +185,7 @@ export default function Proyectos() {
                           >
                             <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
                             <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
+                            <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
                             <td className="px-5 py-3" colSpan={3}>
                               <NotasCell proyecto={p} onSave={updateNotas.mutate} />
                             </td>
@@ -300,6 +303,7 @@ function ProjectRow({ p, onView, onEdit, onDelete, onTemplate, updateNotas }: {
       <tr className="hover:bg-secondary/20 transition-colors">
         <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
+        <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
@@ -313,7 +317,7 @@ function ProjectRow({ p, onView, onEdit, onDelete, onTemplate, updateNotas }: {
         </td>
       </tr>
       <tr className="bg-secondary/10">
-        <td className="px-5 py-1" colSpan={7}>
+        <td className="px-5 py-1" colSpan={8}>
           <NotasCell proyecto={p} onSave={updateNotas} />
         </td>
       </tr>
