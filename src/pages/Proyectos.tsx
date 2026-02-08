@@ -33,6 +33,7 @@ export default function Proyectos() {
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
+  const [addLineSource, setAddLineSource] = useState<ProyectoWithEmpresas | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -173,7 +174,11 @@ export default function Proyectos() {
                       <td className="px-5 py-3 text-muted-foreground">{first.estado_obra}</td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3"></td>
-                      <td className="px-5 py-3"></td>
+                      <td className="px-5 py-3 text-right">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Agregar línea" onClick={(e) => { e.stopPropagation(); setAddLineSource(items[0]); }}>
+                          <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                        </Button>
+                      </td>
                     </tr>
                     <AnimatePresence>
                       {expanded && items.map((p, childIdx) => (
@@ -246,6 +251,19 @@ export default function Proyectos() {
         />
       )}
 
+      {/* Add line from parent dialog */}
+      {addLineSource && (
+        <ProyectoFormDialog
+          open={!!addLineSource}
+          onOpenChange={(val) => !val && setAddLineSource(null)}
+          mode="create"
+          initialData={{ ...addLineSource, nombre: addLineSource.nombre }}
+          isLoading={createProyecto.isPending}
+          onSubmit={(data) => {
+            createProyecto.mutate(data, { onSuccess: () => setAddLineSource(null) });
+          }}
+        />
+      )}
       {/* Edit dialog */}
       {editTarget && (
         <ProyectoFormDialog
