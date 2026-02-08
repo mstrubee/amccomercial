@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import MontoInput from "./MontoInput";
 
 interface Props {
   open: boolean;
@@ -15,6 +16,7 @@ interface Props {
 export default function CondicionFormDialog({ open, onOpenChange, onSubmit, isLoading, empresaNombre }: Props) {
   const [fee, setFee] = useState(0);
   const [comision, setComision] = useState(0);
+  const [comisionDisplay, setComisionDisplay] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [descripcion, setDescripcion] = useState("");
 
@@ -27,6 +29,7 @@ export default function CondicionFormDialog({ open, onOpenChange, onSubmit, isLo
     if (val) {
       setFee(0);
       setComision(0);
+      setComisionDisplay("");
       setFecha(new Date().toISOString().split("T")[0]);
       setDescripcion("");
     }
@@ -41,13 +44,19 @@ export default function CondicionFormDialog({ open, onOpenChange, onSubmit, isLo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Fee Mensual (CLP)</Label>
-              <Input type="number" min={0} value={fee} onChange={(e) => setFee(Number(e.target.value))} />
-            </div>
-            <div className="space-y-2">
+            <MontoInput label="Fee Mensual" value={fee} onChange={setFee} />
+            <div className="space-y-1">
               <Label>Comisión (%)</Label>
-              <Input type="number" min={0} step={0.1} value={comision} onChange={(e) => setComision(Number(e.target.value))} />
+              <Input
+                type="number"
+                min={0}
+                step={0.1}
+                value={comisionDisplay}
+                onChange={(e) => { setComisionDisplay(e.target.value); setComision(parseFloat(e.target.value) || 0); }}
+                onFocus={(e) => { if (e.target.value === "0") setComisionDisplay(""); }}
+                onBlur={() => { if (comisionDisplay === "") setComisionDisplay(comision ? String(comision) : ""); }}
+                placeholder="0"
+              />
             </div>
           </div>
           <div className="space-y-2">
