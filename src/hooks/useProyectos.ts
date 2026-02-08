@@ -72,29 +72,49 @@ export function useCreateProyecto() {
   return useMutation({
     mutationFn: async (input: ProyectoInput) => {
       const { empresa_links, fecha_ingreso, clasificacion_id, ...rest } = input;
-      // Determine adjudicado at project level from any empresa adjudicada
-      const adjudicado = empresa_links.some((el) => el.adjudicado);
-      const { data: proyecto, error } = await supabase
+
+      // Create one project row per selected empresa
+      if (empresa_links.length === 0) {
+        // No empresas: create a single project
+        const { data: proyecto, error } = await supabase
+          .from("proyectos")
+          .insert({ ...rest, adjudicado: false, fecha_ingreso, clasificacion_id } as any)
+          .select()
+          .single();
+        if (error) throw error;
+        return proyecto;
+      }
+
+      // One project per empresa link
+      const projects = empresa_links.map((el) => ({
+        ...rest,
+        adjudicado: el.adjudicado,
+        fecha_ingreso,
+        clasificacion_id,
+      }));
+
+      const { data: createdProjects, error } = await supabase
         .from("proyectos")
-        .insert({ ...rest, adjudicado, fecha_ingreso, clasificacion_id } as any)
-        .select()
-        .single();
+        .insert(projects as any[])
+        .select();
       if (error) throw error;
 
-      if (empresa_links.length > 0) {
-        const { error: linkError } = await supabase
-          .from("proyecto_empresas")
-          .insert(empresa_links.map((el) => ({
-            proyecto_id: proyecto.id,
-            empresa_id: el.empresa_id,
-            monto_cotizacion: el.monto_cotizacion || 0,
-            adjudicado: el.adjudicado,
-            categoria_id: el.categoria_id || null,
-            subcategoria_id: el.subcategoria_id || null,
-          })));
-        if (linkError) throw linkError;
-      }
-      return proyecto;
+      // Link each project to its empresa
+      const links = createdProjects!.map((p: any, i: number) => ({
+        proyecto_id: p.id,
+        empresa_id: empresa_links[i].empresa_id,
+        monto_cotizacion: empresa_links[i].monto_cotizacion || 0,
+        adjudicado: empresa_links[i].adjudicado,
+        categoria_id: empresa_links[i].categoria_id || null,
+        subcategoria_id: empresa_links[i].subcategoria_id || null,
+      }));
+
+      const { error: linkError } = await supabase
+        .from("proyecto_empresas")
+        .insert(links);
+      if (linkError) throw linkError;
+
+      return createdProjects![0];
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["proyectos"] });
