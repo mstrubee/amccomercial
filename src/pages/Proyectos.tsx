@@ -146,7 +146,7 @@ export default function Proyectos() {
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody>
               {groupedRows.map(({ key, items }, groupIdx) => {
                 const isGroup = items.length > 1;
                 const expanded = expandedGroups[key] ?? false;
@@ -162,7 +162,7 @@ export default function Proyectos() {
                 return (
                   <Fragment key={key}>
                     <tr
-                      className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                      className="hover:bg-secondary/20 transition-colors cursor-pointer border-t-2 border-border"
                       onClick={() => toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
@@ -189,9 +189,9 @@ export default function Proyectos() {
                         </div>
                       </td>
                     </tr>
-                    {/* Parent note row */}
-                    <tr className="bg-secondary/10">
-                      <td className="px-5 py-1" colSpan={8}>
+                    {/* Parent note row - no separator from above */}
+                    <tr>
+                      <td className="px-5 pb-2 pt-0" colSpan={8}>
                         <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} />
                       </td>
                     </tr>
@@ -395,7 +395,7 @@ function ProjectRow({ p, displayNum, onView, onEdit, onDelete, onTemplate, updat
 }) {
   return (
     <>
-      <tr className="hover:bg-secondary/20 transition-colors">
+      <tr className="hover:bg-secondary/20 transition-colors border-t-2 border-border">
         <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
         <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
@@ -411,8 +411,8 @@ function ProjectRow({ p, displayNum, onView, onEdit, onDelete, onTemplate, updat
           </div>
         </td>
       </tr>
-      <tr className="bg-secondary/10">
-        <td className="px-5 py-1" colSpan={8}>
+      <tr>
+        <td className="px-5 pb-2 pt-0" colSpan={8}>
           <NotasCell proyecto={p} onSave={updateNotas} />
         </td>
       </tr>
