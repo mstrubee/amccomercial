@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/dashboard/StatusBadge";
-import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, ProyectoWithEmpresas } from "@/hooks/useProyectos";
+import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
@@ -24,6 +24,7 @@ export default function Proyectos() {
   const updateProyecto = useUpdateProyecto();
   const deleteProyecto = useDeleteProyecto();
   const updateNotas = useUpdateNotas();
+  const updateNotaGrupo = useUpdateNotaGrupo();
 
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState("Todos");
@@ -174,7 +175,9 @@ export default function Proyectos() {
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.estado_obra}</td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
-                      <td className="px-5 py-3"></td>
+                      <td className="px-5 py-3">
+                        <GroupEmpresasCell items={items} />
+                      </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
@@ -184,6 +187,12 @@ export default function Proyectos() {
                             <Plus className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
                         </div>
+                      </td>
+                    </tr>
+                    {/* Parent note row */}
+                    <tr className="bg-secondary/10">
+                      <td className="px-5 py-1" colSpan={8}>
+                        <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} />
                       </td>
                     </tr>
                     <AnimatePresence>
@@ -460,6 +469,82 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ── Group header empresas cell (name + category, no monto) ── */
+function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
+  const allEmpresas = items.flatMap((p) => p.proyecto_empresas || []);
+  if (allEmpresas.length === 0) {
+    return <span className="text-muted-foreground text-xs">Sin empresas</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {allEmpresas.map((pe) => {
+        if (!pe.empresas) return null;
+        const sub = (pe as any).subcategorias_proyecto;
+        const cat = (pe as any).categorias_proyecto;
+        const statusColor = sub?.color || cat?.color || null;
+        const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
+        const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
+        return (
+          <span
+            key={pe.id}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+              !isAdj && !statusColor ? "bg-secondary text-secondary-foreground" : ""
+            }`}
+            style={isAdj
+              ? { backgroundColor: "#22c55e", color: "#000" }
+              : statusColor
+                ? { backgroundColor: statusColor + "22", color: statusColor, border: `1px solid ${statusColor}44` }
+                : undefined
+            }
+          >
+            {statusColor && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />}
+            {pe.empresas.nombre.split(" ")[0]}
+            {statusName && <span className="text-[10px] opacity-80">· {statusName}</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Nota grupo cell (100 chars, only for parent row) ── */
+function NotaGrupoCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void }) {
+  const [value, setValue] = useState((proyecto as any).nota_grupo || "");
+  const [saved, setSaved] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setValue((proyecto as any).nota_grupo || "");
+  }, [(proyecto as any).nota_grupo]);
+
+  const handleChange = (text: string) => {
+    if (text.length > 100) return;
+    setValue(text);
+    setSaved(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onSave({ id: proyecto.id, nota_grupo: text });
+      setSaved(true);
+    }, 800);
+  };
+
+  return (
+    <div className="relative">
+      <textarea
+        className="w-full min-h-[32px] max-h-[60px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        placeholder="Nota del proyecto..."
+        value={value}
+        maxLength={100}
+        onChange={(e) => handleChange(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+      />
+      <span className="absolute bottom-0.5 right-2 text-[9px] text-muted-foreground">
+        {value.length}/100{!saved && " · guardando..."}
+      </span>
     </div>
   );
 }
