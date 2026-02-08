@@ -34,6 +34,7 @@ export default function Proyectos() {
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [addLineSource, setAddLineSource] = useState<ProyectoWithEmpresas | null>(null);
+  const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -175,9 +176,14 @@ export default function Proyectos() {
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Agregar línea" onClick={(e) => { e.stopPropagation(); setAddLineSource(items[0]); }}>
-                          <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
+                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Agregar línea" onClick={(e) => { e.stopPropagation(); setAddLineSource(items[0]); }}>
+                            <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                     <AnimatePresence>
@@ -264,16 +270,76 @@ export default function Proyectos() {
           }}
         />
       )}
-      {/* Edit dialog */}
+      {/* Edit child row dialog */}
       {editTarget && (
         <ProyectoFormDialog
           open={!!editTarget}
           onOpenChange={(val) => !val && setEditTarget(null)}
           mode="edit"
           initialData={editTarget}
+          isChildRow
           isLoading={updateProyecto.isPending}
           onSubmit={(data) => {
             updateProyecto.mutate({ ...data, id: editTarget.id }, { onSuccess: () => setEditTarget(null) });
+          }}
+        />
+      )}
+
+      {/* Edit parent group dialog (ubicación + contactos apply to all rows) */}
+      {editParentGroup && (
+        <ProyectoFormDialog
+          open={!!editParentGroup}
+          onOpenChange={(val) => !val && setEditParentGroup(null)}
+          mode="edit"
+          initialData={editParentGroup[0]}
+          isLoading={updateProyecto.isPending}
+          onSubmit={async (data) => {
+            // Update all rows in the group with shared fields (ubicación, contactos, estados)
+            const sharedFields = {
+              nombre: data.nombre,
+              region: data.region,
+              direccion: data.direccion,
+              comuna: data.comuna,
+              estado_obra: data.estado_obra,
+              fecha_estado_obra: data.fecha_estado_obra,
+              estado_amc: data.estado_amc,
+              fecha_ingreso: data.fecha_ingreso,
+              clasificacion_id: data.clasificacion_id,
+              arq_nombre: data.arq_nombre,
+              arq_contacto: data.arq_contacto,
+              arq_mail: data.arq_mail,
+              arq_telefono: data.arq_telefono,
+              const_nombre: data.const_nombre,
+              const_contacto: data.const_contacto,
+              const_mail: data.const_mail,
+              const_telefono: data.const_telefono,
+              ito_nombre: data.ito_nombre,
+              ito_contacto: data.ito_contacto,
+              ito_mail: data.ito_mail,
+              ito_telefono: data.ito_telefono,
+              duenos_nombre: data.duenos_nombre,
+              duenos_contacto: data.duenos_contacto,
+              duenos_mail: data.duenos_mail,
+              duenos_telefono: data.duenos_telefono,
+            };
+            // Update each row preserving its own empresa_links
+            for (const p of editParentGroup) {
+              const existingLinks = (p.proyecto_empresas || []).map((pe) => ({
+                empresa_id: pe.empresa_id,
+                monto_cotizacion: (pe as any).monto_cotizacion || 0,
+                adjudicado: pe.adjudicado,
+                categoria_id: (pe as any).categoria_id || null,
+                subcategoria_id: (pe as any).subcategoria_id || null,
+              }));
+              await updateProyecto.mutateAsync({
+                ...sharedFields,
+                notas: p.notas || "",
+                monto_estimado: null,
+                empresa_links: existingLinks,
+                id: p.id,
+              });
+            }
+            setEditParentGroup(null);
           }}
         />
       )}

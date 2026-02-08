@@ -27,6 +27,8 @@ interface Props {
   isLoading?: boolean;
   initialData?: ProyectoWithEmpresas;
   mode: "create" | "edit";
+  /** When true, hides Ubicación and Contactos (child row editing) */
+  isChildRow?: boolean;
 }
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
@@ -39,7 +41,7 @@ interface EmpresaRow {
   subcategoria_id: string | null;
 }
 
-export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode }: Props) {
+export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow }: Props) {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -422,6 +424,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                 <p className="text-[10px] text-muted-foreground text-right">{notas.length}/500</p>
               </div>
 
+              {!isChildRow && (<>
               {/* Collapsible: Ubicación */}
               <CollapsibleSection title="Ubicación" defaultOpen={false}>
                 <div className="space-y-3">
@@ -482,6 +485,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                   ))}
                 </div>
               </CollapsibleSection>
+              </>)}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-border">
                 <Button type="button" variant="outline" onClick={() => handleRequestClose(false)}>Cancelar</Button>
