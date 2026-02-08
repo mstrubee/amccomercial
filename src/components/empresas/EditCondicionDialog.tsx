@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CondicionRow } from "@/hooks/useEmpresas";
+import MontoInput from "./MontoInput";
 
 interface Props {
   open: boolean;
@@ -16,6 +17,7 @@ interface Props {
 export default function EditCondicionDialog({ open, onOpenChange, onSubmit, isLoading, condicion }: Props) {
   const [fee, setFee] = useState(condicion.fee_fijo_mensual);
   const [comision, setComision] = useState(condicion.esquema_comision);
+  const [comisionDisplay, setComisionDisplay] = useState(String(condicion.esquema_comision || ""));
   const [fecha, setFecha] = useState(condicion.fecha_vigencia);
   const [descripcion, setDescripcion] = useState(condicion.descripcion || "");
 
@@ -23,6 +25,7 @@ export default function EditCondicionDialog({ open, onOpenChange, onSubmit, isLo
     if (open) {
       setFee(condicion.fee_fijo_mensual);
       setComision(condicion.esquema_comision);
+      setComisionDisplay(condicion.esquema_comision ? String(condicion.esquema_comision) : "");
       setFecha(condicion.fecha_vigencia);
       setDescripcion(condicion.descripcion || "");
     }
@@ -41,13 +44,19 @@ export default function EditCondicionDialog({ open, onOpenChange, onSubmit, isLo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Fee Mensual (CLP)</Label>
-              <Input type="number" min={0} value={fee} onChange={(e) => setFee(Number(e.target.value))} />
-            </div>
-            <div className="space-y-2">
+            <MontoInput label="Fee Mensual" value={fee} onChange={setFee} />
+            <div className="space-y-1">
               <Label>Comisión (%)</Label>
-              <Input type="number" min={0} step={0.1} value={comision} onChange={(e) => setComision(Number(e.target.value))} />
+              <Input
+                type="number"
+                min={0}
+                step={0.1}
+                value={comisionDisplay}
+                onChange={(e) => { setComisionDisplay(e.target.value); setComision(parseFloat(e.target.value) || 0); }}
+                onFocus={(e) => { if (e.target.value === "0") setComisionDisplay(""); }}
+                onBlur={() => { if (comisionDisplay === "") setComisionDisplay(comision ? String(comision) : ""); }}
+                placeholder="0"
+              />
             </div>
           </div>
           <div className="space-y-2">

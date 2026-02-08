@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import MontoInput from "./MontoInput";
 
 interface EmpresaFormData {
   nombre: string;
@@ -33,6 +34,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, onSubmit, isLoad
   const [fechaInicio, setFechaInicio] = useState(initialData?.fecha_inicio_relacion || new Date().toISOString().split("T")[0]);
   const [fee, setFee] = useState(0);
   const [comision, setComision] = useState(0);
+  const [comisionDisplay, setComisionDisplay] = useState("");
   const [descripcion, setDescripcion] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -48,7 +50,6 @@ export default function EmpresaFormDialog({ open, onOpenChange, onSubmit, isLoad
     });
   };
 
-  // Reset form when dialog opens
   const handleOpenChange = (val: boolean) => {
     if (val) {
       setNombre(initialData?.nombre || "");
@@ -56,6 +57,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, onSubmit, isLoad
       setFechaInicio(initialData?.fecha_inicio_relacion || new Date().toISOString().split("T")[0]);
       setFee(0);
       setComision(0);
+      setComisionDisplay("");
       setDescripcion("");
     }
     onOpenChange(val);
@@ -96,13 +98,20 @@ export default function EmpresaFormDialog({ open, onOpenChange, onSubmit, isLoad
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Condición Comercial Inicial</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fee">Fee Mensual (CLP)</Label>
-                  <Input id="fee" type="number" min={0} value={fee} onChange={(e) => setFee(Number(e.target.value))} />
-                </div>
-                <div className="space-y-2">
+                <MontoInput label="Fee Mensual" value={fee} onChange={setFee} id="fee" />
+                <div className="space-y-1">
                   <Label htmlFor="comision">Comisión (%)</Label>
-                  <Input id="comision" type="number" min={0} step={0.1} value={comision} onChange={(e) => setComision(Number(e.target.value))} />
+                  <Input
+                    id="comision"
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={comisionDisplay}
+                    onChange={(e) => { setComisionDisplay(e.target.value); setComision(parseFloat(e.target.value) || 0); }}
+                    onFocus={(e) => { if (e.target.value === "0") setComisionDisplay(""); }}
+                    onBlur={() => { if (comisionDisplay === "") setComisionDisplay(comision ? String(comision) : ""); }}
+                    placeholder="0"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
