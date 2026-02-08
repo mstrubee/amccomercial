@@ -9,9 +9,11 @@ import Dashboard from "@/pages/Dashboard";
 import Empresas from "@/pages/Empresas";
 import Proyectos from "@/pages/Proyectos";
 import Finanzas from "@/pages/Finanzas";
+import Alertas from "@/pages/Alertas";
 import Usuarios from "@/pages/Usuarios";
 import Auth from "@/pages/Auth";
 import NotFound from "./pages/NotFound";
+import AlertaWidget from "@/components/alertas/AlertaWidget";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -38,9 +40,11 @@ function AppRoutes() {
         <Route path="/empresas" element={<Empresas />} />
         <Route path="/proyectos" element={<Proyectos />} />
         <Route path="/finanzas" element={<Finanzas />} />
+        <Route path="/alertas" element={<Alertas />} />
         {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <AlertaWidget />
     </AppLayout>
   );
 }

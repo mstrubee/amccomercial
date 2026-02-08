@@ -5,6 +5,7 @@ import {
   Building2,
   FolderKanban,
   TrendingUp,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Users,
@@ -29,6 +30,7 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: P
     { path: "/empresas", label: "Empresas", icon: Building2 },
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp },
+    { path: "/alertas", label: "Alertas", icon: Bell },
     ...(isAdmin ? [{ path: "/usuarios", label: "Usuarios", icon: Users }] : []),
   ];
 
