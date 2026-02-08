@@ -185,8 +185,7 @@ export default function Proyectos() {
                           >
                             <td className="px-5 py-3 text-muted-foreground pl-10">{p.numero}</td>
                             <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
-                            <td className="px-5 py-3"></td>
-                            <td className="px-5 py-3" colSpan={3}>
+                            <td className="px-5 py-3" colSpan={4}>
                               <NotasCell proyecto={p} onSave={updateNotas.mutate} />
                             </td>
                             <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
