@@ -46,6 +46,8 @@ export interface ProyectoInput {
   estado_amc: string;
   monto_estimado: number | null;
   notas: string;
+  fecha_ingreso: string;
+  clasificacion_id: string | null;
   arq_nombre: string;
   arq_contacto: string;
   arq_mail: string;
@@ -69,12 +71,12 @@ export function useCreateProyecto() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ProyectoInput) => {
-      const { empresa_links, ...rest } = input;
+      const { empresa_links, fecha_ingreso, clasificacion_id, ...rest } = input;
       // Determine adjudicado at project level from any empresa adjudicada
       const adjudicado = empresa_links.some((el) => el.adjudicado);
       const { data: proyecto, error } = await supabase
         .from("proyectos")
-        .insert({ ...rest, adjudicado })
+        .insert({ ...rest, adjudicado, fecha_ingreso, clasificacion_id } as any)
         .select()
         .single();
       if (error) throw error;
@@ -106,11 +108,11 @@ export function useUpdateProyecto() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ProyectoInput & { id: string }) => {
-      const { empresa_links, id, ...rest } = input;
+      const { empresa_links, id, fecha_ingreso, clasificacion_id, ...rest } = input;
       const adjudicado = empresa_links.some((el) => el.adjudicado);
       const { error } = await supabase
         .from("proyectos")
-        .update({ ...rest, adjudicado })
+        .update({ ...rest, adjudicado, fecha_ingreso, clasificacion_id } as any)
         .eq("id", id);
       if (error) throw error;
 
