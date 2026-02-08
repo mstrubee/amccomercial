@@ -1,0 +1,267 @@
+import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import KpiCard from "@/components/dashboard/KpiCard";
+import {
+  useAlertas,
+  useCreateAlerta,
+  useUpdateAlerta,
+  useDeleteAlerta,
+  useToggleAlertaCompletada,
+  AlertaWithRelations,
+  AlertaInput,
+} from "@/hooks/useAlertas";
+import { useEmpresas } from "@/hooks/useEmpresas";
+import { useProyectos } from "@/hooks/useProyectos";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { format, isToday, isBefore, startOfDay, addDays } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+
+type FilterTab = "todas" | "activas" | "7dias" | "30dias" | "vencidas";
+
+export default function Alertas() {
+  const { data: alertas, isLoading } = useAlertas();
+  const { data: empresas } = useEmpresas();
+  const { data: proyectosRaw } = useProyectos();
+  const { user } = useAuth();
+  const createAlerta = useCreateAlerta();
+  const updateAlerta = useUpdateAlerta();
+  const deleteAlerta = useDeleteAlerta();
+  const toggleCompletada = useToggleAlertaCompletada();
+
+  const { data: profiles } = useQuery({
+    queryKey: ["profiles-all"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      return data || [];
+    },
+  });
+
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<FilterTab>("activas");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<AlertaWithRelations | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const today = startOfDay(new Date());
+  const in7 = addDays(today, 7);
+  const in30 = addDays(today, 30);
+
+  const proyectosList = useMemo(() => {
+    if (!proyectosRaw) return [];
+    const seen = new Map<string, { id: string; nombre: string; numero: number }>();
+    proyectosRaw.forEach((p) => {
+      if (!seen.has(p.nombre)) {
+        seen.set(p.nombre, { id: p.id, nombre: p.nombre, numero: p.numero });
+      }
+    });
+    return Array.from(seen.values()).sort((a, b) => a.numero - b.numero);
+  }, [proyectosRaw]);
+
+  const stats = useMemo(() => {
+    if (!alertas) return { total: 0, activas: 0, prox7: 0, prox30: 0, vencidas: 0 };
+    const activas = alertas.filter((a) => !a.completada);
+    const vencidas = activas.filter((a) => isBefore(new Date(a.fecha_seguimiento), today));
+    const prox7 = activas.filter((a) => {
+      const d = new Date(a.fecha_seguimiento);
+      return d >= today && d <= in7;
+    });
+    const prox30 = activas.filter((a) => {
+      const d = new Date(a.fecha_seguimiento);
+      return d >= today && d <= in30;
+    });
+    return { total: alertas.length, activas: activas.length, prox7: prox7.length, prox30: prox30.length, vencidas: vencidas.length };
+  }, [alertas, today, in7, in30]);
+
+  const filtered = useMemo(() => {
+    if (!alertas) return [];
+    let list = alertas;
+    if (activeTab === "activas") list = list.filter((a) => !a.completada);
+    else if (activeTab === "vencidas") list = list.filter((a) => !a.completada && isBefore(new Date(a.fecha_seguimiento), today));
+    else if (activeTab === "7dias") list = list.filter((a) => !a.completada && new Date(a.fecha_seguimiento) >= today && new Date(a.fecha_seguimiento) <= in7);
+    else if (activeTab === "30dias") list = list.filter((a) => !a.completada && new Date(a.fecha_seguimiento) >= today && new Date(a.fecha_seguimiento) <= in30);
+
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      list = list.filter((a) =>
+        a.texto.toLowerCase().includes(s) ||
+        a.proyectos?.nombre?.toLowerCase().includes(s) ||
+        a.empresas?.nombre?.toLowerCase().includes(s)
+      );
+    }
+    return list;
+  }, [alertas, activeTab, search, today, in7, in30]);
+
+  const handleSubmit = (data: AlertaInput & { id?: string }) => {
+    if (data.empresa_id === "none") data.empresa_id = null;
+    if (data.id) {
+      updateAlerta.mutate(data as AlertaInput & { id: string });
+    } else {
+      createAlerta.mutate(data);
+    }
+  };
+
+  const isVencida = (a: AlertaWithRelations) => !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
+
+  const tabs: { key: FilterTab; label: string; count: number }[] = [
+    { key: "todas", label: "Todas", count: stats.total },
+    { key: "activas", label: "Activas", count: stats.activas },
+    { key: "7dias", label: "Próx. 7 días", count: stats.prox7 },
+    { key: "30dias", label: "Próx. 30 días", count: stats.prox30 },
+    { key: "vencidas", label: "Vencidas", count: stats.vencidas },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Central de Alertas</h1>
+          <p className="text-muted-foreground mt-1">Gestión y seguimiento de alertas por proyecto</p>
+        </div>
+        <Button onClick={() => { setEditTarget(null); setDialogOpen(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Nueva Alerta
+        </Button>
+      </motion.div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <KpiCard title="Total Alertas" value={String(stats.total)} icon={Bell} variant="default" delay={0} />
+        <KpiCard title="Activas" value={String(stats.activas)} icon={Circle} variant="info" delay={0.05} />
+        <KpiCard title="Próx. 7 días" value={String(stats.prox7)} icon={Clock} variant="warning" delay={0.1} />
+        <KpiCard title="Próx. 30 días" value={String(stats.prox30)} icon={CalendarDays} variant="success" delay={0.15} />
+        <KpiCard title="Vencidas" value={String(stats.vencidas)} icon={AlertTriangle} variant="warning" delay={0.2} />
+      </div>
+
+      {/* Tabs + Search */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex gap-1 bg-muted p-1 rounded-lg">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                activeTab === t.key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar alertas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-10">Estado</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerta</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresa</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsable</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Seguimiento</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
+              )}
+              {filtered.map((a) => (
+                <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", isVencida(a) && "bg-destructive/5")}>
+                  <td className="px-5 py-3">
+                    <button onClick={() => toggleCompletada.mutate({ id: a.id, completada: !a.completada })}>
+                      {a.completada
+                        ? <CheckCircle2 className="w-5 h-5 text-success" />
+                        : <Circle className={cn("w-5 h-5", isVencida(a) ? "text-destructive" : "text-muted-foreground")} />
+                      }
+                    </button>
+                  </td>
+                  <td className={cn("px-5 py-3 font-medium max-w-[200px]", a.completada ? "line-through text-muted-foreground" : "text-card-foreground")}>
+                    {a.texto}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">
+                    {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">{a.empresas?.nombre || "—"}</td>
+                  <td className="px-5 py-3 text-muted-foreground">
+                    {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
+                  </td>
+                  <td className={cn("px-5 py-3 text-sm", isVencida(a) ? "text-destructive font-medium" : "text-muted-foreground")}>
+                    {format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
+                    {isVencida(a) && <span className="ml-1 text-xs">(vencida)</span>}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditTarget(a); setDialogOpen(true); }}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(a.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Form Dialog */}
+      <AlertaFormDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditTarget(null); }}
+        onSubmit={handleSubmit}
+        editTarget={editTarget}
+        proyectos={proyectosList}
+        empresas={empresas || []}
+        profiles={profiles || []}
+        currentUserId={user?.id || ""}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar alerta?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (deleteTarget) deleteAlerta.mutate(deleteTarget); setDeleteTarget(null); }}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

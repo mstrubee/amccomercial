@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas: {
+        Row: {
+          completada: boolean
+          created_at: string
+          created_by: string
+          empresa_id: string | null
+          fecha_seguimiento: string
+          id: string
+          proyecto_id: string
+          texto: string
+          updated_at: string
+          usuario_responsable_id: string
+        }
+        Insert: {
+          completada?: boolean
+          created_at?: string
+          created_by: string
+          empresa_id?: string | null
+          fecha_seguimiento: string
+          id?: string
+          proyecto_id: string
+          texto: string
+          updated_at?: string
+          usuario_responsable_id: string
+        }
+        Update: {
+          completada?: boolean
+          created_at?: string
+          created_by?: string
+          empresa_id?: string | null
+          fecha_seguimiento?: string
+          id?: string
+          proyecto_id?: string
+          texto?: string
+          updated_at?: string
+          usuario_responsable_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_proyecto_id_fkey"
+            columns: ["proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias_proyecto: {
         Row: {
           color: string
