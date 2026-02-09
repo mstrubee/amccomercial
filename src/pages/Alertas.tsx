@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
+import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -53,6 +54,8 @@ export default function Alertas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<AlertaWithRelations | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string }>({});
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -198,9 +201,15 @@ export default function Alertas() {
               {filtered.map((a) => (
                 <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", isVencida(a) && "bg-destructive/5")}>
                   <td className="px-5 py-3">
-                    <button onClick={() => toggleCompletada.mutate({ id: a.id, completada: !a.completada })}>
+                    <button onClick={() => {
+                      if (a.completada) {
+                        toggleCompletada.mutate({ id: a.id, completada: false });
+                      } else {
+                        setCompleteTarget(a);
+                      }
+                    }}>
                       {a.completada
-                        ? <CheckCircle2 className="w-5 h-5 text-success" />
+                        ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                         : <Circle className={cn("w-5 h-5", isVencida(a) ? "text-destructive" : "text-muted-foreground")} />
                       }
                     </button>
@@ -240,13 +249,15 @@ export default function Alertas() {
       {/* Form Dialog */}
       <AlertaFormDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditTarget(null); }}
+        onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); }}
         onSubmit={handleSubmit}
         editTarget={editTarget}
         proyectos={proyectosList}
         empresas={empresas || []}
         profiles={profiles || []}
         currentUserId={user?.id || ""}
+        defaultProyectoId={createDefaults.proyectoId}
+        defaultEmpresaId={createDefaults.empresaId}
       />
 
       {/* Delete Confirmation */}
@@ -264,6 +275,20 @@ export default function Alertas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Complete alert dialog */}
+      <CompleteAlertaDialog
+        alerta={completeTarget}
+        open={!!completeTarget}
+        onClose={() => setCompleteTarget(null)}
+        onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
+        onCompleteAndCreate={(a) => {
+          toggleCompletada.mutate({ id: a.id, completada: true });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined });
+          setEditTarget(null);
+          setDialogOpen(true);
+        }}
+      />
     </div>
   );
 }
