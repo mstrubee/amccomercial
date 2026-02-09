@@ -14,6 +14,13 @@ export interface AlertaRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+  parent_alerta_id: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  updated_by: string | null;
+  deleted: boolean;
+  deleted_by: string | null;
+  deleted_at: string | null;
 }
 
 export interface AlertaWithRelations extends AlertaRow {
@@ -29,10 +36,10 @@ export function useAlertas() {
       const { data, error } = await supabase
         .from("alertas")
         .select("*, proyectos(id, nombre, numero), empresas(id, nombre)")
+        .eq("deleted", false)
         .order("fecha_seguimiento", { ascending: true });
       if (error) throw error;
 
-      // Fetch profiles for responsable
       const userIds = [...new Set((data || []).map((a: any) => a.usuario_responsable_id))];
       let profilesMap: Record<string, { display_name: string; email: string }> = {};
       if (userIds.length > 0) {
@@ -55,6 +62,42 @@ export function useAlertas() {
   });
 }
 
+/** Fetch all alertas including deleted (for tree view and restore) */
+export function useAllAlertas() {
+  return useQuery({
+    queryKey: ["alertas-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("alertas")
+        .select("*, proyectos(id, nombre, numero), empresas(id, nombre)")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+
+      const userIds = [...new Set((data || []).flatMap((a: any) => [
+        a.usuario_responsable_id, a.created_by, a.completed_by, a.updated_by, a.deleted_by,
+      ].filter(Boolean)))];
+      let profilesMap: Record<string, { display_name: string; email: string }> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, email")
+          .in("user_id", userIds);
+        if (profiles) {
+          profiles.forEach((p: any) => {
+            profilesMap[p.user_id] = { display_name: p.display_name, email: p.email };
+          });
+        }
+      }
+
+      return (data || []).map((a: any) => ({
+        ...a,
+        responsable_profile: profilesMap[a.usuario_responsable_id] || null,
+        _profilesMap: profilesMap,
+      })) as (AlertaWithRelations & { _profilesMap: Record<string, { display_name: string; email: string }> })[];
+    },
+  });
+}
+
 export interface AlertaInput {
   proyecto_id: string;
   empresa_id: string | null;
@@ -62,6 +105,7 @@ export interface AlertaInput {
   texto: string;
   usuario_responsable_id: string;
   fecha_seguimiento: string;
+  parent_alerta_id?: string | null;
 }
 
 export function useCreateAlerta() {
@@ -70,14 +114,17 @@ export function useCreateAlerta() {
     mutationFn: async (input: AlertaInput) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
+      const { parent_alerta_id, ...rest } = input;
       const { error } = await supabase.from("alertas").insert({
-        ...input,
+        ...rest,
         created_by: user.id,
+        ...(parent_alerta_id ? { parent_alerta_id } : {}),
       } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
+      qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta creada exitosamente");
     },
     onError: (e) => toast.error("Error al crear alerta: " + e.message),
@@ -88,15 +135,18 @@ export function useUpdateAlerta() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: AlertaInput & { id: string }) => {
-      const { id, ...rest } = input;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No autenticado");
+      const { id, parent_alerta_id, ...rest } = input;
       const { error } = await supabase
         .from("alertas")
-        .update(rest as any)
+        .update({ ...rest, updated_by: user.id } as any)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
+      qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta actualizada");
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
@@ -107,30 +157,68 @@ export function useToggleAlertaCompletada() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, completada }: { id: string; completada: boolean }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No autenticado");
+      const updateData: any = { completada };
+      if (completada) {
+        updateData.completed_by = user.id;
+        updateData.completed_at = new Date().toISOString();
+      } else {
+        updateData.completed_by = null;
+        updateData.completed_at = null;
+      }
       const { error } = await supabase
         .from("alertas")
-        .update({ completada } as any)
+        .update(updateData)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
+      qc.invalidateQueries({ queryKey: ["alertas-all"] });
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
 
+/** Soft delete */
 export function useDeleteAlerta() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("alertas").delete().eq("id", id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No autenticado");
+      const { error } = await supabase
+        .from("alertas")
+        .update({ deleted: true, deleted_by: user.id, deleted_at: new Date().toISOString() } as any)
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
+      qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta eliminada");
     },
     onError: (e) => toast.error("Error al eliminar: " + e.message),
+  });
+}
+
+/** Restore soft-deleted alert */
+export function useRestoreAlerta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("alertas")
+        .update({ deleted: false, deleted_by: null, deleted_at: null } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alertas"] });
+      qc.invalidateQueries({ queryKey: ["alertas-all"] });
+      toast.success("Alerta restaurada");
+    },
+    onError: (e) => toast.error("Error al restaurar: " + e.message),
   });
 }

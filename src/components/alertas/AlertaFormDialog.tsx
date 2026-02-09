@@ -21,9 +21,11 @@ interface Props {
   defaultProyectoId?: string;
   defaultEmpresaId?: string;
   defaultTexto?: string;
+  /** ID of the parent alert (when creating follow-up from completed alert) */
+  parentAlertaId?: string | null;
 }
 
-export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto }: Props) {
+export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto, parentAlertaId }: Props) {
   const [proyectoId, setProyectoId] = useState("");
   const [empresaId, setEmpresaId] = useState<string>("");
   const [titulo, setTitulo] = useState("");
@@ -61,6 +63,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       texto: texto.trim(),
       usuario_responsable_id: responsableId,
       fecha_seguimiento: fechaSeguimiento,
+      ...(!editTarget && parentAlertaId ? { parent_alerta_id: parentAlertaId } : {}),
     });
     onClose();
   };
@@ -70,6 +73,9 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editTarget ? "Editar Alerta" : "Nueva Alerta"}</DialogTitle>
+          {parentAlertaId && !editTarget && (
+            <p className="text-xs text-muted-foreground mt-1">🔗 Esta alerta será vinculada como seguimiento de la anterior</p>
+          )}
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">

@@ -35,7 +35,7 @@ export default function AlertaWidget() {
 
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
 
   const today = startOfDay(new Date());
   const endOfWeek = addDays(today, 7);
@@ -149,7 +149,7 @@ export default function AlertaWidget() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           toggleCompletada.mutate({ id: a.id, completada: true });
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
           setCreateDialogOpen(true);
         }}
       />
@@ -165,6 +165,7 @@ export default function AlertaWidget() {
         currentUserId={user?.id || ""}
         defaultProyectoId={createDefaults.proyectoId}
         defaultEmpresaId={createDefaults.empresaId}
+        parentAlertaId={createDefaults.parentAlertaId}
       />
     </>
   );

@@ -17,41 +17,62 @@ export type Database = {
       alertas: {
         Row: {
           completada: boolean
+          completed_at: string | null
+          completed_by: string | null
           created_at: string
           created_by: string
+          deleted: boolean
+          deleted_at: string | null
+          deleted_by: string | null
           empresa_id: string | null
           fecha_seguimiento: string
           id: string
+          parent_alerta_id: string | null
           proyecto_id: string
           texto: string
           titulo: string
           updated_at: string
+          updated_by: string | null
           usuario_responsable_id: string
         }
         Insert: {
           completada?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
           created_at?: string
           created_by: string
+          deleted?: boolean
+          deleted_at?: string | null
+          deleted_by?: string | null
           empresa_id?: string | null
           fecha_seguimiento: string
           id?: string
+          parent_alerta_id?: string | null
           proyecto_id: string
           texto: string
           titulo?: string
           updated_at?: string
+          updated_by?: string | null
           usuario_responsable_id: string
         }
         Update: {
           completada?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
           created_at?: string
           created_by?: string
+          deleted?: boolean
+          deleted_at?: string | null
+          deleted_by?: string | null
           empresa_id?: string | null
           fecha_seguimiento?: string
           id?: string
+          parent_alerta_id?: string | null
           proyecto_id?: string
           texto?: string
           titulo?: string
           updated_at?: string
+          updated_by?: string | null
           usuario_responsable_id?: string
         }
         Relationships: [
@@ -60,6 +81,13 @@ export type Database = {
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_parent_alerta_id_fkey"
+            columns: ["parent_alerta_id"]
+            isOneToOne: false
+            referencedRelation: "alertas"
             referencedColumns: ["id"]
           },
           {

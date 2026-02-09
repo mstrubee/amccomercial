@@ -45,7 +45,7 @@ export default function Proyectos() {
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
-  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string } | null>(null);
+  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: alertas } = useAlertas();
@@ -528,6 +528,7 @@ export default function Proyectos() {
           defaultProyectoId={alertaCreateContext.proyecto_id}
           defaultEmpresaId={alertaCreateContext.empresa_id || undefined}
           defaultTexto={alertaCreateContext.defaultTexto}
+          parentAlertaId={alertaCreateContext.parentAlertaId}
         />
       )}
 
@@ -555,7 +556,7 @@ export default function Proyectos() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar alerta?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogDescription>La alerta será movida a la papelera y podrá ser restaurada.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -577,7 +578,7 @@ export default function Proyectos() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           toggleCompletada.mutate({ id: a.id, completada: true });
-          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null });
+          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id });
         }}
       />
 
