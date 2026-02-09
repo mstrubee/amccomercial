@@ -36,7 +36,19 @@ function buildTree(
     const children = byParent.get(parentId || "__root__") || [];
     return children
       .slice()
-      .reverse()
+      .sort((a, b) => {
+        // Non-completed first
+        if (!a.completada && b.completada) return -1;
+        if (a.completada && !b.completada) return 1;
+        // Among completed: newest completed_at first (oldest at bottom)
+        if (a.completada && b.completada) {
+          const da = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+          const db = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+          return db - da;
+        }
+        // Among non-completed: by fecha_seguimiento ascending
+        return new Date(a.fecha_seguimiento).getTime() - new Date(b.fecha_seguimiento).getTime();
+      })
       .map(a => ({
         alerta: a,
         children: build(a.id),
