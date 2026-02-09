@@ -19,9 +19,10 @@ interface Props {
   currentUserId: string;
   defaultProyectoId?: string;
   defaultEmpresaId?: string;
+  defaultTexto?: string;
 }
 
-export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId }: Props) {
+export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto }: Props) {
   const [proyectoId, setProyectoId] = useState("");
   const [empresaId, setEmpresaId] = useState<string>("");
   const [texto, setTexto] = useState("");
@@ -38,7 +39,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
     } else {
       setProyectoId(defaultProyectoId || "");
       setEmpresaId(defaultEmpresaId || "");
-      setTexto("");
+      setTexto(defaultTexto || "");
       setResponsableId(currentUserId);
       setFechaSeguimiento("");
     }
