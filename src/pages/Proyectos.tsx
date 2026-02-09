@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const ESTADOS_AMC = ["Todos", "Vigente", "Todo Ofrecido", "Sin Respuesta", "Descartado"];
+const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
@@ -38,6 +39,7 @@ export default function Proyectos() {
   const [filterEstado, setFilterEstado] = useState("Todos");
   const [filterEmpresa, setFilterEmpresa] = useState("Todas");
   const [filterCategoria, setFilterCategoria] = useState("Todas");
+  const [filterEstadoObra, setFilterEstadoObra] = useState("Todos");
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -120,13 +122,14 @@ export default function Proyectos() {
       p.nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.comuna.toLowerCase().includes(search.toLowerCase());
     const matchEstado = filterEstado === "Todos" || p.estado_amc === filterEstado;
+    const matchEstadoObra = filterEstadoObra === "Todos" || p.estado_obra === filterEstadoObra;
     const matchEmpresa =
       filterEmpresa === "Todas" ||
       p.proyecto_empresas?.some((pe) => pe.empresa_id === filterEmpresa);
     const matchCategoria =
       filterCategoria === "Todas" ||
       p.proyecto_empresas?.some((pe) => pe.categoria_id === filterCategoria || pe.subcategoria_id === filterCategoria);
-    return matchSearch && matchEstado && matchEmpresa && matchCategoria;
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria;
   });
 
   // Group projects by name
@@ -216,19 +219,26 @@ export default function Proyectos() {
           <Input placeholder="Buscar por nombre o comuna..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {ESTADOS_AMC.map((estado) => (
-            <button
-              key={estado}
-              onClick={() => setFilterEstado(estado)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                filterEstado === estado
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:bg-secondary"
-              }`}
-            >
-              {estado}
-            </button>
-          ))}
+          <Select value={filterEstado} onValueChange={setFilterEstado}>
+            <SelectTrigger className="w-[170px] h-8 text-xs">
+              <SelectValue placeholder="Estado AMC" />
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADOS_AMC.map((estado) => (
+                <SelectItem key={estado} value={estado}>{estado === "Todos" ? "Todos los estados AMC" : estado}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterEstadoObra} onValueChange={setFilterEstadoObra}>
+            <SelectTrigger className="w-[190px] h-8 text-xs">
+              <SelectValue placeholder="Estado Obra" />
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADOS_OBRA.map((estado) => (
+                <SelectItem key={estado} value={estado}>{estado === "Todos" ? "Todos los estados obra" : estado}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
             <SelectTrigger className="w-[180px] h-8 text-xs">
               <SelectValue placeholder="Filtrar empresa" />
