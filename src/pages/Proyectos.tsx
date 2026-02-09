@@ -42,7 +42,7 @@ export default function Proyectos() {
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null } | null>(null);
+  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string } | null>(null);
 
   const { data: alertas } = useAlertas();
   const createAlerta = useCreateAlerta();
@@ -282,10 +282,18 @@ export default function Proyectos() {
                               exit={{ opacity: 0, height: 0 }}
                               className={`hover:bg-secondary/30 transition-colors ${childBg}`}
                             >
-                              <td className="px-5 py-3 text-muted-foreground pl-10">{parentNum}.{childIdx + 1}</td>
-                              <td className="px-5 py-3 pl-10" colSpan={5}></td>
-                              <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
-                              <td className="px-5 py-3 text-right">
+                              <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
+                              <td colSpan={2} className="px-5 py-2 align-top">
+                                <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
+                              </td>
+                              <td colSpan={2} className="px-5 py-2 align-top">
+                                <AlertasCollapsible alertas={childAlertas} />
+                              </td>
+                              <td className="px-5 py-2 align-top">
+                                <AlertaResponsableList alertas={childAlertas} />
+                              </td>
+                              <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+                              <td className="px-5 py-2 text-right align-top">
                                 <div className="flex justify-end gap-1">
                                   <Button variant="ghost" size="icon" className="h-7 w-7" title="Crear alerta" onClick={() => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null })}>
                                     <Bell className="w-3.5 h-3.5 text-muted-foreground" />
@@ -296,20 +304,6 @@ export default function Proyectos() {
                                 </div>
                               </td>
                             </motion.tr>
-                            {/* Detail row: notes + alerts + responsable */}
-                            <tr className={childBg}>
-                              <td className="pl-10"></td>
-                              <td colSpan={2} className="px-5 pb-2 pt-0">
-                                <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} />
-                              </td>
-                              <td colSpan={2} className="px-5 pb-2 pt-0 align-top">
-                                <AlertasCollapsible alertas={childAlertas} />
-                              </td>
-                              <td className="px-5 pb-2 pt-0 align-top">
-                                <AlertaResponsableList alertas={childAlertas} />
-                              </td>
-                              <td colSpan={2}></td>
-                            </tr>
                           </Fragment>
                         );
                       })}
@@ -487,6 +481,7 @@ export default function Proyectos() {
           currentUserId={currentUserId}
           defaultProyectoId={alertaCreateContext.proyecto_id}
           defaultEmpresaId={alertaCreateContext.empresa_id || undefined}
+          defaultTexto={alertaCreateContext.defaultTexto}
         />
       )}
 
@@ -752,7 +747,7 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
 }
 
 /* ── Inline notas cell ── */
-function NotasCell({ proyecto, onSave, maxLength = 500 }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; maxLength?: number }) {
+function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; maxLength?: number; onCreateAlerta?: (texto: string) => void }) {
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -775,16 +770,27 @@ function NotasCell({ proyecto, onSave, maxLength = 500 }: { proyecto: ProyectoWi
   return (
     <div className="relative">
       <textarea
-        className="w-full min-h-[48px] max-h-[100px] resize-y rounded-md border border-border bg-card/50 px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        placeholder="Notas del proyecto..."
+        className="w-full min-h-[36px] max-h-[80px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        placeholder="Notas..."
         value={value}
         maxLength={maxLength}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
-      <span className="absolute bottom-1 right-2 text-[9px] text-muted-foreground">
-        {value.length}/{maxLength}{!saved && " · guardando..."}
-      </span>
+      <div className="flex items-center justify-between mt-0.5">
+        {onCreateAlerta && value.trim() ? (
+          <button
+            className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
+            onClick={(e) => { e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
+            title="Crear alerta a partir de esta nota"
+          >
+            <Bell className="w-2.5 h-2.5" /> Crear alerta
+          </button>
+        ) : <span />}
+        <span className="text-[9px] text-muted-foreground">
+          {value.length}/{maxLength}{!saved && " · guardando..."}
+        </span>
+      </div>
     </div>
   );
 }
