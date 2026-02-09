@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
+import { useCategorias } from "@/hooks/useCategorias";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
@@ -36,6 +37,7 @@ export default function Proyectos() {
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState("Todos");
   const [filterEmpresa, setFilterEmpresa] = useState("Todas");
+  const [filterCategoria, setFilterCategoria] = useState("Todas");
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -50,6 +52,7 @@ export default function Proyectos() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: alertas } = useAlertas();
+  const { data: categorias } = useCategorias();
   const createAlerta = useCreateAlerta();
   const updateAlerta = useUpdateAlerta();
   const deleteAlertaMutation = useDeleteAlerta();
@@ -120,7 +123,10 @@ export default function Proyectos() {
     const matchEmpresa =
       filterEmpresa === "Todas" ||
       p.proyecto_empresas?.some((pe) => pe.empresa_id === filterEmpresa);
-    return matchSearch && matchEstado && matchEmpresa;
+    const matchCategoria =
+      filterCategoria === "Todas" ||
+      p.proyecto_empresas?.some((pe) => pe.categoria_id === filterCategoria || pe.subcategoria_id === filterCategoria);
+    return matchSearch && matchEstado && matchEmpresa && matchCategoria;
   });
 
   // Group projects by name
@@ -231,6 +237,32 @@ export default function Proyectos() {
               <SelectItem value="Todas">Todas las empresas</SelectItem>
               {empresas?.map((e) => (
                 <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterCategoria} onValueChange={setFilterCategoria}>
+            <SelectTrigger className="w-[180px] h-8 text-xs">
+              <SelectValue placeholder="Filtrar categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todas">Todas las categorías</SelectItem>
+              {categorias?.map((cat) => (
+                <Fragment key={cat.id}>
+                  <SelectItem value={cat.id}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                      {cat.nombre}
+                    </span>
+                  </SelectItem>
+                  {cat.subcategorias_proyecto?.map((sub) => (
+                    <SelectItem key={sub.id} value={sub.id}>
+                      <span className="flex items-center gap-1.5 pl-3">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                        {sub.nombre}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </Fragment>
               ))}
             </SelectContent>
           </Select>
