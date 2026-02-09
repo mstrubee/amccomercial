@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { isBefore, startOfDay, addDays, isToday, format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import CompleteAlertaDialog from "./CompleteAlertaDialog";
@@ -43,8 +44,8 @@ export default function AlertaWidget() {
   const relevantAlertas = useMemo(() => {
     if (!alertas) return [];
     return alertas
-      .filter((a) => !a.completada && isBefore(new Date(a.fecha_seguimiento), endOfWeek))
-      .sort((a, b) => new Date(a.fecha_seguimiento).getTime() - new Date(b.fecha_seguimiento).getTime());
+      .filter((a) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), endOfWeek))
+      .sort((a, b) => parseLocalDate(a.fecha_seguimiento).getTime() - parseLocalDate(b.fecha_seguimiento).getTime());
   }, [alertas, endOfWeek]);
 
   const proyectosList = useMemo(() => {
@@ -56,8 +57,8 @@ export default function AlertaWidget() {
     return Array.from(seen.values()).sort((a, b) => a.numero - b.numero);
   }, [proyectosRaw]);
 
-  const vencidasCount = relevantAlertas.filter((a) => isBefore(new Date(a.fecha_seguimiento), today)).length;
-  const hoyCount = relevantAlertas.filter((a) => isToday(new Date(a.fecha_seguimiento))).length;
+  const vencidasCount = relevantAlertas.filter((a) => isBefore(parseLocalDate(a.fecha_seguimiento), today)).length;
+  const hoyCount = relevantAlertas.filter((a) => isToday(parseLocalDate(a.fecha_seguimiento))).length;
 
   const handleSubmit = (data: AlertaInput & { id?: string }) => {
     if (data.empresa_id === "none") data.empresa_id = null;
@@ -97,8 +98,8 @@ export default function AlertaWidget() {
               <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="border-t border-border max-h-64 overflow-y-auto">
                   {relevantAlertas.map((a) => {
-                    const vencida = isBefore(new Date(a.fecha_seguimiento), today);
-                    const hoy = isToday(new Date(a.fecha_seguimiento));
+                    const vencida = isBefore(parseLocalDate(a.fecha_seguimiento), today);
+                    const hoy = isToday(parseLocalDate(a.fecha_seguimiento));
                     return (
                       <div
                         key={a.id}
@@ -130,7 +131,7 @@ export default function AlertaWidget() {
                           </button>
                         </div>
                         <span className={cn("text-[10px] font-medium shrink-0 mt-0.5", vencida ? "text-destructive" : hoy ? "text-warning" : "text-muted-foreground")}>
-                          {vencida ? "Vencida" : hoy ? "Hoy" : format(new Date(a.fecha_seguimiento), "dd MMM", { locale: es })}
+                          {vencida ? "Vencida" : hoy ? "Hoy" : format(parseLocalDate(a.fecha_seguimiento), "dd MMM", { locale: es })}
                         </span>
                       </div>
                     );
