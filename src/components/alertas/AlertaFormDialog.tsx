@@ -17,9 +17,11 @@ interface Props {
   empresas: Tables<"empresas">[];
   profiles: { user_id: string; display_name: string; email: string }[];
   currentUserId: string;
+  defaultProyectoId?: string;
+  defaultEmpresaId?: string;
 }
 
-export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId }: Props) {
+export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId }: Props) {
   const [proyectoId, setProyectoId] = useState("");
   const [empresaId, setEmpresaId] = useState<string>("");
   const [texto, setTexto] = useState("");
@@ -34,8 +36,8 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setResponsableId(editTarget.usuario_responsable_id);
       setFechaSeguimiento(editTarget.fecha_seguimiento);
     } else {
-      setProyectoId("");
-      setEmpresaId("");
+      setProyectoId(defaultProyectoId || "");
+      setEmpresaId(defaultEmpresaId || "");
       setTexto("");
       setResponsableId(currentUserId);
       setFechaSeguimiento("");
@@ -47,7 +49,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
     onSubmit({
       ...(editTarget ? { id: editTarget.id } : {}),
       proyecto_id: proyectoId,
-      empresa_id: empresaId || null,
+      empresa_id: empresaId && empresaId !== "none" ? empresaId : null,
       texto: texto.trim(),
       usuario_responsable_id: responsableId,
       fecha_seguimiento: fechaSeguimiento,

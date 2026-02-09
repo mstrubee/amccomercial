@@ -1,14 +1,18 @@
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
+import { useAlertas, useCreateAlerta } from "@/hooks/useAlertas";
+import { supabase } from "@/integrations/supabase/client";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
+import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
+import { AlertasCollapsible, AlertaResponsableList, ParentAlertasDisplay } from "@/components/proyectos/AlertasInline";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -38,6 +42,22 @@ export default function Proyectos() {
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null } | null>(null);
+
+  const { data: alertas } = useAlertas();
+  const createAlerta = useCreateAlerta();
+
+  const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setCurrentUserId(data.user.id);
+    });
+    supabase.from("profiles").select("user_id, display_name, email").then(({ data }) => {
+      if (data) setProfiles(data);
+    });
+  }, []);
 
   const filtered = (proyectos || []).filter((p) => {
     const matchSearch =
@@ -221,43 +241,78 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Crear alerta" onClick={(e) => { e.stopPropagation(); setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null }); }}>
+                            <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
                         </div>
                       </td>
                     </tr>
-                    {/* Parent note row - no separator from above */}
+                    {/* Parent note row */}
                     <tr className={evenBg}>
                       <td className="px-5 pb-2 pt-0" colSpan={8}>
                         <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} />
                       </td>
                     </tr>
+                    {/* Parent alerts row (alerts without empresa) */}
+                    {(() => {
+                      const groupIds = new Set(items.map(i => i.id));
+                      const parentAlertas = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
+                      return parentAlertas.filter(a => !a.completada).length > 0 ? (
+                        <tr className={evenBg} onClick={(e) => e.stopPropagation()}>
+                          <td colSpan={5} className="px-5 pb-2 pt-0"></td>
+                          <td colSpan={2} className="px-5 pb-2 pt-0">
+                            <ParentAlertasDisplay alertas={parentAlertas} />
+                          </td>
+                          <td className="px-5 pb-2 pt-0"></td>
+                        </tr>
+                      ) : null;
+                    })()}
                     <AnimatePresence>
-                      {expanded && items.map((p, childIdx) => (
-                        <Fragment key={p.id}>
-                          <motion.tr
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className={`hover:bg-secondary/30 transition-colors ${isEven ? "bg-muted/30" : "bg-secondary/10"}`}
-                          >
-                            <td className="px-5 py-3 text-muted-foreground pl-10">{parentNum}.{childIdx + 1}</td>
-                            <td className="px-5 py-3 pl-10"></td>
-                            <td className="px-5 py-3" colSpan={4}>
-                              <NotasCell proyecto={p} onSave={updateNotas.mutate} />
-                            </td>
-                            <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
-                            <td className="px-5 py-3 text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        </Fragment>
-                      ))}
+                      {expanded && items.map((p, childIdx) => {
+                        const childAlertas = (alertas || []).filter(a => a.proyecto_id === p.id);
+                        const childBg = isEven ? "bg-muted/30" : "bg-secondary/10";
+                        return (
+                          <Fragment key={p.id}>
+                            <motion.tr
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className={`hover:bg-secondary/30 transition-colors ${childBg}`}
+                            >
+                              <td className="px-5 py-3 text-muted-foreground pl-10">{parentNum}.{childIdx + 1}</td>
+                              <td className="px-5 py-3 pl-10" colSpan={5}></td>
+                              <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+                              <td className="px-5 py-3 text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Crear alerta" onClick={() => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null })}>
+                                    <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                </div>
+                              </td>
+                            </motion.tr>
+                            {/* Detail row: notes + alerts + responsable */}
+                            <tr className={childBg}>
+                              <td className="pl-10"></td>
+                              <td colSpan={2} className="px-5 pb-2 pt-0">
+                                <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} />
+                              </td>
+                              <td colSpan={2} className="px-5 pb-2 pt-0 align-top">
+                                <AlertasCollapsible alertas={childAlertas} />
+                              </td>
+                              <td className="px-5 pb-2 pt-0 align-top">
+                                <AlertaResponsableList alertas={childAlertas} />
+                              </td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </Fragment>
+                        );
+                      })}
                     </AnimatePresence>
                   </Fragment>
                 );
@@ -416,6 +471,24 @@ export default function Proyectos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Inline alert creation */}
+      {alertaCreateContext && (
+        <AlertaFormDialog
+          open={!!alertaCreateContext}
+          onClose={() => setAlertaCreateContext(null)}
+          onSubmit={(data) => {
+            createAlerta.mutate(data);
+            setAlertaCreateContext(null);
+          }}
+          proyectos={(proyectos || []).map(p => ({ id: p.id, nombre: p.nombre, numero: p.numero }))}
+          empresas={empresas || []}
+          profiles={profiles}
+          currentUserId={currentUserId}
+          defaultProyectoId={alertaCreateContext.proyecto_id}
+          defaultEmpresaId={alertaCreateContext.empresa_id || undefined}
+        />
+      )}
 
       {/* View detail dialog */}
       <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} />
@@ -679,18 +752,17 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
 }
 
 /* ── Inline notas cell ── */
-function NotasCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void }) {
+function NotasCell({ proyecto, onSave, maxLength = 500 }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; maxLength?: number }) {
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync when external data changes (e.g. after editing in dialog)
   useEffect(() => {
     setValue((proyecto as any).notas || "");
   }, [(proyecto as any).notas]);
 
   const handleChange = (text: string) => {
-    if (text.length > 500) return;
+    if (text.length > maxLength) return;
     setValue(text);
     setSaved(false);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -706,12 +778,12 @@ function NotasCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; onSav
         className="w-full min-h-[48px] max-h-[100px] resize-y rounded-md border border-border bg-card/50 px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         placeholder="Notas del proyecto..."
         value={value}
-        maxLength={500}
+        maxLength={maxLength}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
       <span className="absolute bottom-1 right-2 text-[9px] text-muted-foreground">
-        {value.length}/500{!saved && " · guardando..."}
+        {value.length}/{maxLength}{!saved && " · guardando..."}
       </span>
     </div>
   );
