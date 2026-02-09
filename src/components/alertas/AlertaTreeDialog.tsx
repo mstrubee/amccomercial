@@ -34,10 +34,13 @@ function buildTree(
 
   function build(parentId: string | null): TreeNode[] {
     const children = byParent.get(parentId || "__root__") || [];
-    return children.map(a => ({
-      alerta: a,
-      children: build(a.id),
-    }));
+    return children
+      .slice()
+      .reverse()
+      .map(a => ({
+        alerta: a,
+        children: build(a.id),
+      }));
   }
 
   if (rootId) {
