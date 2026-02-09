@@ -819,6 +819,7 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
 function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; maxLength?: number; onCreateAlerta?: (texto: string) => void }) {
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
+  const [focused, setFocused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -845,21 +846,25 @@ function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proy
         maxLength={maxLength}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
       />
-      <div className="flex items-center justify-between mt-0.5">
-        {onCreateAlerta && value.trim() ? (
-          <button
-            className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
-            onClick={(e) => { e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
-            title="Crear alerta a partir de esta nota"
-          >
-            <Bell className="w-2.5 h-2.5" /> Crear alerta
-          </button>
-        ) : <span />}
-        <span className="text-[9px] text-muted-foreground">
-          {value.length}/{maxLength}{!saved && " · guardando..."}
-        </span>
-      </div>
+      {focused && (
+        <div className="flex items-center justify-between mt-0.5">
+          {onCreateAlerta && value.trim() ? (
+            <button
+              className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
+              title="Crear alerta a partir de esta nota"
+            >
+              <Bell className="w-2.5 h-2.5" /> Crear alerta
+            </button>
+          ) : <span />}
+          <span className="text-[9px] text-muted-foreground">
+            {value.length}/{maxLength}{!saved && " · guardando..."}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
