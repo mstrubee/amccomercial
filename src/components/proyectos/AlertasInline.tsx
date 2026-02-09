@@ -12,9 +12,10 @@ interface InlineProps {
   onEdit?: (alerta: AlertaWithRelations) => void;
   onDelete?: (id: string) => void;
   onComplete?: (alerta: AlertaWithRelations) => void;
+  onShowTree?: (alertaId: string) => void;
 }
 
-function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, depth = 0 }: { alerta: AlertaWithRelations; allAlertas?: AlertaWithRelations[]; onEdit?: (a: AlertaWithRelations) => void; onDelete?: (id: string) => void; onComplete?: (a: AlertaWithRelations) => void; depth?: number }) {
+function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTree, depth = 0 }: { alerta: AlertaWithRelations; allAlertas?: AlertaWithRelations[]; onEdit?: (a: AlertaWithRelations) => void; onDelete?: (id: string) => void; onComplete?: (a: AlertaWithRelations) => void; onShowTree?: (id: string) => void; depth?: number }) {
   const [showTexto, setShowTexto] = useState(false);
   const [showChildren, setShowChildren] = useState(false);
   const today = startOfDay(new Date());
@@ -22,9 +23,9 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, depth = 
   const isOverdue = !alerta.completada && isBefore(fechaDate, today);
   const titulo = alerta.titulo;
 
-  // Find child alerts
   const children = allAlertas?.filter(a => a.parent_alerta_id === alerta.id && !a.deleted) || [];
   const hasChildren = children.length > 0;
+  const isPartOfChain = hasChildren || !!alerta.parent_alerta_id;
 
   return (
     <div className={cn("border-l-2 pl-2 py-1", depth > 0 && "ml-3", isOverdue ? "border-destructive" : alerta.completada ? "border-emerald-400" : "border-amber-400")}>
@@ -94,14 +95,23 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, depth = 
             <Trash2 className="w-3 h-3" />
           </button>
         )}
+        {isPartOfChain && onShowTree && (
+          <button
+            className="text-muted-foreground hover:text-primary p-0.5 flex items-center gap-0.5"
+            onClick={(e) => { e.stopPropagation(); onShowTree(alerta.id); }}
+            title="Ver árbol de dependencias"
+          >
+            <GitBranch className="w-3 h-3" />
+            {hasChildren && <span className="text-[9px]">{children.length}</span>}
+          </button>
+        )}
         {hasChildren && (
           <button
             className={cn("text-muted-foreground hover:text-foreground p-0.5 flex items-center gap-0.5", showChildren && "text-primary")}
             onClick={(e) => { e.stopPropagation(); setShowChildren(!showChildren); }}
-            title="Ver seguimientos"
+            title="Expandir seguimientos"
           >
-            <GitBranch className="w-3 h-3" />
-            <span className="text-[9px]">{children.length}</span>
+            {showChildren ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
           </button>
         )}
       </div>
@@ -110,7 +120,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, depth = 
       {showChildren && hasChildren && (
         <div className="mt-1 space-y-1">
           {children.map(child => (
-            <AlertaItem key={child.id} alerta={child} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} depth={depth + 1} />
+            <AlertaItem key={child.id} alerta={child} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} depth={depth + 1} />
           ))}
         </div>
       )}
@@ -118,7 +128,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, depth = 
   );
 }
 
-export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onComplete }: InlineProps) {
+export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree }: InlineProps) {
   const [expanded, setExpanded] = useState(false);
   const active = alertas.filter(a => !a.completada);
 
@@ -137,7 +147,7 @@ export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onCo
       {expanded && (
         <div className="mt-1.5 space-y-1.5">
           {active.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} />
           ))}
         </div>
       )}
@@ -145,7 +155,7 @@ export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onCo
   );
 }
 
-export function ParentAlertasDisplay({ alertas, allAlertas, onEdit, onDelete, onComplete }: InlineProps) {
+export function ParentAlertasDisplay({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree }: InlineProps) {
   const [expanded, setExpanded] = useState(false);
   const active = alertas.filter(a => !a.completada);
 
@@ -164,7 +174,7 @@ export function ParentAlertasDisplay({ alertas, allAlertas, onEdit, onDelete, on
       {expanded && (
         <div className="mt-1.5 space-y-1.5">
           {active.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} />
           ))}
         </div>
       )}
