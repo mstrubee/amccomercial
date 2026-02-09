@@ -15,6 +15,7 @@ import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import { AlertasCollapsible, ParentAlertasDisplay } from "@/components/proyectos/AlertasInline";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
+import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -57,6 +58,13 @@ export default function Proyectos() {
   const [alertaEditTarget, setAlertaEditTarget] = useState<AlertaWithRelations | null>(null);
   const [alertaDeleteTarget, setAlertaDeleteTarget] = useState<string | null>(null);
   const [alertaCompleteTarget, setAlertaCompleteTarget] = useState<AlertaWithRelations | null>(null);
+  const [showTree, setShowTree] = useState(false);
+  const [treeRootId, setTreeRootId] = useState<string | null>(null);
+
+  const handleShowTree = useCallback((alertaId: string) => {
+    setTreeRootId(alertaId);
+    setShowTree(true);
+  }, []);
 
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -310,7 +318,7 @@ export default function Proyectos() {
                         <tr className={evenBg} onClick={(e) => e.stopPropagation()}>
                           <td colSpan={5} className="px-5 pb-2 pt-0"></td>
                           <td colSpan={2} className="px-5 pb-2 pt-0">
-                            <ParentAlertasDisplay alertas={parentAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} />
+                            <ParentAlertasDisplay alertas={parentAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} />
                           </td>
                           <td className="px-5 pb-2 pt-0"></td>
                         </tr>
@@ -334,7 +342,7 @@ export default function Proyectos() {
                                 <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
                               </td>
                               <td colSpan={2} className="px-5 py-2 align-top">
-                                <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} />
+                                <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} />
                               </td>
                               <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
                               <td className="px-5 py-2 text-right align-top">
@@ -584,6 +592,9 @@ export default function Proyectos() {
 
       {/* View detail dialog */}
       <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} />
+
+      {/* Tree dialog */}
+      <AlertaTreeDialog open={showTree} onClose={() => setShowTree(false)} rootAlertaId={treeRootId} />
     </div>
   );
 }
