@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
-import { AlertasCollapsible, AlertaResponsableList, ParentAlertasDisplay } from "@/components/proyectos/AlertasInline";
+import { AlertasCollapsible, ParentAlertasDisplay } from "@/components/proyectos/AlertasInline";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -333,11 +333,8 @@ export default function Proyectos() {
                               <td colSpan={3} className="px-5 py-2 align-top">
                                 <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
                               </td>
-                              <td className="px-5 py-2 align-top">
+                              <td colSpan={2} className="px-5 py-2 align-top">
                                 <AlertasCollapsible alertas={childAlertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} />
-                              </td>
-                              <td className="px-5 py-2 align-top">
-                                <AlertaResponsableList alertas={childAlertas} />
                               </td>
                               <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
                               <td className="px-5 py-2 text-right align-top">

@@ -1,13 +1,91 @@
 import { useState } from "react";
-import { AlertaWithRelations, AlertaInput } from "@/hooks/useAlertas";
-import { Bell, CheckCircle2, Circle, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertaWithRelations } from "@/hooks/useAlertas";
+import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2 } from "lucide-react";
+import { format, isBefore, startOfDay } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface InlineProps {
   alertas: AlertaWithRelations[];
   onEdit?: (alerta: AlertaWithRelations) => void;
   onDelete?: (id: string) => void;
   onComplete?: (alerta: AlertaWithRelations) => void;
+}
+
+function AlertaItem({ alerta, onEdit, onDelete, onComplete }: { alerta: AlertaWithRelations; onEdit?: (a: AlertaWithRelations) => void; onDelete?: (id: string) => void; onComplete?: (a: AlertaWithRelations) => void }) {
+  const [showTexto, setShowTexto] = useState(false);
+  const today = startOfDay(new Date());
+  const isOverdue = !alerta.completada && isBefore(new Date(alerta.fecha_seguimiento), today);
+  const titulo = alerta.titulo;
+
+  return (
+    <div className={cn("border-l-2 pl-2 py-1", isOverdue ? "border-destructive" : "border-amber-400")}>
+      {/* Row 1: title + date + responsible */}
+      <button
+        className="w-full text-left"
+        onClick={(e) => { e.stopPropagation(); setShowTexto(!showTexto); }}
+      >
+        <div className="flex items-start gap-1.5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1">
+              {titulo && (
+                <span className="text-[11px] font-semibold text-amber-700 truncate max-w-[160px]">{titulo}</span>
+              )}
+              {!titulo && (
+                <span className="text-[11px] text-card-foreground truncate max-w-[160px]">{alerta.texto}</span>
+              )}
+              {showTexto ? <ChevronUp className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span className={cn(isOverdue && "text-destructive font-medium")}>
+                {format(new Date(alerta.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
+                {isOverdue && " (vencida)"}
+              </span>
+              <span className="font-medium">{alerta.responsable_profile?.display_name || alerta.responsable_profile?.email || "—"}</span>
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* Row 2: expanded texto */}
+      {showTexto && titulo && (
+        <div className="mt-1 text-[10px] text-card-foreground bg-secondary/30 rounded px-2 py-1">
+          {alerta.texto}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-1 mt-0.5">
+        {onComplete && (
+          <button
+            className="text-muted-foreground hover:text-emerald-600 p-0.5"
+            onClick={(e) => { e.stopPropagation(); onComplete(alerta); }}
+            title="Completar"
+          >
+            <Circle className="w-3 h-3" />
+          </button>
+        )}
+        {onEdit && (
+          <button
+            className="text-muted-foreground hover:text-foreground p-0.5"
+            onClick={(e) => { e.stopPropagation(); onEdit(alerta); }}
+            title="Editar"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            className="text-muted-foreground hover:text-destructive p-0.5"
+            onClick={(e) => { e.stopPropagation(); onDelete(alerta.id); }}
+            title="Eliminar"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function AlertasCollapsible({ alertas, onEdit, onDelete, onComplete }: InlineProps) {
@@ -27,59 +105,12 @@ export function AlertasCollapsible({ alertas, onEdit, onDelete, onComplete }: In
         {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {expanded && (
-        <div className="mt-1 space-y-1">
-          {active.map(a => {
-            const isOverdue = new Date(a.fecha_seguimiento) < new Date(new Date().toDateString());
-            return (
-              <div key={a.id} className={`text-[10px] border-l-2 pl-1.5 ${isOverdue ? "border-destructive" : "border-amber-400"} group`}>
-                <div className="truncate max-w-[200px] text-card-foreground">{a.texto}</div>
-                <div className="flex gap-0.5 mt-0.5">
-                  {onComplete && (
-                    <button className="text-muted-foreground hover:text-emerald-600 p-0.5" onClick={(e) => { e.stopPropagation(); onComplete(a); }} title="Completar">
-                      <Circle className="w-2.5 h-2.5" />
-                    </button>
-                  )}
-                  {onEdit && (
-                    <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(a); }} title="Editar">
-                      <Pencil className="w-2.5 h-2.5" />
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button className="text-muted-foreground hover:text-destructive p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} title="Eliminar">
-                      <Trash2 className="w-2.5 h-2.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="mt-1.5 space-y-1.5">
+          {active.map(a => (
+            <AlertaItem key={a.id} alerta={a} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} />
+          ))}
         </div>
       )}
-    </div>
-  );
-}
-export function AlertaResponsableList({ alertas }: { alertas: AlertaWithRelations[] }) {
-  const active = alertas.filter(a => !a.completada);
-  if (active.length === 0) return null;
-
-  return (
-    <div className="space-y-1">
-      {active.map(a => {
-        const titulo = (a as any).titulo;
-        return (
-          <div key={a.id} className="text-[10px] leading-tight">
-            {titulo && (
-              <div className="font-semibold text-amber-700 truncate max-w-[120px]">{titulo}</div>
-            )}
-            <div className="font-medium text-card-foreground truncate max-w-[120px]">
-              {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
-            </div>
-            <div className="text-muted-foreground">
-              {new Date(a.fecha_seguimiento).toLocaleDateString("es-CL")}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -101,38 +132,10 @@ export function ParentAlertasDisplay({ alertas, onEdit, onDelete, onComplete }: 
         {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {expanded && (
-        <div className="mt-1 space-y-1.5">
-          {active.map(a => {
-            const isOverdue = new Date(a.fecha_seguimiento) < new Date(new Date().toDateString());
-            const titulo = (a as any).titulo;
-            return (
-              <div key={a.id} className={`text-[10px] border-l-2 pl-1.5 ${isOverdue ? "border-destructive" : "border-amber-400"}`}>
-                {titulo && <div className="font-semibold text-amber-700">{titulo}</div>}
-                <div className="truncate max-w-[280px] text-card-foreground">{a.texto}</div>
-                <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
-                  <span className="font-medium">{a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
-                  <span className={isOverdue ? "text-destructive" : ""}>{new Date(a.fecha_seguimiento).toLocaleDateString("es-CL")}</span>
-                  <span className="flex gap-0.5 ml-1">
-                    {onComplete && (
-                      <button className="text-muted-foreground hover:text-emerald-600 p-0.5" onClick={(e) => { e.stopPropagation(); onComplete(a); }} title="Completar">
-                        <Circle className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                    {onEdit && (
-                      <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(a); }} title="Editar">
-                        <Pencil className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button className="text-muted-foreground hover:text-destructive p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} title="Eliminar">
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+        <div className="mt-1.5 space-y-1.5">
+          {active.map(a => (
+            <AlertaItem key={a.id} alerta={a} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} />
+          ))}
         </div>
       )}
     </div>
