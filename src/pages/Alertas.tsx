@@ -28,6 +28,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format, isToday, isBefore, startOfDay, addDays } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -80,13 +81,13 @@ export default function Alertas() {
   const stats = useMemo(() => {
     if (!alertas) return { total: 0, activas: 0, prox7: 0, prox30: 0, vencidas: 0 };
     const activas = alertas.filter((a) => !a.completada);
-    const vencidas = activas.filter((a) => isBefore(new Date(a.fecha_seguimiento), today));
+    const vencidas = activas.filter((a) => isBefore(parseLocalDate(a.fecha_seguimiento), today));
     const prox7 = activas.filter((a) => {
-      const d = new Date(a.fecha_seguimiento);
+      const d = parseLocalDate(a.fecha_seguimiento);
       return d >= today && d <= in7;
     });
     const prox30 = activas.filter((a) => {
-      const d = new Date(a.fecha_seguimiento);
+      const d = parseLocalDate(a.fecha_seguimiento);
       return d >= today && d <= in30;
     });
     return { total: alertas.length, activas: activas.length, prox7: prox7.length, prox30: prox30.length, vencidas: vencidas.length };
@@ -96,9 +97,9 @@ export default function Alertas() {
     if (!alertas) return [];
     let list = alertas;
     if (activeTab === "activas") list = list.filter((a) => !a.completada);
-    else if (activeTab === "vencidas") list = list.filter((a) => !a.completada && isBefore(new Date(a.fecha_seguimiento), today));
-    else if (activeTab === "7dias") list = list.filter((a) => !a.completada && new Date(a.fecha_seguimiento) >= today && new Date(a.fecha_seguimiento) <= in7);
-    else if (activeTab === "30dias") list = list.filter((a) => !a.completada && new Date(a.fecha_seguimiento) >= today && new Date(a.fecha_seguimiento) <= in30);
+    else if (activeTab === "vencidas") list = list.filter((a) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today));
+    else if (activeTab === "7dias") list = list.filter((a) => !a.completada && parseLocalDate(a.fecha_seguimiento) >= today && parseLocalDate(a.fecha_seguimiento) <= in7);
+    else if (activeTab === "30dias") list = list.filter((a) => !a.completada && parseLocalDate(a.fecha_seguimiento) >= today && parseLocalDate(a.fecha_seguimiento) <= in30);
 
     if (search.trim()) {
       const s = search.toLowerCase();
@@ -121,7 +122,7 @@ export default function Alertas() {
     }
   };
 
-  const isVencida = (a: AlertaWithRelations) => !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
+  const isVencida = (a: AlertaWithRelations) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today);
 
   const tabs: { key: FilterTab; label: string; count: number }[] = [
     { key: "todas", label: "Todas", count: stats.total },
@@ -239,7 +240,7 @@ export default function Alertas() {
                     {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
                   </td>
                   <td className={cn("px-5 py-3 text-sm", isVencida(a) ? "text-destructive font-medium" : "text-muted-foreground")}>
-                    {format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
+                    {format(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
                     {isVencida(a) && <span className="ml-1 text-xs">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-right">
