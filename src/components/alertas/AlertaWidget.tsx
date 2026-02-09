@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, ChevronDown, ChevronUp, Circle } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Circle, ExternalLink } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAlertas, useToggleAlertaCompletada, useCreateAlerta, AlertaWithRelations, AlertaInput } from "@/hooks/useAlertas";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
@@ -16,6 +17,8 @@ import AlertaFormDialog from "./AlertaFormDialog";
 export default function AlertaWidget() {
   const [expanded, setExpanded] = useState(false);
   const { data: alertas } = useAlertas();
+  const navigate = useNavigate();
+  const location = useLocation();
   const toggleCompletada = useToggleAlertaCompletada();
   const createAlerta = useCreateAlerta();
   const { data: empresas } = useEmpresas();
@@ -109,10 +112,22 @@ export default function AlertaWidget() {
                         </button>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-card-foreground truncate">{a.texto}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">
+                          <button
+                            className="text-[10px] text-muted-foreground truncate hover:text-primary flex items-center gap-0.5 group"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const params = new URLSearchParams({ highlight: a.proyecto_id });
+                              if (location.pathname === "/proyectos") {
+                                window.dispatchEvent(new CustomEvent("highlight-proyecto", { detail: a.proyecto_id }));
+                              } else {
+                                navigate(`/proyectos?${params.toString()}`);
+                              }
+                            }}
+                          >
                             {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : ""}
                             {a.empresas ? ` · ${a.empresas.nombre}` : ""}
-                          </p>
+                            <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
                         </div>
                         <span className={cn("text-[10px] font-medium shrink-0 mt-0.5", vencida ? "text-destructive" : hoy ? "text-warning" : "text-muted-foreground")}>
                           {vencida ? "Vencida" : hoy ? "Hoy" : format(new Date(a.fecha_seguimiento), "dd MMM", { locale: es })}

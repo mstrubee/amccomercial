@@ -11,7 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings2, ChevronRight } from "lucide-react";
+import { Settings2, ChevronRight, Bell, Circle, CheckCircle2 } from "lucide-react";
+import { AlertaWithRelations } from "@/hooks/useAlertas";
+import { format, isBefore, startOfDay } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/useProyectos";
 import { useCategorias, CategoriaWithSubs } from "@/hooks/useCategorias";
@@ -27,10 +31,9 @@ interface Props {
   isLoading?: boolean;
   initialData?: ProyectoWithEmpresas;
   mode: "create" | "edit";
-  /** When true, hides Ubicación, Contactos, and Empresas (child row editing) */
   isChildRow?: boolean;
-  /** All group items for parent edit - used to show all empresas across the group */
   groupItems?: ProyectoWithEmpresas[];
+  alertas?: AlertaWithRelations[];
 }
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
@@ -43,7 +46,7 @@ interface EmpresaRow {
   subcategoria_id: string | null;
 }
 
-export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow, groupItems }: Props) {
+export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow, groupItems, alertas }: Props) {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -480,6 +483,46 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                     className="min-h-[80px] resize-none text-sm"
                   />
                   <p className="text-[10px] text-muted-foreground text-right">{notas.length}/500</p>
+                </div>
+              )}
+
+              {/* Alertas relacionadas */}
+              {mode === "edit" && alertas && alertas.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Bell className="w-3 h-3" /> Alertas ({alertas.filter(a => !a.completada).length} activas)
+                  </Label>
+                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+                    {alertas.map(a => {
+                      const today = startOfDay(new Date());
+                      const isOverdue = !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
+                      return (
+                        <div
+                          key={a.id}
+                          className={cn(
+                            "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
+                            a.completada ? "border-border bg-muted/30 opacity-60" : isOverdue ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"
+                          )}
+                        >
+                          {a.completada
+                            ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                            : <Circle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", isOverdue ? "text-destructive" : "text-muted-foreground")} />
+                          }
+                          <div className="flex-1 min-w-0">
+                            {a.titulo && <div className="font-semibold text-amber-700 text-[11px]">{a.titulo}</div>}
+                            <div className={cn("truncate", a.completada && "line-through text-muted-foreground")}>{a.texto}</div>
+                            <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
+                              <span>{a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
+                              <span className={isOverdue ? "text-destructive font-medium" : ""}>
+                                {format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
+                                {isOverdue && " (vencida)"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
