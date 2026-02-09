@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertaInput, AlertaWithRelations } from "@/hooks/useAlertas";
+import { useTitulosAlerta } from "@/hooks/useTitulosAlerta";
 import { Tables } from "@/integrations/supabase/types";
 
 interface Props {
@@ -25,20 +26,25 @@ interface Props {
 export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto }: Props) {
   const [proyectoId, setProyectoId] = useState("");
   const [empresaId, setEmpresaId] = useState<string>("");
+  const [titulo, setTitulo] = useState("");
   const [texto, setTexto] = useState("");
   const [responsableId, setResponsableId] = useState(currentUserId);
   const [fechaSeguimiento, setFechaSeguimiento] = useState("");
+
+  const { data: titulosOpciones } = useTitulosAlerta();
 
   useEffect(() => {
     if (editTarget) {
       setProyectoId(editTarget.proyecto_id);
       setEmpresaId(editTarget.empresa_id || "");
+      setTitulo((editTarget as any).titulo || "");
       setTexto(editTarget.texto);
       setResponsableId(editTarget.usuario_responsable_id);
       setFechaSeguimiento(editTarget.fecha_seguimiento);
     } else {
       setProyectoId(defaultProyectoId || "");
       setEmpresaId(defaultEmpresaId || "");
+      setTitulo("");
       setTexto(defaultTexto || "");
       setResponsableId(currentUserId);
       setFechaSeguimiento("");
@@ -51,6 +57,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       ...(editTarget ? { id: editTarget.id } : {}),
       proyecto_id: proyectoId,
       empresa_id: empresaId && empresaId !== "none" ? empresaId : null,
+      titulo: titulo.trim(),
       texto: texto.trim(),
       usuario_responsable_id: responsableId,
       fecha_seguimiento: fechaSeguimiento,
@@ -90,6 +97,31 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Título</Label>
+            <div className="flex gap-2">
+              <Input
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value.slice(0, 100))}
+                placeholder="Escribir título o seleccionar..."
+                className="flex-1"
+                maxLength={100}
+              />
+              {titulosOpciones && titulosOpciones.length > 0 && (
+                <Select value="" onValueChange={(v) => setTitulo(v)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Predefinidos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {titulosOpciones.map((t) => (
+                      <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">

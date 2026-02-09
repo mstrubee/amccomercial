@@ -6,6 +6,7 @@ export interface AlertaRow {
   id: string;
   proyecto_id: string;
   empresa_id: string | null;
+  titulo: string;
   texto: string;
   usuario_responsable_id: string;
   fecha_seguimiento: string;
@@ -57,6 +58,7 @@ export function useAlertas() {
 export interface AlertaInput {
   proyecto_id: string;
   empresa_id: string | null;
+  titulo: string;
   texto: string;
   usuario_responsable_id: string;
   fecha_seguimiento: string;
