@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, Fragment, useRef } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,9 @@ export default function Proyectos() {
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
   const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string } | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: alertas } = useAlertas();
   const createAlerta = useCreateAlerta();
@@ -66,6 +69,40 @@ export default function Proyectos() {
       if (data) setProfiles(data);
     });
   }, []);
+
+  // Highlight project from widget navigation or URL param
+  const highlightProject = useCallback((proyectoId: string) => {
+    setHighlightProyectoId(proyectoId);
+    if (proyectos) {
+      const target = proyectos.find(p => p.id === proyectoId);
+      if (target) {
+        const key = target.nombre.trim().toLowerCase();
+        setExpandedGroups(prev => ({ ...prev, [key]: true }));
+      }
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`proyecto-row-${proyectoId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+    setTimeout(() => setHighlightProyectoId(null), 3000);
+  }, [proyectos]);
+
+  useEffect(() => {
+    const id = searchParams.get("highlight");
+    if (id && proyectos?.length) {
+      highlightProject(id);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, proyectos, highlightProject, setSearchParams]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) highlightProject(detail);
+    };
+    window.addEventListener("highlight-proyecto", handler);
+    return () => window.removeEventListener("highlight-proyecto", handler);
+  }, [highlightProject]);
 
   const filtered = (proyectos || []).filter((p) => {
     const matchSearch =
@@ -226,7 +263,8 @@ export default function Proyectos() {
                 return (
                   <Fragment key={key}>
                     <tr
-                      className={`hover:bg-secondary/30 transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg}`}
+                      id={`proyecto-row-${first.id}`}
+                      className={`hover:bg-secondary/30 transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
                       onClick={() => toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
@@ -285,10 +323,11 @@ export default function Proyectos() {
                         return (
                           <Fragment key={p.id}>
                             <motion.tr
+                              id={`proyecto-row-${p.id}`}
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: "auto" }}
                               exit={{ opacity: 0, height: 0 }}
-                              className={`hover:bg-secondary/30 transition-colors ${childBg}`}
+                              className={`hover:bg-secondary/30 transition-colors ${childBg} ${highlightProyectoId === p.id ? "ring-2 ring-primary ring-inset" : ""}`}
                             >
                               <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
                               <td colSpan={3} className="px-5 py-2 align-top">
@@ -371,6 +410,7 @@ export default function Proyectos() {
           initialData={editTarget}
           isChildRow
           isLoading={updateProyecto.isPending}
+          alertas={(alertas || []).filter(a => a.proyecto_id === editTarget.id)}
           onSubmit={(data) => {
             updateProyecto.mutate({ ...data, id: editTarget.id }, { onSuccess: () => setEditTarget(null) });
           }}
@@ -386,6 +426,7 @@ export default function Proyectos() {
           initialData={editParentGroup[0]}
           groupItems={editParentGroup}
           isLoading={updateProyecto.isPending}
+          alertas={(alertas || []).filter(a => editParentGroup.some(p => p.id === a.proyecto_id))}
           onSubmit={async (data) => {
             const sharedFields = {
               nombre: data.nombre, region: data.region, direccion: data.direccion, comuna: data.comuna,
