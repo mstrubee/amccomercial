@@ -24,6 +24,7 @@ export type Database = {
           id: string
           proyecto_id: string
           texto: string
+          titulo: string
           updated_at: string
           usuario_responsable_id: string
         }
@@ -36,6 +37,7 @@ export type Database = {
           id?: string
           proyecto_id: string
           texto: string
+          titulo?: string
           updated_at?: string
           usuario_responsable_id: string
         }
@@ -48,6 +50,7 @@ export type Database = {
           id?: string
           proyecto_id?: string
           texto?: string
+          titulo?: string
           updated_at?: string
           usuario_responsable_id?: string
         }
@@ -420,6 +423,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      titulos_alerta: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

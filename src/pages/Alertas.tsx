@@ -96,6 +96,7 @@ export default function Alertas() {
       const s = search.toLowerCase();
       list = list.filter((a) =>
         a.texto.toLowerCase().includes(s) ||
+        ((a as any).titulo || "").toLowerCase().includes(s) ||
         a.proyectos?.nombre?.toLowerCase().includes(s) ||
         a.empresas?.nombre?.toLowerCase().includes(s)
       );
@@ -205,6 +206,7 @@ export default function Alertas() {
                     </button>
                   </td>
                   <td className={cn("px-5 py-3 font-medium max-w-[200px]", a.completada ? "line-through text-muted-foreground" : "text-card-foreground")}>
+                    {(a as any).titulo && <div className="text-[11px] font-semibold text-amber-700">{(a as any).titulo}</div>}
                     {a.texto}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
