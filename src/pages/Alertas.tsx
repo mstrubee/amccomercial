@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -21,6 +21,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
+import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
+import DeletedAlertasDialog from "@/components/alertas/DeletedAlertasDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -55,7 +57,10 @@ export default function Alertas() {
   const [editTarget, setEditTarget] = useState<AlertaWithRelations | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
+  const [showTree, setShowTree] = useState(false);
+  const [treeRootId, setTreeRootId] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -141,9 +146,17 @@ export default function Alertas() {
           <h1 className="text-3xl font-bold text-foreground">Central de Alertas</h1>
           <p className="text-muted-foreground mt-1">Gestión y seguimiento de alertas por proyecto</p>
         </div>
-        <Button onClick={() => { setEditTarget(null); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" /> Nueva Alerta
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowDeleted(true)}>
+            <RotateCcw className="w-4 h-4 mr-1" /> Eliminadas
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { setTreeRootId(null); setShowTree(true); }}>
+            <GitBranch className="w-4 h-4 mr-1" /> Árbol
+          </Button>
+          <Button onClick={() => { setEditTarget(null); setCreateDefaults({}); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Nueva Alerta
+          </Button>
+        </div>
       </motion.div>
 
       {/* KPIs */}
@@ -231,6 +244,11 @@ export default function Alertas() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex gap-1 justify-end">
+                      {a.parent_alerta_id && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Ver árbol" onClick={() => { setTreeRootId(a.id); setShowTree(true); }}>
+                          <GitBranch className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditTarget(a); setDialogOpen(true); }}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
@@ -258,6 +276,7 @@ export default function Alertas() {
         currentUserId={user?.id || ""}
         defaultProyectoId={createDefaults.proyectoId}
         defaultEmpresaId={createDefaults.empresaId}
+        parentAlertaId={createDefaults.parentAlertaId}
       />
 
       {/* Delete Confirmation */}
@@ -265,7 +284,7 @@ export default function Alertas() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar alerta?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogDescription>La alerta será movida a la papelera y podrá ser restaurada.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -284,11 +303,17 @@ export default function Alertas() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           toggleCompletada.mutate({ id: a.id, completada: true });
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
           setEditTarget(null);
           setDialogOpen(true);
         }}
       />
+
+      {/* Tree dialog */}
+      <AlertaTreeDialog open={showTree} onClose={() => setShowTree(false)} rootAlertaId={treeRootId} />
+
+      {/* Deleted alerts dialog */}
+      <DeletedAlertasDialog open={showDeleted} onClose={() => setShowDeleted(false)} />
     </div>
   );
 }
