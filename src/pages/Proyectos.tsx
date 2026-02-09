@@ -261,7 +261,7 @@ export default function Proyectos() {
                     {/* Parent note row */}
                     <tr className={evenBg}>
                       <td className="px-5 pb-2 pt-0" colSpan={8}>
-                        <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} />
+                        <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null, defaultTexto: texto })} />
                       </td>
                     </tr>
                     {/* Parent alerts row (alerts without empresa) */}
@@ -291,10 +291,10 @@ export default function Proyectos() {
                               className={`hover:bg-secondary/30 transition-colors ${childBg}`}
                             >
                               <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
-                              <td colSpan={2} className="px-5 py-2 align-top">
+                              <td colSpan={3} className="px-5 py-2 align-top">
                                 <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
                               </td>
-                              <td colSpan={2} className="px-5 py-2 align-top">
+                              <td className="px-5 py-2 align-top">
                                 <AlertasCollapsible alertas={childAlertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} />
                               </td>
                               <td className="px-5 py-2 align-top">
@@ -680,7 +680,7 @@ function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
 }
 
 /* ── Nota grupo cell (100 chars, only for parent row) ── */
-function NotaGrupoCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void }) {
+function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void; onCreateAlerta?: (texto: string) => void }) {
   const [value, setValue] = useState((proyecto as any).nota_grupo || "");
   const [saved, setSaved] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -710,9 +710,20 @@ function NotaGrupoCell({ proyecto, onSave }: { proyecto: ProyectoWithEmpresas; o
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
-      <span className="absolute bottom-0.5 right-2 text-[9px] text-muted-foreground">
-        {value.length}/100{!saved && " · guardando..."}
-      </span>
+      <div className="flex items-center justify-between mt-0.5">
+        {onCreateAlerta && value.trim() ? (
+          <button
+            className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
+            onClick={(e) => { e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
+            title="Crear alerta a partir de esta nota"
+          >
+            <Bell className="w-2.5 h-2.5" /> Crear alerta
+          </button>
+        ) : <span />}
+        <span className="text-[9px] text-muted-foreground">
+          {value.length}/100{!saved && " · guardando..."}
+        </span>
+      </div>
     </div>
   );
 }
