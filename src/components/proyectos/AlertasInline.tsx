@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { AlertaWithRelations, AlertaInput } from "@/hooks/useAlertas";
-import { Bell, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
+import { Bell, CheckCircle2, Circle, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface InlineProps {
   alertas: AlertaWithRelations[];
   onEdit?: (alerta: AlertaWithRelations) => void;
   onDelete?: (id: string) => void;
+  onComplete?: (alerta: AlertaWithRelations) => void;
 }
 
-export function AlertasCollapsible({ alertas, onEdit, onDelete }: InlineProps) {
+export function AlertasCollapsible({ alertas, onEdit, onDelete, onComplete }: InlineProps) {
   const [expanded, setExpanded] = useState(false);
   const active = alertas.filter(a => !a.completada);
 
@@ -32,20 +33,23 @@ export function AlertasCollapsible({ alertas, onEdit, onDelete }: InlineProps) {
             return (
               <div key={a.id} className={`text-[10px] border-l-2 pl-1.5 ${isOverdue ? "border-destructive" : "border-amber-400"} group`}>
                 <div className="truncate max-w-[200px] text-card-foreground">{a.texto}</div>
-                {(onEdit || onDelete) && (
-                  <div className="flex gap-0.5 mt-0.5">
-                    {onEdit && (
-                      <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(a); }} title="Editar">
-                        <Pencil className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button className="text-muted-foreground hover:text-destructive p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} title="Eliminar">
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div className="flex gap-0.5 mt-0.5">
+                  {onComplete && (
+                    <button className="text-muted-foreground hover:text-emerald-600 p-0.5" onClick={(e) => { e.stopPropagation(); onComplete(a); }} title="Completar">
+                      <Circle className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                  {onEdit && (
+                    <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(a); }} title="Editar">
+                      <Pencil className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button className="text-muted-foreground hover:text-destructive p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} title="Eliminar">
+                      <Trash2 className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -54,7 +58,6 @@ export function AlertasCollapsible({ alertas, onEdit, onDelete }: InlineProps) {
     </div>
   );
 }
-
 export function AlertaResponsableList({ alertas }: { alertas: AlertaWithRelations[] }) {
   const active = alertas.filter(a => !a.completada);
   if (active.length === 0) return null;
@@ -81,7 +84,7 @@ export function AlertaResponsableList({ alertas }: { alertas: AlertaWithRelation
   );
 }
 
-export function ParentAlertasDisplay({ alertas, onEdit, onDelete }: InlineProps) {
+export function ParentAlertasDisplay({ alertas, onEdit, onDelete, onComplete }: InlineProps) {
   const [expanded, setExpanded] = useState(false);
   const active = alertas.filter(a => !a.completada);
 
@@ -109,20 +112,23 @@ export function ParentAlertasDisplay({ alertas, onEdit, onDelete }: InlineProps)
                 <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
                   <span className="font-medium">{a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
                   <span className={isOverdue ? "text-destructive" : ""}>{new Date(a.fecha_seguimiento).toLocaleDateString("es-CL")}</span>
-                  {(onEdit || onDelete) && (
-                    <span className="flex gap-0.5 ml-1">
-                      {onEdit && (
-                        <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(a); }} title="Editar">
-                          <Pencil className="w-2.5 h-2.5" />
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button className="text-muted-foreground hover:text-destructive p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} title="Eliminar">
-                          <Trash2 className="w-2.5 h-2.5" />
-                        </button>
-                      )}
-                    </span>
-                  )}
+                  <span className="flex gap-0.5 ml-1">
+                    {onComplete && (
+                      <button className="text-muted-foreground hover:text-emerald-600 p-0.5" onClick={(e) => { e.stopPropagation(); onComplete(a); }} title="Completar">
+                        <Circle className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                    {onEdit && (
+                      <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={(e) => { e.stopPropagation(); onEdit(a); }} title="Editar">
+                        <Pencil className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button className="text-muted-foreground hover:text-destructive p-0.5" onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} title="Eliminar">
+                        <Trash2 className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </span>
                 </div>
               </div>
             );

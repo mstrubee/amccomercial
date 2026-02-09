@@ -7,12 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
-import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, AlertaWithRelations } from "@/hooks/useAlertas";
+import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import { AlertasCollapsible, AlertaResponsableList, ParentAlertasDisplay } from "@/components/proyectos/AlertasInline";
+import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -48,9 +49,11 @@ export default function Proyectos() {
   const createAlerta = useCreateAlerta();
   const updateAlerta = useUpdateAlerta();
   const deleteAlertaMutation = useDeleteAlerta();
+  const toggleCompletada = useToggleAlertaCompletada();
 
   const [alertaEditTarget, setAlertaEditTarget] = useState<AlertaWithRelations | null>(null);
   const [alertaDeleteTarget, setAlertaDeleteTarget] = useState<string | null>(null);
+  const [alertaCompleteTarget, setAlertaCompleteTarget] = useState<AlertaWithRelations | null>(null);
 
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -269,7 +272,7 @@ export default function Proyectos() {
                         <tr className={evenBg} onClick={(e) => e.stopPropagation()}>
                           <td colSpan={5} className="px-5 pb-2 pt-0"></td>
                           <td colSpan={2} className="px-5 pb-2 pt-0">
-                            <ParentAlertasDisplay alertas={parentAlertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} />
+                            <ParentAlertasDisplay alertas={parentAlertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} />
                           </td>
                           <td className="px-5 pb-2 pt-0"></td>
                         </tr>
@@ -292,7 +295,7 @@ export default function Proyectos() {
                                 <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
                               </td>
                               <td colSpan={2} className="px-5 py-2 align-top">
-                                <AlertasCollapsible alertas={childAlertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} />
+                                <AlertasCollapsible alertas={childAlertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} />
                               </td>
                               <td className="px-5 py-2 align-top">
                                 <AlertaResponsableList alertas={childAlertas} />
@@ -527,6 +530,18 @@ export default function Proyectos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Complete alert dialog */}
+      <CompleteAlertaDialog
+        alerta={alertaCompleteTarget}
+        open={!!alertaCompleteTarget}
+        onClose={() => setAlertaCompleteTarget(null)}
+        onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
+        onCompleteAndCreate={(a) => {
+          toggleCompletada.mutate({ id: a.id, completada: true });
+          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null });
+        }}
+      />
 
       {/* View detail dialog */}
       <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} />
