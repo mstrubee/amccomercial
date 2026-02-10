@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings2, ChevronRight, Bell, Circle, CheckCircle2 } from "lucide-react";
+import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus } from "lucide-react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -23,6 +23,7 @@ import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import CategoriasManagerDialog from "./CategoriasManagerDialog";
 import { REGIONES_CHILE } from "@/data/chile-geo";
+import { useClientes, useCategoriasCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
 
 interface Props {
   open: boolean;
@@ -574,24 +575,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
               {/* Collapsible: Contactos */}
               <CollapsibleSection title="Contactos" defaultOpen={false}>
-                <div className="space-y-4">
-                  {[
-                    { title: "Arquitectura", values: [arqNombre, arqContacto, arqMail, arqTelefono], setters: [setArqNombre, setArqContacto, setArqMail, setArqTelefono] },
-                    { title: "Constructora", values: [constNombre, constContacto, constMail, constTelefono], setters: [setConstNombre, setConstContacto, setConstMail, setConstTelefono] },
-                    { title: "ITO", values: [itoNombre, itoContacto, itoMail, itoTelefono], setters: [setItoNombre, setItoContacto, setItoMail, setItoTelefono] },
-                    { title: "Dueños", values: [duenosNombre, duenosContacto, duenosMail, duenosTelefono], setters: [setDuenosNombre, setDuenosContacto, setDuenosMail, setDuenosTelefono] },
-                  ].map(({ title, values, setters }) => (
-                    <div key={title} className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input placeholder="Nombre" value={values[0]} onChange={(e) => setters[0](e.target.value)} />
-                        <Input placeholder="Contacto" value={values[1]} onChange={(e) => setters[1](e.target.value)} />
-                        <Input placeholder="Email" value={values[2]} onChange={(e) => setters[2](e.target.value)} />
-                        <Input placeholder="Teléfono" value={values[3]} onChange={(e) => setters[3](e.target.value)} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ContactosSection
+                  arqNombre={arqNombre} arqContacto={arqContacto} arqMail={arqMail} arqTelefono={arqTelefono}
+                  setArqNombre={setArqNombre} setArqContacto={setArqContacto} setArqMail={setArqMail} setArqTelefono={setArqTelefono}
+                  constNombre={constNombre} constContacto={constContacto} constMail={constMail} constTelefono={constTelefono}
+                  setConstNombre={setConstNombre} setConstContacto={setConstContacto} setConstMail={setConstMail} setConstTelefono={setConstTelefono}
+                  itoNombre={itoNombre} itoContacto={itoContacto} itoMail={itoMail} itoTelefono={itoTelefono}
+                  setItoNombre={setItoNombre} setItoContacto={setItoContacto} setItoMail={setItoMail} setItoTelefono={setItoTelefono}
+                  duenosNombre={duenosNombre} duenosContacto={duenosContacto} duenosMail={duenosMail} duenosTelefono={duenosTelefono}
+                  setDuenosNombre={setDuenosNombre} setDuenosContacto={setDuenosContacto} setDuenosMail={setDuenosMail} setDuenosTelefono={setDuenosTelefono}
+                />
               </CollapsibleSection>
               </>)}
 
@@ -627,6 +620,138 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
       <CategoriasManagerDialog open={showCategoriasManager} onOpenChange={setShowCategoriasManager} />
     </>
+  );
+}
+
+/* ── Contactos Section with client picker ── */
+interface ContactosSectionProps {
+  arqNombre: string; arqContacto: string; arqMail: string; arqTelefono: string;
+  setArqNombre: (v: string) => void; setArqContacto: (v: string) => void; setArqMail: (v: string) => void; setArqTelefono: (v: string) => void;
+  constNombre: string; constContacto: string; constMail: string; constTelefono: string;
+  setConstNombre: (v: string) => void; setConstContacto: (v: string) => void; setConstMail: (v: string) => void; setConstTelefono: (v: string) => void;
+  itoNombre: string; itoContacto: string; itoMail: string; itoTelefono: string;
+  setItoNombre: (v: string) => void; setItoContacto: (v: string) => void; setItoMail: (v: string) => void; setItoTelefono: (v: string) => void;
+  duenosNombre: string; duenosContacto: string; duenosMail: string; duenosTelefono: string;
+  setDuenosNombre: (v: string) => void; setDuenosContacto: (v: string) => void; setDuenosMail: (v: string) => void; setDuenosTelefono: (v: string) => void;
+}
+
+const CONTACTO_CAT_MAP: Record<string, string> = {
+  "Arquitectura": "Arquitectura",
+  "Constructora": "Constructora",
+  "ITO": "ITO",
+  "Dueños": "Dueños",
+};
+
+function ContactosSection(props: ContactosSectionProps) {
+  const { data: clientes } = useClientes();
+  const { data: categoriasCliente } = useCategoriasCliente();
+
+  const sections = [
+    { title: "Arquitectura", values: [props.arqNombre, props.arqContacto, props.arqMail, props.arqTelefono], setters: [props.setArqNombre, props.setArqContacto, props.setArqMail, props.setArqTelefono] },
+    { title: "Constructora", values: [props.constNombre, props.constContacto, props.constMail, props.constTelefono], setters: [props.setConstNombre, props.setConstContacto, props.setConstMail, props.setConstTelefono] },
+    { title: "ITO", values: [props.itoNombre, props.itoContacto, props.itoMail, props.itoTelefono], setters: [props.setItoNombre, props.setItoContacto, props.setItoMail, props.setItoTelefono] },
+    { title: "Dueños", values: [props.duenosNombre, props.duenosContacto, props.duenosMail, props.duenosTelefono], setters: [props.setDuenosNombre, props.setDuenosContacto, props.setDuenosMail, props.setDuenosTelefono] },
+  ];
+
+  const getClientesForCategory = (title: string): ClienteWithCategoria[] => {
+    if (!clientes || !categoriasCliente) return [];
+    const cat = categoriasCliente.find((c) => c.nombre === CONTACTO_CAT_MAP[title]);
+    if (!cat) return [];
+    return clientes.filter((c) => c.categoria_id === cat.id);
+  };
+
+  const applyCliente = (cliente: ClienteWithCategoria, setters: ((v: string) => void)[]) => {
+    const currentNombre = sections.find(s => s.setters === setters)?.values[0] || "";
+    const currentContacto = sections.find(s => s.setters === setters)?.values[1] || "";
+    const currentEmail = sections.find(s => s.setters === setters)?.values[2] || "";
+    const currentTelefono = sections.find(s => s.setters === setters)?.values[3] || "";
+
+    const append = (current: string, newVal: string) => {
+      if (!newVal) return current;
+      if (!current) return newVal;
+      return `${current} / ${newVal}`;
+    };
+
+    setters[0](append(currentNombre, cliente.nombre));
+    setters[1](append(currentContacto, cliente.contacto));
+    setters[2](append(currentEmail, cliente.email));
+    setters[3](append(currentTelefono, cliente.telefono));
+  };
+
+  return (
+    <div className="space-y-4">
+      {sections.map(({ title, values, setters }) => {
+        const availableClientes = getClientesForCategory(title);
+        return (
+          <div key={title} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
+              {availableClientes.length > 0 && (
+                <ClientePicker
+                  clientes={availableClientes}
+                  onSelect={(c) => applyCliente(c, setters)}
+                />
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input placeholder="Nombre" value={values[0]} onChange={(e) => setters[0](e.target.value)} />
+              <Input placeholder="Contacto" value={values[1]} onChange={(e) => setters[1](e.target.value)} />
+              <Input placeholder="Email" value={values[2]} onChange={(e) => setters[2](e.target.value)} />
+              <Input placeholder="Teléfono" value={values[3]} onChange={(e) => setters[3](e.target.value)} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Client Picker Popover ── */
+function ClientePicker({ clientes, onSelect }: { clientes: ClienteWithCategoria[]; onSelect: (c: ClienteWithCategoria) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = clientes.filter((c) =>
+    c.nombre.toLowerCase().includes(search.toLowerCase()) ||
+    c.contacto.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative">
+      <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setOpen(!open)}>
+        <UserPlus className="w-3 h-3" /> Agregar cliente
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-7 z-50 w-64 rounded-md border border-border bg-popover shadow-md">
+          <div className="p-2">
+            <Input
+              placeholder="Buscar cliente..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 text-xs"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-[150px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+            ) : (
+              filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+                  onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
+                >
+                  <div className="font-medium text-popover-foreground">{c.nombre}</div>
+                  {c.contacto && <div className="text-muted-foreground">{c.contacto}</div>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
