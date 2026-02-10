@@ -484,12 +484,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                   <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notas</Label>
                   <Textarea
                     placeholder="Notas del proyecto..."
-                    maxLength={500}
                     value={notas}
                     onChange={(e) => setNotas(e.target.value)}
-                    className="min-h-[80px] resize-none text-sm"
+                    className="min-h-[80px] resize-y text-sm"
                   />
-                  <p className="text-[10px] text-muted-foreground text-right">{notas.length}/500</p>
+                  <p className="text-[10px] text-muted-foreground text-right">{notas.length} caracteres</p>
                 </div>
               )}
 

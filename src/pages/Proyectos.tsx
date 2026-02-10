@@ -383,7 +383,7 @@ export default function Proyectos() {
                             >
                               <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
                               <td colSpan={3} className="px-5 py-2 align-top">
-                                <NotasCell proyecto={p} onSave={updateNotas.mutate} maxLength={250} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
+                                <NotasCell proyecto={p} onSave={updateNotas.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
                               </td>
                               <td colSpan={2} className="px-5 py-2 align-top">
                                 <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} />
@@ -788,7 +788,6 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
   }, [(proyecto as any).nota_grupo]);
 
   const handleChange = (text: string) => {
-    if (text.length > 100) return;
     setValue(text);
     setSaved(false);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -801,10 +800,9 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
   return (
     <div className="relative">
       <textarea
-        className="w-full min-h-[32px] max-h-[60px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="w-full min-h-[32px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         placeholder="Nota del proyecto..."
         value={value}
-        maxLength={100}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
       />
@@ -819,7 +817,7 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
           </button>
         ) : <span />}
         <span className="text-[9px] text-muted-foreground">
-          {value.length}/100{!saved && " · guardando..."}
+          {value.length} chars{!saved && " · guardando..."}
         </span>
       </div>
     </div>
@@ -914,7 +912,7 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
 }
 
 /* ── Inline notas cell ── */
-function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; maxLength?: number; onCreateAlerta?: (texto: string) => void }) {
+function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; onCreateAlerta?: (texto: string) => void }) {
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
   const [focused, setFocused] = useState(false);
@@ -925,7 +923,6 @@ function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proy
   }, [(proyecto as any).notas]);
 
   const handleChange = (text: string) => {
-    if (text.length > maxLength) return;
     setValue(text);
     setSaved(false);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -938,10 +935,9 @@ function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proy
   return (
     <div className="relative">
       <textarea
-        className="w-full min-h-[36px] max-h-[80px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="w-full min-h-[36px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         placeholder="Notas..."
         value={value}
-        maxLength={maxLength}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
         onFocus={() => setFocused(true)}
@@ -959,7 +955,7 @@ function NotasCell({ proyecto, onSave, maxLength = 500, onCreateAlerta }: { proy
             </button>
           ) : <span />}
           <span className="text-[9px] text-muted-foreground">
-            {value.length}/{maxLength}{!saved && " · guardando..."}
+            {value.length} chars{!saved && " · guardando..."}
           </span>
         </div>
       )}
