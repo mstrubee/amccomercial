@@ -11,8 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles } from "lucide-react";
 
 const ESTADOS_OBRA = [
   "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada",
@@ -32,6 +33,26 @@ const TEMPLATE_COLUMNS = [
   "Notas / Alertas",
 ];
 
+/** Dropdown field definitions for AI matching */
+const DROPDOWN_FIELDS: { column: string; getOptions: (ctx: DropdownCtx) => string[] }[] = [
+  { column: "Clasificación", getOptions: (ctx) => ctx.clasificacionNames },
+  { column: "Estado Obra", getOptions: () => ESTADOS_OBRA },
+  { column: "Estado AMC", getOptions: (ctx) => ctx.estadosAMC },
+  { column: "Región", getOptions: (ctx) => ctx.regionNames },
+  ...([1, 2, 3, 4].flatMap((i) => [
+    { column: `Empresa ${i}`, getOptions: (ctx: DropdownCtx) => ctx.empresaNames },
+    { column: `Categoría Empresa ${i}`, getOptions: (ctx: DropdownCtx) => ctx.categoriaNames },
+  ])),
+];
+
+interface DropdownCtx {
+  clasificacionNames: string[];
+  estadosAMC: string[];
+  empresaNames: string[];
+  categoriaNames: string[];
+  regionNames: string[];
+}
+
 interface ParsedAlerta {
   fecha: string | null;
   texto: string;
@@ -47,6 +68,10 @@ interface ParsedRow {
   alertas: ParsedAlerta[];
   alertasParsing: boolean;
   alertasParsed: boolean;
+  /** Fields that were AI-corrected */
+  aiCorrected: string[];
+  /** Fields that AI couldn't match - need manual correction */
+  aiUnmatched: string[];
 }
 
 export default function CargaMasiva() {
@@ -60,6 +85,8 @@ export default function CargaMasiva() {
   const [uploaded, setUploaded] = useState(false);
   const [parsingAlertas, setParsingAlertas] = useState(false);
   const [parsingContactos, setParsingContactos] = useState(false);
+  const [matchingDropdowns, setMatchingDropdowns] = useState(false);
+  const [dropdownsMatched, setDropdownsMatched] = useState(false);
 
   const [estadosAMC] = useState<string[]>(["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"]);
 
@@ -67,6 +94,10 @@ export default function CargaMasiva() {
   const categoriaNames = useMemo(() => (categorias || []).map((c) => c.nombre), [categorias]);
   const clasificacionNames = useMemo(() => (clasificaciones || []).map((c) => c.nombre), [clasificaciones]);
   const regionNames = useMemo(() => REGIONES_CHILE.map((r) => r.nombre), []);
+
+  const dropdownCtx = useMemo<DropdownCtx>(() => ({
+    clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames,
+  }), [clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames]);
 
   const downloadTemplate = useCallback(() => {
     const wb = XLSX.utils.book_new();
@@ -115,64 +146,82 @@ export default function CargaMasiva() {
     return "";
   }, []);
 
-  const validateRow = useCallback(
+  /** Initial validation - only checks required fields, NOT dropdown matches */
+  const validateRowBasic = useCallback(
     (row: Record<string, string>, idx: number): ParsedRow => {
       const errors: string[] = [];
       const nombre = (row["Nombre Proyecto"] || "").trim();
       if (!nombre) errors.push("Nombre Proyecto requerido");
 
-      const clasificacion = (row["Clasificación"] || "").trim();
-      if (clasificacion && !clasificacionNames.includes(clasificacion))
-        errors.push(`Clasificación "${clasificacion}" no reconocida`);
-
-      const estadoObra = (row["Estado Obra"] || "").trim();
-      if (estadoObra && !ESTADOS_OBRA.includes(estadoObra))
-        errors.push(`Estado Obra "${estadoObra}" no reconocido`);
-
-      const estadoAmc = (row["Estado AMC"] || "").trim();
-      if (estadoAmc && !estadosAMC.includes(estadoAmc))
-        errors.push(`Estado AMC "${estadoAmc}" no reconocido`);
-
+      // Auto-detect region from comuna
       let region = (row["Región"] || "").trim();
       const comuna = (row["Comuna"] || "").trim();
-
-      // Auto-detect region from comuna if region is empty
       if (!region && comuna) {
         region = findRegionByComuna(comuna);
-        if (region) {
-          row["Región"] = region;
-        }
+        if (region) row["Región"] = region;
       }
 
-      if (region && !regionNames.includes(region))
-        errors.push(`Región "${region}" no reconocida`);
-
-      if (region && comuna) {
+      // Validate comuna belongs to region (if both provided and region is valid)
+      if (region && regionNames.includes(region) && comuna) {
         const reg = REGIONES_CHILE.find((r) => r.nombre === region);
         if (reg && !reg.comunas.some((c) => c.toLowerCase() === comuna.toLowerCase()))
           errors.push(`Comuna "${comuna}" no pertenece a ${region}`);
       }
 
-      for (let i = 1; i <= 4; i++) {
-        const emp = (row[`Empresa ${i}`] || "").trim();
-        if (emp && !empresaNames.includes(emp)) errors.push(`Empresa ${i} "${emp}" no reconocida`);
-        const cat = (row[`Categoría Empresa ${i}`] || "").trim();
-        if (cat && !categoriaNames.includes(cat)) errors.push(`Categoría Empresa ${i} "${cat}" no reconocida`);
-      }
-
       return {
         rowIndex: idx + 2, data: row, errors, valid: errors.length === 0,
         alertas: [], alertasParsing: false, alertasParsed: false,
+        aiCorrected: [], aiUnmatched: [],
       };
     },
-    [clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames, findRegionByComuna]
+    [regionNames, findRegionByComuna]
   );
+
+  /** Full validation including dropdown checks - called after AI matching or inline edits */
+  const revalidateRow = useCallback((row: ParsedRow): ParsedRow => {
+    const errors: string[] = [];
+    const d = row.data;
+    const nombre = (d["Nombre Proyecto"] || "").trim();
+    if (!nombre) errors.push("Nombre Proyecto requerido");
+
+    const clasificacion = (d["Clasificación"] || "").trim();
+    if (clasificacion && !clasificacionNames.includes(clasificacion))
+      errors.push(`Clasificación "${clasificacion}" no reconocida`);
+
+    const estadoObra = (d["Estado Obra"] || "").trim();
+    if (estadoObra && !ESTADOS_OBRA.includes(estadoObra))
+      errors.push(`Estado Obra "${estadoObra}" no reconocido`);
+
+    const estadoAmc = (d["Estado AMC"] || "").trim();
+    if (estadoAmc && !estadosAMC.includes(estadoAmc))
+      errors.push(`Estado AMC "${estadoAmc}" no reconocido`);
+
+    const region = (d["Región"] || "").trim();
+    const comuna = (d["Comuna"] || "").trim();
+    if (region && !regionNames.includes(region))
+      errors.push(`Región "${region}" no reconocida`);
+    if (region && regionNames.includes(region) && comuna) {
+      const reg = REGIONES_CHILE.find((r) => r.nombre === region);
+      if (reg && !reg.comunas.some((c) => c.toLowerCase() === comuna.toLowerCase()))
+        errors.push(`Comuna "${comuna}" no pertenece a ${region}`);
+    }
+
+    for (let i = 1; i <= 4; i++) {
+      const emp = (d[`Empresa ${i}`] || "").trim();
+      if (emp && !empresaNames.includes(emp)) errors.push(`Empresa ${i} "${emp}" no reconocida`);
+      const cat = (d[`Categoría Empresa ${i}`] || "").trim();
+      if (cat && !categoriaNames.includes(cat)) errors.push(`Categoría Empresa ${i} "${cat}" no reconocida`);
+    }
+
+    return { ...row, errors, valid: errors.length === 0 };
+  }, [clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames]);
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       setUploaded(false);
+      setDropdownsMatched(false);
 
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -182,16 +231,139 @@ export default function CargaMasiva() {
           const ws = wb.Sheets[wb.SheetNames[0]];
           const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
           if (rows.length === 0) { toast.error("El archivo no contiene datos"); return; }
-          const parsed = rows.map((row, i) => validateRow(row, i));
+          const parsed = rows.map((row, i) => validateRowBasic(row, i));
           setParsedRows(parsed);
-          toast.info(`${parsed.length} filas leídas, ${parsed.filter((r) => r.valid).length} válidas`);
+          toast.info(`${parsed.length} filas leídas`);
         } catch { toast.error("Error al leer el archivo"); }
       };
       reader.readAsArrayBuffer(file);
       e.target.value = "";
     },
-    [validateRow]
+    [validateRowBasic]
   );
+
+  /** Collect unmatched dropdown values and send to AI for fuzzy matching */
+  const matchDropdownsWithAI = useCallback(async () => {
+    // Collect all items that need matching
+    const items: { rowIndex: number; column: string; value: string; options: string[] }[] = [];
+
+    for (const row of parsedRows) {
+      for (const field of DROPDOWN_FIELDS) {
+        const value = (row.data[field.column] || "").trim();
+        if (!value) continue;
+        const options = field.getOptions(dropdownCtx);
+        // Check exact match (case insensitive)
+        const exactMatch = options.find((o) => o.toLowerCase() === value.toLowerCase());
+        if (exactMatch) {
+          // Auto-correct case differences silently
+          if (exactMatch !== value) {
+            row.data[field.column] = exactMatch;
+          }
+        } else {
+          items.push({ rowIndex: row.rowIndex, column: field.column, value, options });
+        }
+      }
+    }
+
+    if (items.length === 0) {
+      // No unmatched values - just validate everything
+      setParsedRows((prev) => prev.map(revalidateRow));
+      setDropdownsMatched(true);
+      toast.success("Todos los valores coinciden correctamente");
+      return;
+    }
+
+    setMatchingDropdowns(true);
+
+    try {
+      // Send to AI in batches of 30
+      const batchSize = 30;
+      const allResults: { index: number; original: string; match: string | null; confidence: number }[] = [];
+
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize).map((item, idx) => ({
+          index: idx + i,
+          value: item.value,
+          field: item.column,
+          options: item.options,
+        }));
+
+        const { data, error } = await supabase.functions.invoke("match-dropdown-values", {
+          body: { items: batch },
+        });
+
+        if (error) throw error;
+        if (data.results) allResults.push(...data.results);
+      }
+
+      // Apply results
+      setParsedRows((prev) => {
+        let updated = [...prev];
+
+        for (const result of allResults) {
+          const item = items[result.index];
+          if (!item) continue;
+
+          updated = updated.map((row) => {
+            if (row.rowIndex !== item.rowIndex) return row;
+
+            const newData = { ...row.data };
+            const newAiCorrected = [...row.aiCorrected];
+            const newAiUnmatched = [...row.aiUnmatched];
+
+            if (result.match && result.confidence >= 90) {
+              // High confidence match - auto-correct
+              newData[item.column] = result.match;
+              newAiCorrected.push(item.column);
+            } else {
+              // Low confidence or no match - clear value and mark for manual correction
+              newData[item.column] = "";
+              newAiUnmatched.push(item.column);
+            }
+
+            return { ...row, data: newData, aiCorrected: newAiCorrected, aiUnmatched: newAiUnmatched };
+          });
+        }
+
+        // Revalidate all rows
+        return updated.map(revalidateRow);
+      });
+
+      const matched = allResults.filter((r) => r.match && r.confidence >= 90).length;
+      const unmatched = allResults.filter((r) => !r.match || r.confidence < 90).length;
+
+      setDropdownsMatched(true);
+      if (matched > 0 && unmatched > 0) {
+        toast.info(`IA corrigió ${matched} valores. ${unmatched} requieren corrección manual.`);
+      } else if (matched > 0) {
+        toast.success(`IA corrigió ${matched} valores automáticamente.`);
+      } else if (unmatched > 0) {
+        toast.warning(`${unmatched} valores no pudieron ser identificados. Corrija manualmente.`);
+      }
+    } catch (err: any) {
+      toast.error("Error al clasificar con IA: " + err.message);
+    } finally {
+      setMatchingDropdowns(false);
+    }
+  }, [parsedRows, dropdownCtx, revalidateRow]);
+
+  /** Update a single field in a row and revalidate */
+  const updateRowField = useCallback((rowIndex: number, column: string, value: string) => {
+    setParsedRows((prev) =>
+      prev.map((row) => {
+        if (row.rowIndex !== rowIndex) return row;
+        const newData = { ...row.data, [column]: value };
+        const newUnmatched = row.aiUnmatched.filter((f) => f !== column);
+        return revalidateRow({ ...row, data: newData, aiUnmatched: newUnmatched });
+      })
+    );
+  }, [revalidateRow]);
+
+  /** Get options for a dropdown field column */
+  const getOptionsForColumn = useCallback((column: string): string[] => {
+    const field = DROPDOWN_FIELDS.find((f) => f.column === column);
+    return field ? field.getOptions(dropdownCtx) : [];
+  }, [dropdownCtx]);
 
   /** Parse alertas text using AI for all rows that have content */
   const parseAlertasWithAI = useCallback(async () => {
@@ -250,7 +422,6 @@ export default function CargaMasiva() {
       if (!r.valid) return false;
       return contactFields.some((prefix) => {
         const nombre = (r.data[`${prefix} Nombre`] || "").trim();
-        // Has multiple entries if contains separators
         return nombre && (nombre.includes(",") || nombre.includes("/") || nombre.includes(" y "));
       });
     });
@@ -464,6 +635,22 @@ export default function CargaMasiva() {
     });
   });
 
+  // Count AI corrections and unmatched
+  const totalAiCorrected = parsedRows.reduce((acc, r) => acc + r.aiCorrected.length, 0);
+  const totalAiUnmatched = parsedRows.reduce((acc, r) => acc + r.aiUnmatched.length, 0);
+
+  // Check if there are any unmatched dropdown values needing AI
+  const hasUnmatchedDropdowns = useMemo(() => {
+    return parsedRows.some((row) => {
+      return DROPDOWN_FIELDS.some((field) => {
+        const value = (row.data[field.column] || "").trim();
+        if (!value) return false;
+        const options = field.getOptions(dropdownCtx);
+        return !options.some((o) => o.toLowerCase() === value.toLowerCase());
+      });
+    });
+  }, [parsedRows, dropdownCtx]);
+
   let stepNum = 3;
 
   return (
@@ -508,7 +695,38 @@ export default function CargaMasiva() {
         </CardContent>
       </Card>
 
-      {/* Step 3+: AI parsing alertas */}
+      {/* Step 3: AI dropdown matching */}
+      {parsedRows.length > 0 && (() => {
+        const currentStep = stepNum++;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="w-4 h-4" /> Paso {currentStep}: Clasificar valores con IA
+              </CardTitle>
+              <CardDescription>
+                {!dropdownsMatched
+                  ? "La IA verificará y corregirá los valores de campos desplegables (Clasificación, Estado Obra, Estado AMC, Empresas, Categorías, Región). Si hay dudas, se dejarán en blanco para corrección manual."
+                  : totalAiCorrected > 0 || totalAiUnmatched > 0
+                    ? `${totalAiCorrected} valores corregidos automáticamente. ${totalAiUnmatched > 0 ? `${totalAiUnmatched} requieren corrección manual.` : ""}`
+                    : "Todos los valores coinciden correctamente."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={matchDropdownsWithAI}
+                disabled={matchingDropdowns || (dropdownsMatched && !hasUnmatchedDropdowns)}
+                className="gap-2"
+              >
+                {matchingDropdowns ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {dropdownsMatched && !hasUnmatchedDropdowns ? "Clasificado" : matchingDropdowns ? "Clasificando..." : "Clasificar con IA"}
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Step: AI parsing alertas */}
       {parsedRows.length > 0 && hasAlertasText && (() => {
         const currentStep = stepNum++;
         return (
@@ -607,16 +825,22 @@ export default function CargaMasiva() {
             <CardTitle className="text-base flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> Paso {stepNum}: Revisión y Carga
             </CardTitle>
-            <CardDescription className="flex gap-3">
+            <CardDescription className="flex gap-3 flex-wrap">
               <span className="text-green-600">{validCount} válidas</span>
               {errorCount > 0 && <span className="text-destructive">{errorCount} con errores</span>}
               {totalAlertasToCreate > 0 && (
                 <span className="text-primary">{totalAlertasToCreate} alertas a crear</span>
               )}
+              {totalAiCorrected > 0 && (
+                <span className="text-amber-600">{totalAiCorrected} corregidos por IA</span>
+              )}
+              {totalAiUnmatched > 0 && (
+                <span className="text-destructive">{totalAiUnmatched} pendientes de corrección</span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="border rounded-md overflow-auto max-h-[400px]">
+            <div className="border rounded-md overflow-auto max-h-[500px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -626,6 +850,7 @@ export default function CargaMasiva() {
                     <TableHead>Clasificación</TableHead>
                     <TableHead>Estado Obra</TableHead>
                     <TableHead>Estado AMC</TableHead>
+                    <TableHead>Región</TableHead>
                     <TableHead>Empresas</TableHead>
                     <TableHead>Alertas</TableHead>
                     <TableHead>Errores</TableHead>
@@ -643,12 +868,74 @@ export default function CargaMasiva() {
                         )}
                       </TableCell>
                       <TableCell className="font-medium">{row.data["Nombre Proyecto"]}</TableCell>
-                      <TableCell>{row.data["Clasificación"]}</TableCell>
-                      <TableCell>{row.data["Estado Obra"]}</TableCell>
-                      <TableCell>{row.data["Estado AMC"]}</TableCell>
-                      <TableCell className="text-xs">
-                        {[1, 2, 3, 4].map((i) => row.data[`Empresa ${i}`]).filter(Boolean).join(", ") || "—"}
+
+                      {/* Clasificación - editable if unmatched */}
+                      <TableCell>
+                        <InlineDropdown
+                          value={row.data["Clasificación"] || ""}
+                          options={clasificacionNames}
+                          isUnmatched={row.aiUnmatched.includes("Clasificación")}
+                          isCorrected={row.aiCorrected.includes("Clasificación")}
+                          onChange={(v) => updateRowField(row.rowIndex, "Clasificación", v)}
+                        />
                       </TableCell>
+
+                      {/* Estado Obra - editable if unmatched */}
+                      <TableCell>
+                        <InlineDropdown
+                          value={row.data["Estado Obra"] || ""}
+                          options={ESTADOS_OBRA}
+                          isUnmatched={row.aiUnmatched.includes("Estado Obra")}
+                          isCorrected={row.aiCorrected.includes("Estado Obra")}
+                          onChange={(v) => updateRowField(row.rowIndex, "Estado Obra", v)}
+                        />
+                      </TableCell>
+
+                      {/* Estado AMC - editable if unmatched */}
+                      <TableCell>
+                        <InlineDropdown
+                          value={row.data["Estado AMC"] || ""}
+                          options={estadosAMC}
+                          isUnmatched={row.aiUnmatched.includes("Estado AMC")}
+                          isCorrected={row.aiCorrected.includes("Estado AMC")}
+                          onChange={(v) => updateRowField(row.rowIndex, "Estado AMC", v)}
+                        />
+                      </TableCell>
+
+                      {/* Región */}
+                      <TableCell>
+                        <InlineDropdown
+                          value={row.data["Región"] || ""}
+                          options={regionNames}
+                          isUnmatched={row.aiUnmatched.includes("Región")}
+                          isCorrected={row.aiCorrected.includes("Región")}
+                          onChange={(v) => updateRowField(row.rowIndex, "Región", v)}
+                        />
+                      </TableCell>
+
+                      <TableCell className="text-xs">
+                        {[1, 2, 3, 4].map((i) => {
+                          const emp = row.data[`Empresa ${i}`] || "";
+                          const isUnmatched = row.aiUnmatched.includes(`Empresa ${i}`);
+                          if (isUnmatched) {
+                            return (
+                              <div key={i} className="mb-1">
+                                <InlineDropdown
+                                  value={emp}
+                                  options={empresaNames}
+                                  isUnmatched
+                                  isCorrected={false}
+                                  onChange={(v) => updateRowField(row.rowIndex, `Empresa ${i}`, v)}
+                                  placeholder={`Empresa ${i}`}
+                                />
+                              </div>
+                            );
+                          }
+                          return emp ? <div key={i} className={row.aiCorrected.includes(`Empresa ${i}`) ? "text-amber-600" : ""}>{emp}</div> : null;
+                        })}
+                        {![1,2,3,4].some(i => row.data[`Empresa ${i}`]) && "—"}
+                      </TableCell>
+
                       <TableCell className="text-xs">
                         {row.alertasParsing ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -686,6 +973,44 @@ export default function CargaMasiva() {
       )}
     </div>
   );
+}
+
+/** Inline dropdown for correcting unmatched values */
+function InlineDropdown({
+  value,
+  options,
+  isUnmatched,
+  isCorrected,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  options: string[];
+  isUnmatched: boolean;
+  isCorrected: boolean;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  if (isUnmatched) {
+    return (
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-7 text-xs border-destructive bg-destructive/5 w-[140px]">
+          <SelectValue placeholder={placeholder || "Seleccionar..."} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (isCorrected) {
+    return <span className="text-amber-600 text-xs" title="Corregido por IA">✨ {value}</span>;
+  }
+
+  return <span className="text-xs">{value || "—"}</span>;
 }
 
 /** Parse date from Excel serial or string */
