@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link } from "lucide-react";
 
 const ESTADOS_OBRA = [
   "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada",
@@ -60,6 +60,8 @@ interface ParsedAlerta {
   crearAlerta: boolean;
   /** null = línea madre (proyecto), empresa_id string = empresa específica */
   empresaId: string | null;
+  /** Index of parent alert within the same row's alertas array, or null */
+  parentIndex: number | null;
 }
 
 interface ParsedRow {
@@ -441,7 +443,7 @@ export default function CargaMasiva() {
             const matched = rowEmpNames.find((e) => textoLower.includes(e.nombre.toLowerCase()));
             if (matched) empresaId = matched.id;
           }
-          return { fecha, texto: a.texto, esFutura, crearAlerta: true, empresaId };
+          return { fecha, texto: a.texto, esFutura, crearAlerta: true, empresaId, parentIndex: null };
         });
 
         setParsedRows((prev) =>
@@ -559,6 +561,59 @@ export default function CargaMasiva() {
     );
   }, []);
 
+  /** Change date for a specific alerta */
+  const setAlertaFecha = useCallback((rowIndex: number, alertaIdx: number, fecha: string) => {
+    const cutoff = new Date("2026-01-01");
+    setParsedRows((prev) =>
+      prev.map((r) => {
+        if (r.rowIndex !== rowIndex) return r;
+        const alertas = [...r.alertas];
+        const esFutura = fecha ? new Date(fecha) >= cutoff : false;
+        alertas[alertaIdx] = { ...alertas[alertaIdx], fecha: fecha || null, esFutura };
+        return { ...r, alertas };
+      })
+    );
+  }, []);
+
+  /** Add a dependent (child) alerta after the given index */
+  const addDependentAlerta = useCallback((rowIndex: number, parentIdx: number) => {
+    setParsedRows((prev) =>
+      prev.map((r) => {
+        if (r.rowIndex !== rowIndex) return r;
+        const alertas = [...r.alertas];
+        const parent = alertas[parentIdx];
+        const newAlerta: ParsedAlerta = {
+          fecha: null,
+          texto: "",
+          esFutura: false,
+          crearAlerta: true,
+          empresaId: parent.empresaId,
+          parentIndex: parentIdx,
+        };
+        alertas.splice(parentIdx + 1, 0, newAlerta);
+        // Adjust parentIndex references for items after insertion point
+        for (let i = 0; i < alertas.length; i++) {
+          if (alertas[i].parentIndex !== null && alertas[i].parentIndex! > parentIdx && i !== parentIdx + 1) {
+            alertas[i] = { ...alertas[i], parentIndex: alertas[i].parentIndex! + 1 };
+          }
+        }
+        return { ...r, alertas };
+      })
+    );
+  }, []);
+
+  /** Update text of a specific alerta */
+  const setAlertaTexto = useCallback((rowIndex: number, alertaIdx: number, texto: string) => {
+    setParsedRows((prev) =>
+      prev.map((r) => {
+        if (r.rowIndex !== rowIndex) return r;
+        const alertas = [...r.alertas];
+        alertas[alertaIdx] = { ...alertas[alertaIdx], texto };
+        return { ...r, alertas };
+      })
+    );
+  }, []);
+
   const handleBulkInsert = useCallback(async () => {
     const validRows = parsedRows.filter((r) => r.valid);
     if (validRows.length === 0) { toast.error("No hay filas válidas para cargar"); return; }
@@ -666,21 +721,56 @@ export default function CargaMasiva() {
           if (linkErr) throw linkErr;
         }
 
-        // Create alertas for selected entries (both past and future, none marked as completed)
-        const alertasToCreate = row.alertas.filter((a) => a.crearAlerta && a.fecha);
+        // Create alertas - handle parent-child dependencies
+        const alertasToCreate = row.alertas
+          .map((a, origIdx) => ({ ...a, origIdx }))
+          .filter((a) => a.crearAlerta && a.fecha);
+
         if (alertasToCreate.length > 0) {
-          const alertInserts = alertasToCreate.map((a) => ({
-            proyecto_id: projectId,
-            empresa_id: a.empresaId || null,
-            titulo: "Seguimiento",
-            texto: a.texto,
-            fecha_seguimiento: a.fecha!,
-            usuario_responsable_id: user.id,
-            created_by: user.id,
-            completada: false,
-          }));
-          const { error: alertErr } = await supabase.from("alertas").insert(alertInserts as any[]);
-          if (alertErr) throw alertErr;
+          // Map original index -> created DB id for parent references
+          const origIdxToDbId: Record<number, string> = {};
+
+          // Insert root alertas first (no parent), then children
+          const roots = alertasToCreate.filter((a) => a.parentIndex === null);
+          const children = alertasToCreate.filter((a) => a.parentIndex !== null);
+
+          if (roots.length > 0) {
+            const rootInserts = roots.map((a) => ({
+              proyecto_id: projectId,
+              empresa_id: a.empresaId || null,
+              titulo: "Seguimiento",
+              texto: a.texto,
+              fecha_seguimiento: a.fecha!,
+              usuario_responsable_id: user.id,
+              created_by: user.id,
+              completada: false,
+            }));
+            const { data: createdRoots, error: rootErr } = await supabase
+              .from("alertas")
+              .insert(rootInserts as any[])
+              .select("id");
+            if (rootErr) throw rootErr;
+            roots.forEach((a, i) => {
+              origIdxToDbId[a.origIdx] = createdRoots![i].id;
+            });
+          }
+
+          // Insert children with parent_alerta_id
+          if (children.length > 0) {
+            const childInserts = children.map((a) => ({
+              proyecto_id: projectId,
+              empresa_id: a.empresaId || null,
+              titulo: "Seguimiento",
+              texto: a.texto,
+              fecha_seguimiento: a.fecha!,
+              usuario_responsable_id: user.id,
+              created_by: user.id,
+              completada: false,
+              parent_alerta_id: a.parentIndex !== null ? origIdxToDbId[a.parentIndex] || null : null,
+            }));
+            const { error: childErr } = await supabase.from("alertas").insert(childInserts as any[]);
+            if (childErr) throw childErr;
+          }
         }
       }
 
@@ -869,6 +959,8 @@ export default function CargaMasiva() {
                     <div
                       key={aIdx}
                       className={`flex items-start gap-2 p-2 rounded text-xs ${
+                        alerta.parentIndex !== null ? "ml-6 border-l-2 border-primary/30" : ""
+                      } ${
                         alerta.esFutura ? "bg-primary/5 border border-primary/20" : "bg-muted/50"
                       }`}
                     >
@@ -884,9 +976,16 @@ export default function CargaMasiva() {
                           ) : (
                             <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
                           )}
-                          <span className="font-mono text-muted-foreground">
-                            {alerta.fecha || "—"}
-                          </span>
+                          {alerta.parentIndex !== null && (
+                            <Link className="w-3 h-3 text-primary/60 shrink-0" />
+                          )}
+                          {/* Editable date input */}
+                          <input
+                            type="date"
+                            value={alerta.fecha || ""}
+                            onChange={(e) => setAlertaFecha(row.rowIndex, aIdx, e.target.value)}
+                            className="h-5 text-[10px] font-mono bg-transparent border border-border rounded px-1 w-[110px] text-muted-foreground"
+                          />
                           {!alerta.fecha && (
                             <Badge variant="outline" className="text-[10px] px-1 py-0 text-amber-600 border-amber-600">
                               Nota sin fecha
@@ -919,8 +1018,29 @@ export default function CargaMasiva() {
                               </SelectContent>
                             </Select>
                           )}
+                          {/* Add dependent alert button */}
+                          {alerta.crearAlerta && alerta.fecha && (
+                            <button
+                              className="text-[9px] text-primary/70 hover:text-primary font-medium flex items-center gap-0.5"
+                              onClick={() => addDependentAlerta(row.rowIndex, aIdx)}
+                              title="Crear alerta dependiente"
+                            >
+                              <Plus className="w-3 h-3" /> Dependiente
+                            </button>
+                          )}
                         </div>
-                        <p className="mt-0.5 text-foreground/80 break-words">{alerta.texto}</p>
+                        {/* Editable text for new dependent alerts */}
+                        {alerta.parentIndex !== null ? (
+                          <input
+                            type="text"
+                            value={alerta.texto}
+                            onChange={(e) => setAlertaTexto(row.rowIndex, aIdx, e.target.value)}
+                            placeholder="Texto de la alerta dependiente..."
+                            className="mt-0.5 w-full text-xs bg-transparent border border-border rounded px-1 py-0.5 text-foreground/80"
+                          />
+                        ) : (
+                          <p className="mt-0.5 text-foreground/80 break-words">{alerta.texto}</p>
+                        )}
                       </div>
                     </div>
                   ))}
