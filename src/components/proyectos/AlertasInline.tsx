@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
-import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus, ChevronsUpDown } from "lucide-react";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,7 @@ interface InlineProps {
   onCreateDependent?: (parentAlerta: AlertaWithRelations) => void;
 }
 
-function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, depth = 0 }: {
+function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, depth = 0, forceExpand }: {
   alerta: AlertaWithRelations;
   allAlertas?: AlertaWithRelations[];
   onEdit?: (a: AlertaWithRelations) => void;
@@ -25,9 +25,12 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
   onShowTree?: (id: string) => void;
   onCreateDependent?: (a: AlertaWithRelations) => void;
   depth?: number;
+  forceExpand?: boolean;
 }) {
   const [showTexto, setShowTexto] = useState(false);
   const [showChildren, setShowChildren] = useState(false);
+  const isTextoVisible = forceExpand || showTexto;
+  const isChildrenVisible = forceExpand || showChildren;
   const today = startOfDay(new Date());
   const fechaDate = parseLocalDate(alerta.fecha_seguimiento);
   const isOverdue = !alerta.completada && isBefore(fechaDate, today);
@@ -55,7 +58,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
               {!titulo && (
                 <span className="text-[11px] text-card-foreground truncate max-w-[160px]">{alerta.texto}</span>
               )}
-              {showTexto ? <ChevronUp className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
+              {isTextoVisible ? <ChevronUp className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
             </div>
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
               <span className={cn(isOverdue && "text-destructive font-medium")}>
@@ -68,7 +71,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
         </div>
       </button>
 
-      {showTexto && titulo && (
+      {isTextoVisible && titulo && (
         <div className="mt-1 text-[10px] text-card-foreground bg-secondary/30 rounded px-2 py-1">
           {alerta.texto}
         </div>
@@ -102,16 +105,16 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
           </button>
         )}
         {hasChildren && (
-          <button className={cn("text-muted-foreground hover:text-foreground p-0.5 flex items-center gap-0.5", showChildren && "text-primary")} onClick={(e) => { e.stopPropagation(); setShowChildren(!showChildren); }} title="Expandir seguimientos">
-            {showChildren ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+          <button className={cn("text-muted-foreground hover:text-foreground p-0.5 flex items-center gap-0.5", isChildrenVisible && "text-primary")} onClick={(e) => { e.stopPropagation(); setShowChildren(!showChildren); }} title="Expandir seguimientos">
+            {isChildrenVisible ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
           </button>
         )}
       </div>
 
-      {showChildren && hasChildren && (
+      {isChildrenVisible && hasChildren && (
         <div className="mt-1 space-y-1">
           {children.map(child => (
-            <AlertaItem key={child.id} alerta={child} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} depth={depth + 1} />
+            <AlertaItem key={child.id} alerta={child} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} depth={depth + 1} forceExpand={forceExpand} />
           ))}
         </div>
       )}
@@ -121,24 +124,36 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
 
 export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent }: InlineProps) {
   const [expanded, setExpanded] = useState(false);
+  const [expandAll, setExpandAll] = useState(false);
   const active = alertas.filter(a => !a.completada && !a.deleted);
 
   if (active.length === 0) return <span className="text-[10px] text-muted-foreground italic">Sin alertas</span>;
 
   return (
     <div>
-      <button
-        className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-medium"
-        onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-      >
-        <Bell className="w-3 h-3" />
-        {active.length} alerta{active.length !== 1 ? "s" : ""}
-        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-medium"
+          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+        >
+          <Bell className="w-3 h-3" />
+          {active.length} alerta{active.length !== 1 ? "s" : ""}
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+        {expanded && (
+          <button
+            className={cn("p-0.5 rounded hover:bg-secondary/50", expandAll ? "text-primary" : "text-muted-foreground")}
+            onClick={(e) => { e.stopPropagation(); setExpandAll(!expandAll); }}
+            title={expandAll ? "Colapsar todo" : "Expandir todo"}
+          >
+            <ChevronsUpDown className="w-3 h-3" />
+          </button>
+        )}
+      </div>
       {expanded && (
         <div className="mt-1.5 space-y-1.5">
           {active.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} forceExpand={expandAll} />
           ))}
         </div>
       )}
