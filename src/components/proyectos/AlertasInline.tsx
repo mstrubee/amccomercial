@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
-import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus, Building2 } from "lucide-react";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { parseLocalDate } from "@/lib/date-utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface EmpresaOption {
+  id: string;
+  nombre: string;
+}
 
 interface InlineProps {
   alertas: AlertaWithRelations[];
@@ -16,7 +22,7 @@ interface InlineProps {
   onCreateDependent?: (parentAlerta: AlertaWithRelations) => void;
 }
 
-function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, depth = 0, forceExpand }: {
+function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, depth = 0, forceExpand, empresas, onAssignEmpresa }: {
   alerta: AlertaWithRelations;
   allAlertas?: AlertaWithRelations[];
   onEdit?: (a: AlertaWithRelations) => void;
@@ -26,6 +32,8 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
   onCreateDependent?: (a: AlertaWithRelations) => void;
   depth?: number;
   forceExpand?: boolean;
+  empresas?: EmpresaOption[];
+  onAssignEmpresa?: (alertaId: string, empresaId: string | null) => void;
 }) {
   const [showTexto, setShowTexto] = useState(false);
   const [showChildren, setShowChildren] = useState(false);
@@ -77,7 +85,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
         </div>
       )}
 
-      <div className="flex gap-1 mt-0.5">
+      <div className="flex gap-1 mt-0.5 items-center flex-wrap">
         {!alerta.completada && onComplete && (
           <button className="text-muted-foreground hover:text-emerald-600 p-0.5" onClick={(e) => { e.stopPropagation(); onComplete(alerta); }} title="Completar">
             <Circle className="w-3 h-3" />
@@ -109,12 +117,32 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
             {isChildrenVisible ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
           </button>
         )}
+        {/* Quick empresa assignment */}
+        {empresas && onAssignEmpresa && (
+          <div className="ml-1" onClick={(e) => e.stopPropagation()}>
+            <Select
+              value={alerta.empresa_id || "__none__"}
+              onValueChange={(val) => onAssignEmpresa(alerta.id, val === "__none__" ? null : val)}
+            >
+              <SelectTrigger className="h-5 w-auto min-w-[90px] max-w-[140px] text-[9px] px-1.5 py-0 border-dashed gap-0.5">
+                <Building2 className="w-2.5 h-2.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__"><span className="text-muted-foreground italic">Sin empresa</span></SelectItem>
+                {empresas.map(e => (
+                  <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {isChildrenVisible && hasChildren && (
         <div className="mt-1 space-y-1">
           {children.map(child => (
-            <AlertaItem key={child.id} alerta={child} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} depth={depth + 1} forceExpand={forceExpand} />
+            <AlertaItem key={child.id} alerta={child} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} depth={depth + 1} forceExpand={forceExpand} empresas={empresas} onAssignEmpresa={onAssignEmpresa} />
           ))}
         </div>
       )}
@@ -164,12 +192,13 @@ export function ParentAlertasDisplay({ alertas, allAlertas, onEdit, onDelete, on
       >
         <Bell className="w-3 h-3" />
         {active.length} alerta{active.length !== 1 ? "s" : ""} del proyecto
+        <span className="text-[10px]">{expanded ? "· Contraer" : "· Expandir"}</span>
         {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {expanded && (
         <div className="mt-1.5 space-y-1.5">
           {active.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} forceExpand={true} />
           ))}
         </div>
       )}
@@ -178,7 +207,7 @@ export function ParentAlertasDisplay({ alertas, allAlertas, onEdit, onDelete, on
 }
 
 /** Full alerts view for popover/dialog - shows active + historical */
-export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, onCreateNew }: InlineProps & { onCreateNew?: () => void }) {
+export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, onCreateNew, empresas, onAssignEmpresa }: InlineProps & { onCreateNew?: () => void; empresas?: EmpresaOption[]; onAssignEmpresa?: (alertaId: string, empresaId: string | null) => void }) {
   const [showHistorical, setShowHistorical] = useState(false);
   const active = alertas.filter(a => !a.completada && !a.deleted);
   const completed = alertas.filter(a => a.completada && !a.deleted);
@@ -195,7 +224,7 @@ export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onCompl
         <div className="space-y-1.5">
           <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Pendientes ({active.length})</span>
           {activeRoots.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} empresas={empresas} onAssignEmpresa={onAssignEmpresa} />
           ))}
         </div>
       ) : (
@@ -226,7 +255,7 @@ export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onCompl
           {showHistorical && (
             <div className="mt-1.5 space-y-1.5 opacity-70">
               {completedRoots.map(a => (
-                <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onShowTree={onShowTree} />
+                <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onShowTree={onShowTree} empresas={empresas} onAssignEmpresa={onAssignEmpresa} />
               ))}
             </div>
           )}
