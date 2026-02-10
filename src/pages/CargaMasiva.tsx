@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { useEmpresas } from "@/hooks/useEmpresas";
@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const ESTADOS_OBRA = [
   "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada",
@@ -91,6 +92,9 @@ export default function CargaMasiva() {
   const [parsingContactos, setParsingContactos] = useState(false);
   const [matchingDropdowns, setMatchingDropdowns] = useState(false);
   const [dropdownsMatched, setDropdownsMatched] = useState(false);
+  const [aiPhase, setAiPhase] = useState<"idle" | "dropdowns" | "alertas" | "contactos" | "done">("idle");
+  const [openProjects, setOpenProjects] = useState<Record<number, boolean>>({});
+  const aiRunTriggered = useRef(false);
 
   const [estadosAMC] = useState<string[]>(["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"]);
 
@@ -226,6 +230,8 @@ export default function CargaMasiva() {
       if (!file) return;
       setUploaded(false);
       setDropdownsMatched(false);
+      setAiPhase("idle");
+      aiRunTriggered.current = false;
 
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -237,7 +243,8 @@ export default function CargaMasiva() {
           if (rows.length === 0) { toast.error("El archivo no contiene datos"); return; }
           const parsed = rows.map((row, i) => validateRowBasic(row, i));
           setParsedRows(parsed);
-          toast.info(`${parsed.length} filas leídas`);
+          aiRunTriggered.current = false;
+          toast.info(`${parsed.length} filas leídas. Iniciando procesamiento con IA...`);
         } catch { toast.error("Error al leer el archivo"); }
       };
       reader.readAsArrayBuffer(file);
@@ -246,7 +253,8 @@ export default function CargaMasiva() {
     [validateRowBasic]
   );
 
-  /** Collect unmatched dropdown values and send to AI for fuzzy matching */
+
+
   const matchDropdownsWithAI = useCallback(async () => {
     // Collect all items that need matching
     const items: { rowIndex: number; column: string; value: string; options: string[] }[] = [];
@@ -526,6 +534,39 @@ export default function CargaMasiva() {
     setParsingContactos(false);
     toast.success("Contactos procesados con IA");
   }, [parsedRows]);
+
+  /** Auto-run AI pipeline when rows are loaded */
+  const matchRef = useRef(matchDropdownsWithAI);
+  const alertasRef = useRef(parseAlertasWithAI);
+  const contactosRef = useRef(parseContactosWithAI);
+  matchRef.current = matchDropdownsWithAI;
+  alertasRef.current = parseAlertasWithAI;
+  contactosRef.current = parseContactosWithAI;
+
+  useEffect(() => {
+    if (parsedRows.length > 0 && !aiRunTriggered.current && aiPhase === "idle") {
+      aiRunTriggered.current = true;
+      (async () => {
+        try {
+          setAiPhase("dropdowns");
+          await matchRef.current();
+          setAiPhase("alertas");
+          await alertasRef.current();
+          setAiPhase("contactos");
+          await contactosRef.current();
+          setAiPhase("done");
+          setOpenProjects(() => {
+            const opens: Record<number, boolean> = {};
+            return opens;
+          });
+        } catch {
+          setAiPhase("done");
+        }
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedRows.length, aiPhase]);
+
 
   const toggleAlertaCrear = useCallback((rowIndex: number, alertaIdx: number) => {
     setParsedRows((prev) =>
@@ -814,7 +855,7 @@ export default function CargaMasiva() {
     });
   }, [parsedRows, dropdownCtx]);
 
-  let stepNum = 3;
+  const aiProcessing = aiPhase !== "idle" && aiPhase !== "done";
 
   return (
     <div className="space-y-6">
@@ -858,65 +899,85 @@ export default function CargaMasiva() {
         </CardContent>
       </Card>
 
-      {/* Step 3: AI dropdown matching */}
-      {parsedRows.length > 0 && (() => {
-        const currentStep = stepNum++;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="w-4 h-4" /> Paso {currentStep}: Clasificar valores con IA
-              </CardTitle>
-              <CardDescription>
-                {!dropdownsMatched
-                  ? "La IA verificará y corregirá los valores de campos desplegables (Clasificación, Estado Obra, Estado AMC, Empresas, Categorías, Región). Si hay dudas, se dejarán en blanco para corrección manual."
-                  : totalAiCorrected > 0 || totalAiUnmatched > 0
-                    ? `${totalAiCorrected} valores corregidos automáticamente. ${totalAiUnmatched > 0 ? `${totalAiUnmatched} requieren corrección manual.` : ""}`
-                    : "Todos los valores coinciden correctamente."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex gap-2">
-              <Button
-                onClick={matchDropdownsWithAI}
-                disabled={matchingDropdowns}
-                className="gap-2"
-              >
-                {matchingDropdowns ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {matchingDropdowns ? "Clasificando..." : dropdownsMatched ? "Reprocesar con IA" : "Clasificar con IA"}
-              </Button>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {/* Step: AI parsing alertas */}
-      {parsedRows.length > 0 && hasAlertasText && (() => {
-        const currentStep = stepNum++;
-        return (
+      {/* Step 3: Automatic AI processing */}
+      {parsedRows.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Brain className="w-4 h-4" /> Paso {currentStep}: Procesar Notas con IA
+              {aiProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : aiPhase === "done" ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Sparkles className="w-4 h-4" />}
+              Paso 3: Procesamiento con IA
             </CardTitle>
             <CardDescription>
-              La IA separará el texto corrido en entradas individuales por fecha. Ene/Feb → 2026 (alertas), resto → 2025 (notas).
+              {aiPhase === "idle" && "Preparando procesamiento..."}
+              {aiPhase === "dropdowns" && "Clasificando valores de campos desplegables..."}
+              {aiPhase === "alertas" && "Procesando notas y alertas..."}
+              {aiPhase === "contactos" && "Estructurando contactos..."}
+              {aiPhase === "done" && (
+                <span className="flex gap-3 flex-wrap">
+                  <span className="text-green-600">Procesamiento completado</span>
+                  {totalAiCorrected > 0 && <span className="text-amber-600">{totalAiCorrected} valores corregidos</span>}
+                  {totalAiUnmatched > 0 && <span className="text-destructive">{totalAiUnmatched} pendientes de corrección</span>}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Button onClick={() => {
-              // Reset alertas state to allow reprocessing
-              setParsedRows((prev) => prev.map((r) => ({ ...r, alertasParsed: false, alertas: [] })));
-              setTimeout(() => parseAlertasWithAI(), 100);
-            }} disabled={parsingAlertas} className="gap-2">
-              {parsingAlertas ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-              {parsingAlertas ? "Procesando..." : allAlertasParsed ? "Reprocesar con IA" : "Procesar con IA"}
-            </Button>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              {aiProcessing && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex gap-1">
+                    <div className={`w-2 h-2 rounded-full ${aiPhase === "dropdowns" ? "bg-primary animate-pulse" : "bg-green-500"}`} />
+                    <div className={`w-2 h-2 rounded-full ${aiPhase === "alertas" ? "bg-primary animate-pulse" : aiPhase === "contactos" ? "bg-green-500" : "bg-muted"}`} />
+                    <div className={`w-2 h-2 rounded-full ${aiPhase === "contactos" ? "bg-primary animate-pulse" : "bg-muted"}`} />
+                  </div>
+                  <span className="text-xs">
+                    {aiPhase === "dropdowns" && "1/3 Clasificación"}
+                    {aiPhase === "alertas" && "2/3 Alertas"}
+                    {aiPhase === "contactos" && "3/3 Contactos"}
+                  </span>
+                </div>
+              )}
+              {aiPhase === "done" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setParsedRows((prev) => prev.map((r) => ({
+                      ...r,
+                      alertasParsed: false,
+                      alertas: [],
+                      aiCorrected: [],
+                      aiUnmatched: [],
+                    })));
+                    setDropdownsMatched(false);
+                    setAiPhase("idle");
+                    aiRunTriggered.current = false;
+                  }}
+                  className="gap-2"
+                >
+                  <Sparkles className="w-3 h-3" /> Reprocesar todo con IA
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-            {/* Show parsed alertas per row */}
+      {/* Step 4: Alertas review - collapsible per project */}
+      {parsedRows.length > 0 && aiPhase === "done" && parsedRows.some((r) => r.alertasParsed && r.alertas.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bell className="w-4 h-4" /> Paso 4: Confirmar Alertas por Proyecto
+            </CardTitle>
+            <CardDescription>
+              Revisa y confirma las alertas procesadas para cada proyecto. {totalAlertasToCreate} alertas seleccionadas para crear.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
             {parsedRows.filter((r) => r.alertasParsed && r.alertas.length > 0).map((row) => {
               const pastCount = row.alertas.filter((a) => !a.esFutura).length;
               const pastCrearCount = row.alertas.filter((a) => !a.esFutura && a.crearAlerta).length;
-              // Get empresas from row data
               const rowEmpresas: { id: string; nombre: string }[] = [];
               for (let i = 1; i <= 4; i++) {
                 const empName = (row.data[`Empresa ${i}`] || "").trim();
@@ -925,167 +986,109 @@ export default function CargaMasiva() {
                   if (emp) rowEmpresas.push({ id: emp.id, nombre: emp.nombre });
                 }
               }
+              const isOpen = openProjects[row.rowIndex] ?? false;
+              const alertasCount = row.alertas.filter((a) => a.crearAlerta).length;
 
               return (
-              <div key={row.rowIndex} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">
-                    Fila {row.rowIndex}: {row.data["Nombre Proyecto"]}
-                    <span className="ml-2 text-muted-foreground text-xs">
-                      ({row.alertas.length} entradas, {row.alertas.filter((a) => a.esFutura).length} futuras, {pastCount} pasadas)
-                    </span>
-                  </h4>
-                  {pastCount > 0 && (
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-[10px] h-6 px-2"
-                        onClick={() => toggleAllPastAlertas(row.rowIndex, true)}
-                        disabled={pastCrearCount === pastCount}
-                      >
-                        Incluir todas las pasadas
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-[10px] h-6 px-2"
-                        onClick={() => toggleAllPastAlertas(row.rowIndex, false)}
-                        disabled={pastCrearCount === 0}
-                      >
-                        Excluir todas las pasadas
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1 max-h-[400px] overflow-auto">
-                  {row.alertas.map((alerta, aIdx) => (
-                    <div
-                      key={aIdx}
-                      className={`flex items-start gap-2 p-2 rounded text-xs ${
-                        alerta.parentIndex !== null ? "ml-6 border-l-2 border-primary/30" : ""
-                      } ${
-                        alerta.esFutura ? "bg-primary/5 border border-primary/20" : "bg-muted/50"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={alerta.crearAlerta}
-                        onCheckedChange={() => toggleAlertaCrear(row.rowIndex, aIdx)}
-                        className="mt-0.5"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {alerta.crearAlerta ? (
-                            <Bell className="w-3 h-3 text-primary shrink-0" />
-                          ) : (
-                            <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
-                          )}
-                          {alerta.parentIndex !== null && (
-                            <Link className="w-3 h-3 text-primary/60 shrink-0" />
-                          )}
-                          {/* Editable date input */}
-                          <input
-                            type="date"
-                            value={alerta.fecha || ""}
-                            onChange={(e) => setAlertaFecha(row.rowIndex, aIdx, e.target.value)}
-                            className="h-5 text-[10px] font-mono bg-transparent border border-border rounded px-1 w-[110px] text-muted-foreground"
-                          />
-                          {!alerta.fecha && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 text-amber-600 border-amber-600">
-                              Nota sin fecha
-                            </Badge>
-                          )}
-                          {alerta.esFutura && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary">
-                              2026
-                            </Badge>
-                          )}
-                          {!alerta.esFutura && alerta.fecha && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground border-muted-foreground">
-                              vencida
-                            </Badge>
-                          )}
-                          {/* Empresa assignment */}
-                          {alerta.crearAlerta && rowEmpresas.length > 0 && (
-                            <Select
-                              value={alerta.empresaId || "__madre__"}
-                              onValueChange={(v) => setAlertaEmpresa(row.rowIndex, aIdx, v === "__madre__" ? null : v)}
-                            >
-                              <SelectTrigger className="h-5 text-[10px] w-[130px] border-border">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__madre__" className="text-[10px]">Línea madre</SelectItem>
-                                {rowEmpresas.map((emp) => (
-                                  <SelectItem key={emp.id} value={emp.id} className="text-[10px]">{emp.nombre}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                          {/* Add dependent alert button */}
-                          {alerta.crearAlerta && alerta.fecha && (
-                            <button
-                              className="text-[9px] text-primary/70 hover:text-primary font-medium flex items-center gap-0.5"
-                              onClick={() => addDependentAlerta(row.rowIndex, aIdx)}
-                              title="Crear alerta dependiente"
-                            >
-                              <Plus className="w-3 h-3" /> Dependiente
-                            </button>
-                          )}
+                <Collapsible
+                  key={row.rowIndex}
+                  open={isOpen}
+                  onOpenChange={(open) => setOpenProjects((prev) => ({ ...prev, [row.rowIndex]: open }))}
+                >
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center gap-3 p-3 rounded-md border bg-card hover:bg-accent/50 transition-colors cursor-pointer">
+                      {isOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-semibold">{row.data["Nombre Proyecto"]}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          — {row.alertas.length} entradas · {alertasCount} a crear · {row.alertas.filter((a) => a.esFutura).length} futuras · {pastCount} pasadas
+                        </span>
+                      </div>
+                      {rowEmpresas.length > 0 && (
+                        <div className="flex gap-1">
+                          {rowEmpresas.map((e) => (
+                            <Badge key={e.id} variant="outline" className="text-[10px]">{e.nombre}</Badge>
+                          ))}
                         </div>
-                        {/* Editable text for new dependent alerts */}
-                        {alerta.parentIndex !== null ? (
-                          <input
-                            type="text"
-                            value={alerta.texto}
-                            onChange={(e) => setAlertaTexto(row.rowIndex, aIdx, e.target.value)}
-                            placeholder="Texto de la alerta dependiente..."
-                            className="mt-0.5 w-full text-xs bg-transparent border border-border rounded px-1 py-0.5 text-foreground/80"
-                          />
-                        ) : (
-                          <p className="mt-0.5 text-foreground/80 break-words">{alerta.texto}</p>
-                        )}
+                      )}
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="ml-4 mt-1 border-l-2 border-primary/20 pl-3 space-y-1">
+                      {/* Batch actions for past alerts */}
+                      {pastCount > 0 && (
+                        <div className="flex gap-1 py-1">
+                          <Button variant="outline" size="sm" className="text-[10px] h-6 px-2"
+                            onClick={() => toggleAllPastAlertas(row.rowIndex, true)} disabled={pastCrearCount === pastCount}>
+                            Incluir todas las pasadas
+                          </Button>
+                          <Button variant="outline" size="sm" className="text-[10px] h-6 px-2"
+                            onClick={() => toggleAllPastAlertas(row.rowIndex, false)} disabled={pastCrearCount === 0}>
+                            Excluir todas las pasadas
+                          </Button>
+                        </div>
+                      )}
+                      <div className="space-y-1 max-h-[400px] overflow-auto">
+                        {row.alertas.map((alerta, aIdx) => (
+                          <div
+                            key={aIdx}
+                            className={`flex items-start gap-2 p-2 rounded text-xs ${
+                              alerta.parentIndex !== null ? "ml-6 border-l-2 border-primary/30" : ""
+                            } ${
+                              alerta.esFutura ? "bg-primary/5 border border-primary/20" : "bg-muted/50"
+                            }`}
+                          >
+                            <Checkbox checked={alerta.crearAlerta} onCheckedChange={() => toggleAlertaCrear(row.rowIndex, aIdx)} className="mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {alerta.crearAlerta ? <Bell className="w-3 h-3 text-primary shrink-0" /> : <FileText className="w-3 h-3 text-muted-foreground shrink-0" />}
+                                {alerta.parentIndex !== null && <Link className="w-3 h-3 text-primary/60 shrink-0" />}
+                                <input type="date" value={alerta.fecha || ""} onChange={(e) => setAlertaFecha(row.rowIndex, aIdx, e.target.value)}
+                                  className="h-5 text-[10px] font-mono bg-transparent border border-border rounded px-1 w-[110px] text-muted-foreground" />
+                                {!alerta.fecha && <Badge variant="outline" className="text-[10px] px-1 py-0 text-amber-600 border-amber-600">Nota sin fecha</Badge>}
+                                {alerta.esFutura && <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary">2026</Badge>}
+                                {!alerta.esFutura && alerta.fecha && <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground border-muted-foreground">vencida</Badge>}
+                                {alerta.crearAlerta && rowEmpresas.length > 0 && (
+                                  <Select value={alerta.empresaId || "__madre__"} onValueChange={(v) => setAlertaEmpresa(row.rowIndex, aIdx, v === "__madre__" ? null : v)}>
+                                    <SelectTrigger className="h-5 text-[10px] w-[130px] border-border"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__madre__" className="text-[10px]">Línea madre</SelectItem>
+                                      {rowEmpresas.map((emp) => <SelectItem key={emp.id} value={emp.id} className="text-[10px]">{emp.nombre}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                {alerta.crearAlerta && alerta.fecha && (
+                                  <button className="text-[9px] text-primary/70 hover:text-primary font-medium flex items-center gap-0.5"
+                                    onClick={() => addDependentAlerta(row.rowIndex, aIdx)} title="Crear alerta dependiente">
+                                    <Plus className="w-3 h-3" /> Dependiente
+                                  </button>
+                                )}
+                              </div>
+                              {alerta.parentIndex !== null ? (
+                                <input type="text" value={alerta.texto} onChange={(e) => setAlertaTexto(row.rowIndex, aIdx, e.target.value)}
+                                  placeholder="Texto de la alerta dependiente..." className="mt-0.5 w-full text-xs bg-transparent border border-border rounded px-1 py-0.5 text-foreground/80" />
+                              ) : (
+                                <p className="mt-0.5 text-foreground/80 break-words">{alerta.texto}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </CollapsibleContent>
+                </Collapsible>
               );
             })}
           </CardContent>
         </Card>
-        );
-      })()}
-
-      {/* Step: AI parsing contactos */}
-      {parsedRows.length > 0 && hasMultipleContacts && (() => {
-        const currentStep = stepNum++;
-        return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4" /> Paso {currentStep}: Estructurar Contactos con IA
-            </CardTitle>
-            <CardDescription>
-              Se detectaron contactos con múltiples nombres. La IA asociará cada nombre con su email y teléfono correspondiente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={parseContactosWithAI} disabled={parsingContactos} className="gap-2">
-              {parsingContactos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-              {parsingContactos ? "Procesando..." : "Estructurar Contactos"}
-            </Button>
-          </CardContent>
-        </Card>
-        );
-      })()}
+      )}
 
       {/* Step final: Preview & confirm */}
       {parsedRows.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Paso {stepNum}: Revisión y Carga
+              <CheckCircle2 className="w-4 h-4" /> Paso 5: Revisión y Carga
             </CardTitle>
             <CardDescription className="flex gap-3 flex-wrap">
               <span className="text-green-600">{validCount} válidas</span>
