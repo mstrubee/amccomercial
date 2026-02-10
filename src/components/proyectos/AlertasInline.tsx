@@ -129,27 +129,31 @@ export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onCo
 
   if (active.length === 0) return <span className="text-[10px] text-muted-foreground italic">Sin alertas</span>;
 
+  const handleToggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (expanded && expandAll) {
+      setExpandAll(false);
+      setExpanded(false);
+    } else if (expanded) {
+      setExpandAll(true);
+    } else {
+      setExpanded(true);
+    }
+  };
+
   return (
     <div>
-      <div className="flex items-center gap-1">
-        <button
-          className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 font-medium"
-          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-        >
-          <Bell className="w-3 h-3" />
-          {active.length} alerta{active.length !== 1 ? "s" : ""}
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        </button>
-        {expanded && (
-          <button
-            className={cn("p-0.5 rounded hover:bg-secondary/50", expandAll ? "text-primary" : "text-muted-foreground")}
-            onClick={(e) => { e.stopPropagation(); setExpandAll(!expandAll); }}
-            title={expandAll ? "Colapsar todo" : "Expandir todo"}
-          >
-            <ChevronsUpDown className="w-3 h-3" />
-          </button>
-        )}
-      </div>
+      <button
+        className="flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700"
+        onClick={handleToggleExpand}
+      >
+        <Bell className="w-3 h-3" />
+        {active.length} alerta{active.length !== 1 ? "s" : ""}
+        <span className="text-[10px]">
+          {!expanded ? "· Expandir" : expandAll ? "· Contraer" : "· Expandir"}
+        </span>
+        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
       {expanded && (
         <div className="mt-1.5 space-y-1.5">
           {active.map(a => (
