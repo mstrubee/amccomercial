@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus, Building2 } from "lucide-react";
 import { format, isBefore, startOfDay } from "date-fns";
@@ -35,10 +35,17 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
   empresas?: EmpresaOption[];
   onAssignEmpresa?: (alertaId: string, empresaId: string | null) => void;
 }) {
-  const [showTexto, setShowTexto] = useState(false);
-  const [showChildren, setShowChildren] = useState(false);
-  const isTextoVisible = forceExpand || showTexto;
-  const isChildrenVisible = forceExpand || showChildren;
+  const [localTexto, setLocalTexto] = useState<boolean | null>(null);
+  const [localChildren, setLocalChildren] = useState<boolean | null>(null);
+
+  // Reset local overrides when forceExpand changes
+  useEffect(() => {
+    setLocalTexto(null);
+    setLocalChildren(null);
+  }, [forceExpand]);
+
+  const isTextoVisible = localTexto !== null ? localTexto : (forceExpand || false);
+  const isChildrenVisible = localChildren !== null ? localChildren : (forceExpand || false);
   const today = startOfDay(new Date());
   const fechaDate = parseLocalDate(alerta.fecha_seguimiento);
   const isOverdue = !alerta.completada && isBefore(fechaDate, today);
@@ -52,7 +59,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
     <div className={cn("border-l-2 pl-2 py-1", depth > 0 && "ml-3", isOverdue ? "border-destructive" : alerta.completada ? "border-emerald-400" : "border-amber-400")}>
       <button
         className="w-full text-left"
-        onClick={(e) => { e.stopPropagation(); setShowTexto(!showTexto); }}
+        onClick={(e) => { e.stopPropagation(); setLocalTexto(!isTextoVisible); }}
       >
         <div className="flex items-start gap-1.5">
           <div className="flex-1 min-w-0">
@@ -113,7 +120,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
           </button>
         )}
         {hasChildren && (
-          <button className={cn("text-muted-foreground hover:text-foreground p-0.5 flex items-center gap-0.5", isChildrenVisible && "text-primary")} onClick={(e) => { e.stopPropagation(); setShowChildren(!showChildren); }} title="Expandir seguimientos">
+          <button className={cn("text-muted-foreground hover:text-foreground p-0.5 flex items-center gap-0.5", isChildrenVisible && "text-primary")} onClick={(e) => { e.stopPropagation(); setLocalChildren(!isChildrenVisible); }} title="Expandir seguimientos">
             {isChildrenVisible ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
           </button>
         )}
