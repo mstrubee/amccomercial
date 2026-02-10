@@ -1096,6 +1096,8 @@ export default function CargaMasiva() {
                                 {alerta.crearAlerta ? <Bell className="w-3 h-3 text-primary shrink-0" /> : <FileText className="w-3 h-3 text-muted-foreground shrink-0" />}
                                 {alerta.parentIndex !== null && <Link className="w-3 h-3 text-primary/60 shrink-0" />}
                                 <input type="date" value={alerta.fecha || ""} onChange={(e) => setAlertaFecha(row.rowIndex, aIdx, e.target.value)}
+                                  onFocus={(e) => { if (!alerta.fecha || !alerta.esFutura) { const today = new Date().toISOString().slice(0, 10); e.target.value = alerta.fecha || today; if (!alerta.fecha) { e.target.defaultValue = today; } } }}
+                                  min={new Date().toISOString().slice(0, 10)}
                                   className="h-5 text-[10px] font-mono bg-transparent border border-border rounded px-1 w-[110px] text-muted-foreground" />
                                 {!alerta.fecha && <Badge variant="outline" className="text-[10px] px-1 py-0 text-amber-600 border-amber-600">Nota sin fecha</Badge>}
                                 {alerta.esFutura && <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary">2026</Badge>}
@@ -1116,12 +1118,9 @@ export default function CargaMasiva() {
                                   </button>
                                 )}
                               </div>
-                              {alerta.parentIndex !== null ? (
-                                <input type="text" value={alerta.texto} onChange={(e) => setAlertaTexto(row.rowIndex, aIdx, e.target.value)}
-                                  placeholder="Texto de la alerta dependiente..." className="mt-0.5 w-full text-xs bg-transparent border border-border rounded px-1 py-0.5 text-foreground/80" />
-                              ) : (
-                                <p className="mt-0.5 text-foreground/80 break-words">{alerta.texto}</p>
-                              )}
+                              <input type="text" value={alerta.texto} onChange={(e) => setAlertaTexto(row.rowIndex, aIdx, e.target.value)}
+                                placeholder={alerta.parentIndex !== null ? "Texto de la alerta dependiente..." : "Texto de la nota..."}
+                                className="mt-0.5 w-full text-xs bg-transparent border border-border rounded px-1 py-0.5 text-foreground/80" />
                             </div>
                           </div>
                         ))}
