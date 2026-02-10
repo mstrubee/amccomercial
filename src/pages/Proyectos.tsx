@@ -365,7 +365,7 @@ export default function Proyectos() {
                                     onDelete={(id) => setAlertaDeleteTarget(id)}
                                     onComplete={(a) => setAlertaCompleteTarget(a)}
                                     onShowTree={handleShowTree}
-                                    onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: null, parentAlertaId: a.id })}
+                                    onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })}
                                     onCreateNew={() => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null })}
                                   />
                                 </PopoverContent>
