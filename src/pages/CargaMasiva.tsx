@@ -654,6 +654,41 @@ export default function CargaMasiva() {
     );
   }, []);
 
+  /** Remove a manually-added dependent alerta */
+  const removeDependentAlerta = useCallback((rowIndex: number, alertaIdx: number) => {
+    setParsedRows((prev) =>
+      prev.map((r) => {
+        if (r.rowIndex !== rowIndex) return r;
+        const alertas = [...r.alertas];
+        // Also remove any children pointing to this index
+        const toRemove = new Set<number>([alertaIdx]);
+        // Find children of this alert recursively
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (let i = 0; i < alertas.length; i++) {
+            if (!toRemove.has(i) && alertas[i].parentIndex !== null && toRemove.has(alertas[i].parentIndex!)) {
+              toRemove.add(i);
+              changed = true;
+            }
+          }
+        }
+        const filtered = alertas.filter((_, i) => !toRemove.has(i));
+        // Re-map parentIndex references
+        const oldToNew = new Map<number, number>();
+        let newIdx = 0;
+        for (let i = 0; i < alertas.length; i++) {
+          if (!toRemove.has(i)) { oldToNew.set(i, newIdx++); }
+        }
+        const remapped = filtered.map((a) => ({
+          ...a,
+          parentIndex: a.parentIndex !== null && oldToNew.has(a.parentIndex) ? oldToNew.get(a.parentIndex)! : null,
+        }));
+        return { ...r, alertas: remapped };
+      })
+    );
+  }, []);
+
   /** Update text of a specific alerta */
   const setAlertaTexto = useCallback((rowIndex: number, alertaIdx: number, texto: string) => {
     setParsedRows((prev) =>
@@ -1128,7 +1163,13 @@ export default function CargaMasiva() {
                                 {alerta.crearAlerta && alerta.fecha && (
                                   <button className="text-[9px] text-primary/70 hover:text-primary font-medium flex items-center gap-0.5"
                                     onClick={() => addDependentAlerta(row.rowIndex, aIdx)} title="Crear alerta dependiente">
-                                    <Plus className="w-3 h-3" /> Dependiente
+                                    <Plus className="w-3 h-3" /> Dep.
+                                  </button>
+                                )}
+                                {alerta.parentIndex !== null && (
+                                  <button className="text-[9px] text-destructive/70 hover:text-destructive font-medium flex items-center gap-0.5"
+                                    onClick={() => removeDependentAlerta(row.rowIndex, aIdx)} title="Eliminar alerta dependiente">
+                                    <Trash2 className="w-3 h-3" />
                                   </button>
                                 )}
                               </div>
