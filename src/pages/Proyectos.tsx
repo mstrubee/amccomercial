@@ -777,7 +777,7 @@ function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
   );
 }
 
-/* ── Nota grupo cell (100 chars, only for parent row) ── */
+/* ── Nota grupo cell (no char limit, only for parent row) ── */
 function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void; onCreateAlerta?: (texto: string) => void }) {
   const [value, setValue] = useState((proyecto as any).nota_grupo || "");
   const [saved, setSaved] = useState(true);
