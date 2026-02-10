@@ -875,14 +875,14 @@ export default function CargaMasiva() {
                     : "Todos los valores coinciden correctamente."}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex gap-2">
               <Button
                 onClick={matchDropdownsWithAI}
-                disabled={matchingDropdowns || (dropdownsMatched && !hasUnmatchedDropdowns)}
+                disabled={matchingDropdowns}
                 className="gap-2"
               >
                 {matchingDropdowns ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {dropdownsMatched && !hasUnmatchedDropdowns ? "Clasificado" : matchingDropdowns ? "Clasificando..." : "Clasificar con IA"}
+                {matchingDropdowns ? "Clasificando..." : dropdownsMatched ? "Reprocesar con IA" : "Clasificar con IA"}
               </Button>
             </CardContent>
           </Card>
@@ -903,9 +903,13 @@ export default function CargaMasiva() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={parseAlertasWithAI} disabled={parsingAlertas || allAlertasParsed} className="gap-2">
+            <Button onClick={() => {
+              // Reset alertas state to allow reprocessing
+              setParsedRows((prev) => prev.map((r) => ({ ...r, alertasParsed: false, alertas: [] })));
+              setTimeout(() => parseAlertasWithAI(), 100);
+            }} disabled={parsingAlertas} className="gap-2">
               {parsingAlertas ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-              {allAlertasParsed ? "Procesado" : parsingAlertas ? "Procesando..." : "Procesar con IA"}
+              {parsingAlertas ? "Procesando..." : allAlertasParsed ? "Reprocesar con IA" : "Procesar con IA"}
             </Button>
 
             {/* Show parsed alertas per row */}
@@ -1278,7 +1282,18 @@ function InlineDropdown({
   }
 
   if (isCorrected) {
-    return <span className="text-amber-600 text-xs" title="Corregido por IA">✨ {value}</span>;
+    return (
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-7 text-xs border-amber-500 bg-amber-50/50 w-[140px]" title="Corregido por IA - click para cambiar">
+          <span className="flex items-center gap-1">✨ <SelectValue /></span>
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
   }
 
   return <span className="text-xs">{value || "—"}</span>;
