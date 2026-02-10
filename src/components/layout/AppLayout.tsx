@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Users,
   LogOut,
+  FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,7 +32,10 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: P
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp },
     { path: "/alertas", label: "Alertas", icon: Bell },
-    ...(isAdmin ? [{ path: "/usuarios", label: "Usuarios", icon: Users }] : []),
+    ...(isAdmin ? [
+      { path: "/usuarios", label: "Usuarios", icon: Users },
+      { path: "/carga-masiva", label: "Carga Masiva", icon: FileUp },
+    ] : []),
   ];
 
   return (
