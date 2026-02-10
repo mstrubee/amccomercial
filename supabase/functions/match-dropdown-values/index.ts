@@ -30,6 +30,7 @@ REGLAS ESTRICTAS:
 - Solo haz match si estás MUY seguro (>95% confianza). Considera variaciones de mayúsculas/minúsculas, tildes, abreviaciones comunes, errores de tipeo menores.
 - Si hay la MÁS MÍNIMA duda, responde con match: null y confidence: 0
 - No inventes opciones que no estén en la lista
+- CASO ESPECIAL "Clasificación (inferida del nombre)": el valor es el NOMBRE de un proyecto de construcción. Debes inferir qué tipo de clasificación le corresponde según las opciones disponibles (ej: si el nombre contiene "Edificio" o "Torre" probablemente es "Edificio Habitacional", si dice "Casa" o "Vivienda" probablemente es "Casa", si dice "Oficina" es "Oficina", etc.). En este caso, puedes usar confianza >= 70 si hay indicios claros en el nombre.
 
 Responde usando la función proporcionada.
 
