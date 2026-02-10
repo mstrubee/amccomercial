@@ -1405,7 +1405,18 @@ function InlineDropdown({
     );
   }
 
-  return <span className="text-xs">{value || "—"}</span>;
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-7 text-xs w-[140px] border-border">
+        <SelectValue placeholder={placeholder || "Seleccionar..."} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 /** Parse date from Excel serial or string */
