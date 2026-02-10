@@ -421,10 +421,27 @@ export default function CargaMasiva() {
 
         if (error) throw error;
 
+        // Get empresas linked to this row for auto-assignment
+        const rowEmpNames: { id: string; nombre: string }[] = [];
+        for (let i = 1; i <= 4; i++) {
+          const empName = (row.data[`Empresa ${i}`] || "").trim();
+          if (empName && empresas) {
+            const emp = empresas.find((e) => e.nombre === empName);
+            if (emp) rowEmpNames.push({ id: emp.id, nombre: emp.nombre });
+          }
+        }
+
         const alertas: ParsedAlerta[] = (data.alertas || []).map((a: any) => {
           const fecha = a.fecha || null;
           const esFutura = fecha ? new Date(fecha) >= cutoffDate : false;
-          return { fecha, texto: a.texto, esFutura, crearAlerta: true, empresaId: null };
+          // Auto-assign empresa if the alert text mentions a known empresa name
+          let empresaId: string | null = null;
+          if (rowEmpNames.length > 0) {
+            const textoLower = (a.texto || "").toLowerCase();
+            const matched = rowEmpNames.find((e) => textoLower.includes(e.nombre.toLowerCase()));
+            if (matched) empresaId = matched.id;
+          }
+          return { fecha, texto: a.texto, esFutura, crearAlerta: true, empresaId };
         });
 
         setParsedRows((prev) =>
@@ -444,7 +461,7 @@ export default function CargaMasiva() {
 
     setParsingAlertas(false);
     toast.success("Alertas procesadas con IA");
-  }, [parsedRows]);
+  }, [parsedRows, empresas]);
 
   /** Parse contacts with AI for rows that have multiple names in contact fields */
   const parseContactosWithAI = useCallback(async () => {
@@ -1082,11 +1099,24 @@ export default function CargaMasiva() {
               </Table>
             </div>
 
-            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
               <Button onClick={handleBulkInsert} disabled={validCount === 0 || uploading || uploaded} className="gap-2">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 {uploaded ? "Cargado" : uploading ? "Cargando..." : `Cargar ${validCount} Proyectos`}
               </Button>
+              {!uploaded && !uploading && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setParsedRows([]);
+                    setDropdownsMatched(false);
+                    setUploaded(false);
+                    toast.info("Carga masiva cancelada");
+                  }}
+                >
+                  Cancelar
+                </Button>
+              )}
               {uploaded && <span className="text-sm text-green-600">✓ Proyectos cargados exitosamente</span>}
             </div>
           </CardContent>
