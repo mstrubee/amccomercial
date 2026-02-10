@@ -209,6 +209,8 @@ export function ParentAlertasDisplay({ alertas, allAlertas, onEdit, onDelete, on
 /** Full alerts view for popover/dialog - shows active + historical */
 export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent, onCreateNew, empresas, onAssignEmpresa }: InlineProps & { onCreateNew?: () => void; empresas?: EmpresaOption[]; onAssignEmpresa?: (alertaId: string, empresaId: string | null) => void }) {
   const [showHistorical, setShowHistorical] = useState(false);
+  const [expandActive, setExpandActive] = useState(false);
+  const [expandCompleted, setExpandCompleted] = useState(false);
   const active = alertas.filter(a => !a.completada && !a.deleted);
   const completed = alertas.filter(a => a.completada && !a.deleted);
 
@@ -222,9 +224,17 @@ export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onCompl
       {/* Active alerts */}
       {activeRoots.length > 0 ? (
         <div className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Pendientes ({active.length})</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Pendientes ({active.length})</span>
+            <button
+              className="text-[10px] font-medium text-amber-600 hover:text-amber-700"
+              onClick={() => setExpandActive(!expandActive)}
+            >
+              {expandActive ? "Contraer" : "Expandir"}
+            </button>
+          </div>
           {activeRoots.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} empresas={empresas} onAssignEmpresa={onAssignEmpresa} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} empresas={empresas} onAssignEmpresa={onAssignEmpresa} forceExpand={expandActive} />
           ))}
         </div>
       ) : (
@@ -254,8 +264,16 @@ export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onCompl
           </button>
           {showHistorical && (
             <div className="mt-1.5 space-y-1.5 opacity-70">
+              <div className="flex justify-end">
+                <button
+                  className="text-[10px] font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => setExpandCompleted(!expandCompleted)}
+                >
+                  {expandCompleted ? "Contraer" : "Expandir"}
+                </button>
+              </div>
               {completedRoots.map(a => (
-                <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onShowTree={onShowTree} empresas={empresas} onAssignEmpresa={onAssignEmpresa} />
+                <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onShowTree={onShowTree} empresas={empresas} onAssignEmpresa={onAssignEmpresa} forceExpand={expandCompleted} />
               ))}
             </div>
           )}
