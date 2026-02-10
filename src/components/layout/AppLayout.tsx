@@ -21,20 +21,26 @@ interface Props {
   isAdmin: boolean;
   onSignOut: () => void;
   userEmail: string;
+  canAccessSection?: (key: string) => boolean;
 }
 
-export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: Props) {
+export default function AppLayout({ children, isAdmin, onSignOut, userEmail, canAccessSection }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const location = useLocation();
 
-  const navItems = [
-    { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/empresas", label: "Empresas", icon: Building2 },
-    { path: "/proyectos", label: "Proyectos", icon: FolderKanban },
-    { path: "/finanzas", label: "Finanzas", icon: TrendingUp },
-    { path: "/alertas", label: "Alertas", icon: Bell },
+  const allNavItems = [
+    { path: "/", label: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
+    { path: "/empresas", label: "Empresas", icon: Building2, key: "empresas" },
+    { path: "/proyectos", label: "Proyectos", icon: FolderKanban, key: "proyectos" },
+    { path: "/finanzas", label: "Finanzas", icon: TrendingUp, key: "finanzas" },
+    { path: "/alertas", label: "Alertas", icon: Bell, key: "alertas" },
   ];
+
+  // Filter nav items based on permissions
+  const navItems = canAccessSection
+    ? allNavItems.filter(item => canAccessSection(item.key))
+    : allNavItems;
 
   const adminSubItems = [
     { path: "/usuarios", label: "Usuarios" },

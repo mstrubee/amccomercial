@@ -22,7 +22,7 @@ import { Loader2 } from "lucide-react";
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { user, loading, isAdmin, signIn, signOut } = useAuth();
+  const { user, loading, isAdmin, signIn, signOut, canAccessSection } = useAuth();
 
   if (loading) {
     return (
@@ -37,13 +37,13 @@ function AppRoutes() {
   }
 
   return (
-    <AppLayout isAdmin={isAdmin} onSignOut={signOut} userEmail={user.email || ""}>
+    <AppLayout isAdmin={isAdmin} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/empresas" element={<Empresas />} />
-        <Route path="/proyectos" element={<Proyectos />} />
-        <Route path="/finanzas" element={<Finanzas />} />
-        <Route path="/alertas" element={<Alertas />} />
+        {canAccessSection("dashboard") && <Route path="/" element={<Dashboard />} />}
+        {canAccessSection("empresas") && <Route path="/empresas" element={<Empresas />} />}
+        {canAccessSection("proyectos") && <Route path="/proyectos" element={<Proyectos />} />}
+        {canAccessSection("finanzas") && <Route path="/finanzas" element={<Finanzas />} />}
+        {canAccessSection("alertas") && <Route path="/alertas" element={<Alertas />} />}
         {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
         {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}

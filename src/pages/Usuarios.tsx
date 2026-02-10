@@ -1,16 +1,21 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useEmpresas } from "@/hooks/useEmpresas";
+import { useUserPermissions, useSavePermissions, ALL_SECTIONS, ALL_DASHBOARD_WIDGETS } from "@/hooks/usePermissions";
 
 interface UserRecord {
   id: string;
@@ -32,10 +37,10 @@ export default function Usuarios() {
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<UserRecord | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
     const res = await supabase.functions.invoke("manage-users", {
       body: { action: "list" },
     });
@@ -110,6 +115,9 @@ export default function Usuarios() {
                 <td className="px-5 py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("es-CL")}</td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Permisos" onClick={() => setPermissionsUser(u)}>
+                      <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditUser(u); setShowForm(true); }}>
                       <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
@@ -134,6 +142,12 @@ export default function Usuarios() {
         onSuccess={() => { setShowForm(false); fetchUsers(); }}
       />
 
+      <PermissionsDialog
+        open={!!permissionsUser}
+        onOpenChange={(v) => !v && setPermissionsUser(null)}
+        user={permissionsUser}
+      />
+
       <AlertDialog open={!!deleteUser} onOpenChange={(v) => !v && setDeleteUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -147,6 +161,212 @@ export default function Usuarios() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function PermissionsDialog({ open, onOpenChange, user }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  user: UserRecord | null;
+}) {
+  const { data: empresas } = useEmpresas();
+  const { data: permissions, isLoading } = useUserPermissions(user?.id || null);
+  const savePermissions = useSavePermissions();
+
+  const [empresasVisibles, setEmpresasVisibles] = useState<string[] | null>(null);
+  const [seccionesVisibles, setSeccionesVisibles] = useState<string[] | null>(null);
+  const [dashboardWidgets, setDashboardWidgets] = useState<string[] | null>(null);
+  const [puedeEditar, setPuedeEditar] = useState(true);
+  const [allEmpresas, setAllEmpresas] = useState(true);
+  const [allSections, setAllSections] = useState(true);
+  const [allWidgets, setAllWidgets] = useState(true);
+
+  useEffect(() => {
+    if (open && permissions !== undefined) {
+      if (permissions) {
+        setEmpresasVisibles(permissions.empresas_visibles);
+        setSeccionesVisibles(permissions.secciones_visibles);
+        setDashboardWidgets(permissions.dashboard_widgets);
+        setPuedeEditar(permissions.puede_editar);
+        setAllEmpresas(permissions.empresas_visibles === null);
+        setAllSections(permissions.secciones_visibles === null);
+        setAllWidgets(permissions.dashboard_widgets === null);
+      } else {
+        setEmpresasVisibles(null);
+        setSeccionesVisibles(null);
+        setDashboardWidgets(null);
+        setPuedeEditar(true);
+        setAllEmpresas(true);
+        setAllSections(true);
+        setAllWidgets(true);
+      }
+    }
+  }, [open, permissions]);
+
+  const toggleEmpresa = (id: string) => {
+    const current = empresasVisibles || [];
+    if (current.includes(id)) {
+      setEmpresasVisibles(current.filter(e => e !== id));
+    } else {
+      setEmpresasVisibles([...current, id]);
+    }
+  };
+
+  const toggleSection = (key: string) => {
+    const current = seccionesVisibles || [];
+    if (current.includes(key)) {
+      setSeccionesVisibles(current.filter(s => s !== key));
+    } else {
+      setSeccionesVisibles([...current, key]);
+    }
+  };
+
+  const toggleWidget = (key: string) => {
+    const current = dashboardWidgets || [];
+    if (current.includes(key)) {
+      setDashboardWidgets(current.filter(w => w !== key));
+    } else {
+      setDashboardWidgets([...current, key]);
+    }
+  };
+
+  const handleSave = () => {
+    if (!user) return;
+    savePermissions.mutate({
+      user_id: user.id,
+      empresas_visibles: allEmpresas ? null : (empresasVisibles || []),
+      secciones_visibles: allSections ? null : (seccionesVisibles || []),
+      dashboard_widgets: allWidgets ? null : (dashboardWidgets || []),
+      puede_editar: puedeEditar,
+    }, {
+      onSuccess: () => onOpenChange(false),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            Permisos — {user?.display_name || user?.email}
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>
+        ) : (
+          <Tabs defaultValue="empresas" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="empresas" className="text-xs">Empresas</TabsTrigger>
+              <TabsTrigger value="secciones" className="text-xs">Secciones</TabsTrigger>
+              <TabsTrigger value="dashboard" className="text-xs">Dashboard</TabsTrigger>
+              <TabsTrigger value="edicion" className="text-xs">Edición</TabsTrigger>
+            </TabsList>
+
+            {/* Empresas visibles */}
+            <TabsContent value="empresas" className="space-y-3">
+              <p className="text-xs text-muted-foreground">Selecciona qué empresas puede ver este usuario.</p>
+              <div className="flex items-center gap-2">
+                <Switch checked={allEmpresas} onCheckedChange={(v) => {
+                  setAllEmpresas(v);
+                  if (v) setEmpresasVisibles(null);
+                  else setEmpresasVisibles([]);
+                }} />
+                <Label className="text-sm">Todas las empresas</Label>
+              </div>
+              {!allEmpresas && (
+                <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                  {empresas?.map(e => (
+                    <label key={e.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={(empresasVisibles || []).includes(e.id)}
+                        onCheckedChange={() => toggleEmpresa(e.id)}
+                      />
+                      {e.nombre}
+                      <span className="text-[10px] text-muted-foreground ml-auto">{e.estado}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Secciones del menú */}
+            <TabsContent value="secciones" className="space-y-3">
+              <p className="text-xs text-muted-foreground">Selecciona qué secciones del menú puede acceder este usuario.</p>
+              <div className="flex items-center gap-2">
+                <Switch checked={allSections} onCheckedChange={(v) => {
+                  setAllSections(v);
+                  if (v) setSeccionesVisibles(null);
+                  else setSeccionesVisibles(ALL_SECTIONS.map(s => s.key));
+                }} />
+                <Label className="text-sm">Todas las secciones</Label>
+              </div>
+              {!allSections && (
+                <div className="space-y-2 border rounded-md p-3">
+                  {ALL_SECTIONS.map(s => (
+                    <label key={s.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={(seccionesVisibles || []).includes(s.key)}
+                        onCheckedChange={() => toggleSection(s.key)}
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Dashboard widgets */}
+            <TabsContent value="dashboard" className="space-y-3">
+              <p className="text-xs text-muted-foreground">Selecciona qué widgets del Dashboard puede ver este usuario.</p>
+              <div className="flex items-center gap-2">
+                <Switch checked={allWidgets} onCheckedChange={(v) => {
+                  setAllWidgets(v);
+                  if (v) setDashboardWidgets(null);
+                  else setDashboardWidgets(ALL_DASHBOARD_WIDGETS.map(w => w.key));
+                }} />
+                <Label className="text-sm">Todos los widgets</Label>
+              </div>
+              {!allWidgets && (
+                <div className="space-y-2 border rounded-md p-3">
+                  {ALL_DASHBOARD_WIDGETS.map(w => (
+                    <label key={w.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={(dashboardWidgets || []).includes(w.key)}
+                        onCheckedChange={() => toggleWidget(w.key)}
+                      />
+                      {w.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Permisos de edición */}
+            <TabsContent value="edicion" className="space-y-3">
+              <p className="text-xs text-muted-foreground">Controla si el usuario puede modificar datos o solo visualizar.</p>
+              <div className="flex items-center gap-2">
+                <Switch checked={puedeEditar} onCheckedChange={setPuedeEditar} />
+                <Label className="text-sm">{puedeEditar ? "Puede editar datos" : "Solo lectura"}</Label>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {puedeEditar
+                  ? "El usuario puede crear, editar y eliminar registros según su rol."
+                  : "El usuario solo puede visualizar la información sin realizar cambios."}
+              </p>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={savePermissions.isPending}>
+            {savePermissions.isPending ? "Guardando..." : "Guardar Permisos"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
