@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import logoAmc from "@/assets/logo-amc.jpeg";
+import logoAmc from "@/assets/logo-amc.png";
 
 interface Props {
   children: React.ReactNode;
