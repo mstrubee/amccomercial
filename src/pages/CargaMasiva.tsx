@@ -267,69 +267,96 @@ export default function CargaMasiva() {
       }
     }
 
-    if (items.length === 0) {
-      // No unmatched values - just validate everything
-      setParsedRows((prev) => prev.map(revalidateRow));
-      setDropdownsMatched(true);
-      toast.success("Todos los valores coinciden correctamente");
-      return;
-    }
-
     setMatchingDropdowns(true);
 
     try {
-      // Send to AI in batches of 30
+      // --- Phase 1: Match existing dropdown values with AI ---
       const batchSize = 30;
       const allResults: { index: number; original: string; match: string | null; confidence: number }[] = [];
 
-      for (let i = 0; i < items.length; i += batchSize) {
-        const batch = items.slice(i, i + batchSize).map((item, idx) => ({
-          index: idx + i,
-          value: item.value,
-          field: item.column,
-          options: item.options,
-        }));
+      if (items.length > 0) {
+        for (let i = 0; i < items.length; i += batchSize) {
+          const batch = items.slice(i, i + batchSize).map((item, idx) => ({
+            index: idx + i,
+            value: item.value,
+            field: item.column,
+            options: item.options,
+          }));
 
-        const { data, error } = await supabase.functions.invoke("match-dropdown-values", {
-          body: { items: batch },
-        });
+          const { data, error } = await supabase.functions.invoke("match-dropdown-values", {
+            body: { items: batch },
+          });
 
-        if (error) throw error;
-        if (data.results) allResults.push(...data.results);
+          if (error) throw error;
+          if (data.results) allResults.push(...data.results);
+        }
       }
 
-      // Apply results
-      setParsedRows((prev) => {
-        let updated = [...prev];
+      // Apply dropdown match results first
+      let updatedRows = [...parsedRows];
+      for (const result of allResults) {
+        const item = items[result.index];
+        if (!item) continue;
+        updatedRows = updatedRows.map((row) => {
+          if (row.rowIndex !== item.rowIndex) return row;
+          const newData = { ...row.data };
+          const newAiCorrected = [...row.aiCorrected];
+          const newAiUnmatched = [...row.aiUnmatched];
+          if (result.match && result.confidence >= 90) {
+            newData[item.column] = result.match;
+            newAiCorrected.push(item.column);
+          } else {
+            newData[item.column] = "";
+            newAiUnmatched.push(item.column);
+          }
+          return { ...row, data: newData, aiCorrected: newAiCorrected, aiUnmatched: newAiUnmatched };
+        });
+      }
 
-        for (const result of allResults) {
-          const item = items[result.index];
-          if (!item) continue;
-
-          updated = updated.map((row) => {
-            if (row.rowIndex !== item.rowIndex) return row;
-
-            const newData = { ...row.data };
-            const newAiCorrected = [...row.aiCorrected];
-            const newAiUnmatched = [...row.aiUnmatched];
-
-            if (result.match && result.confidence >= 90) {
-              // High confidence match - auto-correct
-              newData[item.column] = result.match;
-              newAiCorrected.push(item.column);
-            } else {
-              // Low confidence or no match - clear value and mark for manual correction
-              newData[item.column] = "";
-              newAiUnmatched.push(item.column);
-            }
-
-            return { ...row, data: newData, aiCorrected: newAiCorrected, aiUnmatched: newAiUnmatched };
-          });
+      // --- Phase 2: Infer classification from project name when empty ---
+      const clsOptions = dropdownCtx.clasificacionNames;
+      if (clsOptions.length > 0) {
+        const inferItems: { rowIndex: number; projectName: string }[] = [];
+        for (const row of updatedRows) {
+          const cls = (row.data["Clasificación"] || "").trim();
+          const name = (row.data["Nombre Proyecto"] || "").trim();
+          if (!cls && name) {
+            inferItems.push({ rowIndex: row.rowIndex, projectName: name });
+          }
         }
 
-        // Revalidate all rows
-        return updated.map(revalidateRow);
-      });
+        if (inferItems.length > 0) {
+          for (let i = 0; i < inferItems.length; i += batchSize) {
+            const batch = inferItems.slice(i, i + batchSize).map((item, idx) => ({
+              index: idx + i,
+              value: item.projectName,
+              field: "Clasificación (inferida del nombre)",
+              options: clsOptions,
+            }));
+
+            const { data, error } = await supabase.functions.invoke("match-dropdown-values", {
+              body: { items: batch },
+            });
+
+            if (error) throw error;
+            if (data.results) {
+              for (const result of data.results) {
+                const item = inferItems[result.index];
+                if (!item || !result.match || result.confidence < 70) continue;
+                updatedRows = updatedRows.map((row) => {
+                  if (row.rowIndex !== item.rowIndex) return row;
+                  const newData = { ...row.data };
+                  newData["Clasificación"] = result.match!;
+                  return { ...row, data: newData, aiCorrected: [...row.aiCorrected, "Clasificación"] };
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Revalidate all rows
+      setParsedRows(updatedRows.map(revalidateRow));
 
       const matched = allResults.filter((r) => r.match && r.confidence >= 90).length;
       const unmatched = allResults.filter((r) => !r.match || r.confidence < 90).length;
@@ -341,6 +368,8 @@ export default function CargaMasiva() {
         toast.success(`IA corrigió ${matched} valores automáticamente.`);
       } else if (unmatched > 0) {
         toast.warning(`${unmatched} valores no pudieron ser identificados. Corrija manualmente.`);
+      } else {
+        toast.success("Todos los valores coinciden correctamente");
       }
     } catch (err: any) {
       toast.error("Error al clasificar con IA: " + err.message);
