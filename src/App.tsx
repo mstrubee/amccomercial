@@ -15,6 +15,8 @@ import Auth from "@/pages/Auth";
 import NotFound from "./pages/NotFound";
 import AlertaWidget from "@/components/alertas/AlertaWidget";
 import CargaMasiva from "@/pages/CargaMasiva";
+import Clientes from "@/pages/Clientes";
+import CategoriasPage from "@/pages/CategoriasPage";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -44,6 +46,8 @@ function AppRoutes() {
         <Route path="/alertas" element={<Alertas />} />
         {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
+        {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
+        {isAdmin && <Route path="/clientes" element={<Clientes />} />}
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlertaWidget />

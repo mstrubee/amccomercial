@@ -99,6 +99,27 @@ export type Database = {
           },
         ]
       }
+      categorias_cliente: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       categorias_proyecto: {
         Row: {
           color: string
@@ -146,6 +167,47 @@ export type Database = {
           orden?: number
         }
         Relationships: []
+      }
+      clientes: {
+        Row: {
+          categoria_id: string
+          contacto: string
+          created_at: string
+          email: string
+          id: string
+          nombre: string
+          telefono: string
+          updated_at: string
+        }
+        Insert: {
+          categoria_id: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          nombre: string
+          telefono?: string
+          updated_at?: string
+        }
+        Update: {
+          categoria_id?: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          nombre?: string
+          telefono?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clientes_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_cliente"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       condiciones_comerciales: {
         Row: {

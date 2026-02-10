@@ -11,6 +11,7 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
@@ -28,6 +29,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
+  const { isAdmin } = useAuth();
   const { data: empresas } = useEmpresas();
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
@@ -428,6 +430,7 @@ export default function Proyectos() {
         onOpenChange={setShowCreate}
         mode="create"
         isLoading={createProyecto.isPending}
+        isAdmin={isAdmin}
         onSubmit={(data) => {
           createProyecto.mutate(data, { onSuccess: () => setShowCreate(false) });
         }}
@@ -441,6 +444,7 @@ export default function Proyectos() {
           mode="create"
           initialData={{ ...templateSource, nombre: `${templateSource.nombre} (copia)` }}
           isLoading={createProyecto.isPending}
+          isAdmin={isAdmin}
           onSubmit={(data) => {
             createProyecto.mutate(data, { onSuccess: () => setTemplateSource(null) });
           }}
@@ -457,6 +461,7 @@ export default function Proyectos() {
           initialData={editTarget}
           isChildRow
           isLoading={updateProyecto.isPending}
+          isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => a.proyecto_id === editTarget.id)}
           onSubmit={(data) => {
             updateProyecto.mutate({ ...data, id: editTarget.id }, { onSuccess: () => setEditTarget(null) });
@@ -473,6 +478,7 @@ export default function Proyectos() {
           initialData={editParentGroup[0]}
           groupItems={editParentGroup}
           isLoading={updateProyecto.isPending}
+          isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => editParentGroup.some(p => p.id === a.proyecto_id))}
           onSubmit={async (data) => {
             const sharedFields = {
