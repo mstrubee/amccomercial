@@ -11,6 +11,7 @@ import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, 
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
+import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
@@ -33,6 +34,7 @@ export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
   const { isAdmin } = useAuth();
   const { data: empresas } = useEmpresas();
+  const { data: clasificaciones } = useClasificaciones();
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
   const deleteProyecto = useDeleteProyecto();
@@ -44,6 +46,7 @@ export default function Proyectos() {
   const [filterEmpresa, setFilterEmpresa] = useState("Todas");
   const [filterCategoria, setFilterCategoria] = useState("Todas");
   const [filterEstadoObra, setFilterEstadoObra] = useState("Todos");
+  const [filterClasificacion, setFilterClasificacion] = useState("Todas");
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -134,7 +137,9 @@ export default function Proyectos() {
     const matchCategoria =
       filterCategoria === "Todas" ||
       p.proyecto_empresas?.some((pe) => pe.categoria_id === filterCategoria || pe.subcategoria_id === filterCategoria);
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria;
+    const matchClasificacion =
+      filterClasificacion === "Todas" || p.clasificacion_id === filterClasificacion;
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion;
   });
 
   // Group projects by name
@@ -281,6 +286,17 @@ export default function Proyectos() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterClasificacion} onValueChange={setFilterClasificacion}>
+            <SelectTrigger className="w-[170px] h-8 text-xs">
+              <SelectValue placeholder="Clasificación" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todas">Todas las clasificaciones</SelectItem>
+              {clasificaciones?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </motion.div>
 
@@ -326,7 +342,10 @@ export default function Proyectos() {
                         <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} /> {parentNum}
                       </td>
                       <td className="px-5 py-3 font-medium text-card-foreground">
-                        {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
+                        <div>{first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span></div>
+                        {first.clasificaciones_proyecto && (
+                          <div className="text-[10px] text-muted-foreground">{first.clasificaciones_proyecto.nombre}</div>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-muted-foreground text-xs">{(first as any).fecha_ingreso ? new Date((first as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
