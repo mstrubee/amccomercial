@@ -16,7 +16,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
-import { AlertasCollapsible, ParentAlertasDisplay } from "@/components/proyectos/AlertasInline";
+import { AlertasCollapsible, ParentAlertasDisplay, AlertasFullView } from "@/components/proyectos/AlertasInline";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -341,9 +342,36 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Crear alerta" onClick={(e) => { e.stopPropagation(); setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null }); }}>
-                            <Bell className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
+                          {(() => {
+                            const groupIds = new Set(items.map(i => i.id));
+                            const parentAlertas = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
+                            const activeCount = parentAlertas.filter(a => !a.completada && !a.deleted).length;
+                            return (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 relative" title="Alertas del proyecto" onClick={(e) => e.stopPropagation()}>
+                                    <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                                    {activeCount > 0 && (
+                                      <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-[8px] text-white flex items-center justify-center font-bold">{activeCount}</span>
+                                    )}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 max-h-[400px] overflow-y-auto" align="end" onClick={(e) => e.stopPropagation()}>
+                                  <div className="text-xs font-semibold text-foreground mb-2">Alertas del Proyecto</div>
+                                  <AlertasFullView
+                                    alertas={parentAlertas}
+                                    allAlertas={alertas}
+                                    onEdit={(a) => setAlertaEditTarget(a)}
+                                    onDelete={(id) => setAlertaDeleteTarget(id)}
+                                    onComplete={(a) => setAlertaCompleteTarget(a)}
+                                    onShowTree={handleShowTree}
+                                    onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: null, parentAlertaId: a.id })}
+                                    onCreateNew={() => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null })}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            );
+                          })()}
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
@@ -361,20 +389,6 @@ export default function Proyectos() {
                         <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null, defaultTexto: texto })} />
                       </td>
                     </tr>
-                    {/* Parent alerts row (alerts without empresa) */}
-                    {(() => {
-                      const groupIds = new Set(items.map(i => i.id));
-                      const parentAlertas = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
-                      return parentAlertas.filter(a => !a.completada).length > 0 ? (
-                        <tr className={evenBg} onClick={(e) => e.stopPropagation()}>
-                          <td colSpan={5} className="px-5 pb-2 pt-0"></td>
-                          <td colSpan={2} className="px-5 pb-2 pt-0">
-                            <ParentAlertasDisplay alertas={parentAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
-                          </td>
-                          <td className="px-5 pb-2 pt-0"></td>
-                        </tr>
-                      ) : null;
-                    })()}
                     <AnimatePresence>
                       {expanded && items.map((p, childIdx) => {
                         const childAlertas = (alertas || []).filter(a => a.proyecto_id === p.id);
@@ -398,9 +412,36 @@ export default function Proyectos() {
                               <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
                               <td className="px-5 py-2 text-right align-top">
                                 <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Crear alerta" onClick={() => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null })}>
-                                    <Bell className="w-3.5 h-3.5 text-muted-foreground" />
-                                  </Button>
+                                  {(() => {
+                                    const empresaId = p.proyecto_empresas?.[0]?.empresa_id || null;
+                                    const empresaAlertas = childAlertas.filter(a => a.empresa_id === empresaId);
+                                    const activeCount = empresaAlertas.filter(a => !a.completada && !a.deleted).length;
+                                    return (
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 relative" title="Alertas de empresa">
+                                            <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                                            {activeCount > 0 && (
+                                              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-[8px] text-white flex items-center justify-center font-bold">{activeCount}</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 max-h-[400px] overflow-y-auto" align="end">
+                                          <div className="text-xs font-semibold text-foreground mb-2">Alertas — {p.proyecto_empresas?.[0]?.empresas?.nombre || "Empresa"}</div>
+                                          <AlertasFullView
+                                            alertas={empresaAlertas}
+                                            allAlertas={alertas}
+                                            onEdit={(a) => setAlertaEditTarget(a)}
+                                            onDelete={(id) => setAlertaDeleteTarget(id)}
+                                            onComplete={(a) => setAlertaCompleteTarget(a)}
+                                            onShowTree={handleShowTree}
+                                            onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })}
+                                            onCreateNew={() => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: empresaId })}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                    );
+                                  })()}
                                   <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => setTemplateSource(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                                   <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
