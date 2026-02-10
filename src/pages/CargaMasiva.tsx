@@ -581,10 +581,10 @@ export default function CargaMasiva() {
         const fechaIngreso = parseDateValue(d["Fecha Ingreso"]);
         const fechaEstado = parseDateValue(d["Fecha Estado Obra"]);
 
-        // Build notas from: unchecked entries + checked entries without dates (can't create DB alertas without fecha)
+        // Only store undated notes that aren't being created as alertas
         const notasTexto = row.alertas
-          .filter((a) => !a.crearAlerta || !a.fecha)
-          .map((a) => `${a.fecha || "Nota"}: ${a.texto}`)
+          .filter((a) => !a.crearAlerta && !a.fecha)
+          .map((a) => a.texto)
           .join("\n");
 
         const projectPayload = {
