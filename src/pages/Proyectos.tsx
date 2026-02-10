@@ -391,7 +391,8 @@ export default function Proyectos() {
                     </tr>
                     <AnimatePresence>
                       {expanded && items.map((p, childIdx) => {
-                        const childAlertas = (alertas || []).filter(a => a.proyecto_id === p.id);
+                        const empresaId = p.proyecto_empresas?.[0]?.empresa_id || null;
+                        const childAlertas = (alertas || []).filter(a => a.proyecto_id === p.id && a.empresa_id === empresaId);
                         const childBg = isEven ? "bg-muted/30" : "bg-secondary/10";
                         return (
                           <Fragment key={p.id}>
