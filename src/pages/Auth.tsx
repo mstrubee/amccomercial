@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import logoAmc from "@/assets/logo-amc.jpeg";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
@@ -48,9 +49,7 @@ export default function Auth({ onLogin }: Props) {
         className="w-full max-w-sm space-y-6"
       >
         <div className="text-center">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-4">
-            <span className="text-primary-foreground font-bold text-lg">A</span>
-          </div>
+          <img src={logoAmc} alt="AMC" className="mx-auto w-12 h-12 rounded-xl object-cover mb-4" />
           <h1 className="text-2xl font-bold text-foreground">AMC</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestión Comercial</p>
         </div>
