@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users } from "lucide-react";
 
 const ESTADOS_OBRA = [
   "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada",
@@ -59,6 +59,7 @@ export default function CargaMasiva() {
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [parsingAlertas, setParsingAlertas] = useState(false);
+  const [parsingContactos, setParsingContactos] = useState(false);
 
   const [estadosAMC] = useState<string[]>(["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"]);
 
@@ -102,6 +103,18 @@ export default function CargaMasiva() {
     toast.success("Plantilla descargada");
   }, [clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames]);
 
+  /** Find region from comuna using chile-geo data */
+  const findRegionByComuna = useCallback((comuna: string): string => {
+    if (!comuna) return "";
+    const comunaTrimmed = comuna.trim();
+    for (const reg of REGIONES_CHILE) {
+      if (reg.comunas.some((c) => c.toLowerCase() === comunaTrimmed.toLowerCase())) {
+        return reg.nombre;
+      }
+    }
+    return "";
+  }, []);
+
   const validateRow = useCallback(
     (row: Record<string, string>, idx: number): ParsedRow => {
       const errors: string[] = [];
@@ -120,14 +133,23 @@ export default function CargaMasiva() {
       if (estadoAmc && !estadosAMC.includes(estadoAmc))
         errors.push(`Estado AMC "${estadoAmc}" no reconocido`);
 
-      const region = (row["Región"] || "").trim();
+      let region = (row["Región"] || "").trim();
+      const comuna = (row["Comuna"] || "").trim();
+
+      // Auto-detect region from comuna if region is empty
+      if (!region && comuna) {
+        region = findRegionByComuna(comuna);
+        if (region) {
+          row["Región"] = region;
+        }
+      }
+
       if (region && !regionNames.includes(region))
         errors.push(`Región "${region}" no reconocida`);
 
-      const comuna = (row["Comuna"] || "").trim();
       if (region && comuna) {
         const reg = REGIONES_CHILE.find((r) => r.nombre === region);
-        if (reg && !reg.comunas.includes(comuna))
+        if (reg && !reg.comunas.some((c) => c.toLowerCase() === comuna.toLowerCase()))
           errors.push(`Comuna "${comuna}" no pertenece a ${region}`);
       }
 
@@ -143,7 +165,7 @@ export default function CargaMasiva() {
         alertas: [], alertasParsing: false, alertasParsed: false,
       };
     },
-    [clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames]
+    [clasificacionNames, estadosAMC, empresaNames, categoriaNames, regionNames, findRegionByComuna]
   );
 
   const handleFileUpload = useCallback(
@@ -219,6 +241,69 @@ export default function CargaMasiva() {
 
     setParsingAlertas(false);
     toast.success("Alertas procesadas con IA");
+  }, [parsedRows]);
+
+  /** Parse contacts with AI for rows that have multiple names in contact fields */
+  const parseContactosWithAI = useCallback(async () => {
+    const contactFields = ["Arq", "Const", "ITO", "Dueños"];
+    const rowsWithMultipleContacts = parsedRows.filter((r) => {
+      if (!r.valid) return false;
+      return contactFields.some((prefix) => {
+        const nombre = (r.data[`${prefix} Nombre`] || "").trim();
+        // Has multiple entries if contains separators
+        return nombre && (nombre.includes(",") || nombre.includes("/") || nombre.includes(" y "));
+      });
+    });
+
+    if (rowsWithMultipleContacts.length === 0) {
+      toast.info("No hay contactos múltiples para procesar");
+      return;
+    }
+
+    setParsingContactos(true);
+
+    for (const row of rowsWithMultipleContacts) {
+      try {
+        const contactos = contactFields.map((prefix) => ({
+          categoria: prefix === "Const" ? "Constructora" : prefix,
+          nombre: (row.data[`${prefix} Nombre`] || "").trim(),
+          contacto: (row.data[`${prefix} Contacto`] || "").trim(),
+          email: (row.data[`${prefix} Email`] || "").trim(),
+          telefono: (row.data[`${prefix} Teléfono`] || "").trim(),
+        })).filter((c) => c.nombre);
+
+        if (contactos.length === 0) continue;
+
+        const { data, error } = await supabase.functions.invoke("parse-contactos", {
+          body: { contactos },
+        });
+
+        if (error) throw error;
+
+        const parsed = data.contactos || [];
+        setParsedRows((prev) =>
+          prev.map((r) => {
+            if (r.rowIndex !== row.rowIndex) return r;
+            const newData = { ...r.data };
+            for (const c of parsed) {
+              const prefix = c.categoria === "Constructora" ? "Const" : c.categoria;
+              if (contactFields.includes(prefix) || prefix === "Const") {
+                newData[`${prefix} Nombre`] = c.nombre || "";
+                newData[`${prefix} Contacto`] = c.contacto || "";
+                newData[`${prefix} Email`] = c.email || "";
+                newData[`${prefix} Teléfono`] = c.telefono || "";
+              }
+            }
+            return { ...r, data: newData };
+          })
+        );
+      } catch (err: any) {
+        toast.error(`Error procesando contactos fila ${row.rowIndex}: ${err.message}`);
+      }
+    }
+
+    setParsingContactos(false);
+    toast.success("Contactos procesados con IA");
   }, [parsedRows]);
 
   const toggleAlertaCrear = useCallback((rowIndex: number, alertaIdx: number) => {
@@ -371,6 +456,15 @@ export default function CargaMasiva() {
   const hasAlertasText = parsedRows.some((r) => r.valid && (r.data["Notas / Alertas"] || "").trim());
   const allAlertasParsed = parsedRows.filter((r) => r.valid && (r.data["Notas / Alertas"] || "").trim()).every((r) => r.alertasParsed);
   const totalAlertasToCreate = parsedRows.reduce((acc, r) => acc + r.alertas.filter((a) => a.crearAlerta).length, 0);
+  const hasMultipleContacts = parsedRows.some((r) => {
+    if (!r.valid) return false;
+    return ["Arq", "Const", "ITO", "Dueños"].some((prefix) => {
+      const nombre = (r.data[`${prefix} Nombre`] || "").trim();
+      return nombre && (nombre.includes(",") || nombre.includes("/") || nombre.includes(" y "));
+    });
+  });
+
+  let stepNum = 3;
 
   return (
     <div className="space-y-6">
@@ -414,12 +508,14 @@ export default function CargaMasiva() {
         </CardContent>
       </Card>
 
-      {/* Step 3: AI parsing */}
-      {parsedRows.length > 0 && hasAlertasText && (
+      {/* Step 3+: AI parsing alertas */}
+      {parsedRows.length > 0 && hasAlertasText && (() => {
+        const currentStep = stepNum++;
+        return (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Brain className="w-4 h-4" /> Paso 3: Procesar Notas con IA
+              <Brain className="w-4 h-4" /> Paso {currentStep}: Procesar Notas con IA
             </CardTitle>
             <CardDescription>
               La IA separará el texto corrido en entradas individuales por fecha. Ene/Feb → 2026 (alertas), resto → 2025 (notas).
@@ -478,14 +574,38 @@ export default function CargaMasiva() {
             ))}
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
-      {/* Step 4: Preview & confirm */}
+      {/* Step: AI parsing contactos */}
+      {parsedRows.length > 0 && hasMultipleContacts && (() => {
+        const currentStep = stepNum++;
+        return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4" /> Paso {currentStep}: Estructurar Contactos con IA
+            </CardTitle>
+            <CardDescription>
+              Se detectaron contactos con múltiples nombres. La IA asociará cada nombre con su email y teléfono correspondiente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={parseContactosWithAI} disabled={parsingContactos} className="gap-2">
+              {parsingContactos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+              {parsingContactos ? "Procesando..." : "Estructurar Contactos"}
+            </Button>
+          </CardContent>
+        </Card>
+        );
+      })()}
+
+      {/* Step final: Preview & confirm */}
       {parsedRows.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> {hasAlertasText ? "Paso 4" : "Paso 3"}: Revisión y Carga
+              <CheckCircle2 className="w-4 h-4" /> Paso {stepNum}: Revisión y Carga
             </CardTitle>
             <CardDescription className="flex gap-3">
               <span className="text-green-600">{validCount} válidas</span>
