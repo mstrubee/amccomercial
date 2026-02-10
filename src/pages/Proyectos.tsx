@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell } from "lucide-react";
@@ -78,6 +79,20 @@ export default function Proyectos() {
     setTreeRootId(alertaId);
     setShowTree(true);
   }, []);
+
+  const qc = useQueryClient();
+  const handleAssignEmpresa = useCallback(async (alertaId: string, empresaId: string | null) => {
+    const { error } = await supabase
+      .from("alertas")
+      .update({ empresa_id: empresaId } as any)
+      .eq("id", alertaId);
+    if (error) {
+      toast.error("Error al asignar empresa: " + error.message);
+    } else {
+      toast.success("Empresa asignada");
+      qc.invalidateQueries({ queryKey: ["alertas"] });
+    }
+  }, [qc]);
 
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -386,6 +401,8 @@ export default function Proyectos() {
                                     onShowTree={handleShowTree}
                                     onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })}
                                     onCreateNew={() => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null })}
+                                    empresas={empresas?.map(e => ({ id: e.id, nombre: e.nombre })) || []}
+                                    onAssignEmpresa={handleAssignEmpresa}
                                   />
                                 </PopoverContent>
                               </Popover>
