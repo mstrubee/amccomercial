@@ -99,6 +99,33 @@ export type Database = {
           },
         ]
       }
+      archivos_muestra: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          path: string
+          uploaded_by: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          path: string
+          uploaded_by: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          path?: string
+          uploaded_by?: string
+          url?: string
+        }
+        Relationships: []
+      }
       categorias_cliente: {
         Row: {
           created_at: string
