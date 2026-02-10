@@ -12,6 +12,7 @@ export type ProyectoWithEmpresas = ProyectoRow & {
     categorias_proyecto: Tables<"categorias_proyecto"> | null;
     subcategorias_proyecto: Tables<"subcategorias_proyecto"> | null;
   })[];
+  clasificaciones_proyecto: Tables<"clasificaciones_proyecto"> | null;
 };
 
 export interface EmpresaLink {
@@ -28,7 +29,7 @@ export function useProyectos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("proyectos")
-        .select("*, proyecto_empresas(*, empresas(*), categorias_proyecto(*), subcategorias_proyecto(*))")
+        .select("*, proyecto_empresas(*, empresas(*), categorias_proyecto(*), subcategorias_proyecto(*)), clasificaciones_proyecto(*)")
         .order("numero", { ascending: true });
       if (error) throw error;
       return data as ProyectoWithEmpresas[];

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
-import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus, ChevronsUpDown } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Pencil, Trash2, Circle, CheckCircle2, GitBranch, Plus } from "lucide-react";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -124,40 +124,25 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
 
 export function AlertasCollapsible({ alertas, allAlertas, onEdit, onDelete, onComplete, onShowTree, onCreateDependent }: InlineProps) {
   const [expanded, setExpanded] = useState(false);
-  const [expandAll, setExpandAll] = useState(false);
   const active = alertas.filter(a => !a.completada && !a.deleted);
 
   if (active.length === 0) return <span className="text-[10px] text-muted-foreground italic">Sin alertas</span>;
-
-  const handleToggleExpand = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (expanded && expandAll) {
-      setExpandAll(false);
-      setExpanded(false);
-    } else if (expanded) {
-      setExpandAll(true);
-    } else {
-      setExpanded(true);
-    }
-  };
 
   return (
     <div>
       <button
         className="flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700"
-        onClick={handleToggleExpand}
+        onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
       >
         <Bell className="w-3 h-3" />
         {active.length} alerta{active.length !== 1 ? "s" : ""}
-        <span className="text-[10px]">
-          {!expanded ? "· Expandir" : expandAll ? "· Contraer" : "· Expandir"}
-        </span>
+        <span className="text-[10px]">{expanded ? "· Contraer" : "· Expandir"}</span>
         {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {expanded && (
         <div className="mt-1.5 space-y-1.5">
           {active.map(a => (
-            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} forceExpand={expandAll} />
+            <AlertaItem key={a.id} alerta={a} allAlertas={allAlertas} onEdit={onEdit} onDelete={onDelete} onComplete={onComplete} onShowTree={onShowTree} onCreateDependent={onCreateDependent} forceExpand={true} />
           ))}
         </div>
       )}
