@@ -58,6 +58,8 @@ interface ParsedAlerta {
   texto: string;
   esFutura: boolean;
   crearAlerta: boolean;
+  /** null = línea madre (proyecto), empresa_id string = empresa específica */
+  empresaId: string | null;
 }
 
 interface ParsedRow {
@@ -393,7 +395,7 @@ export default function CargaMasiva() {
         const alertas: ParsedAlerta[] = (data.alertas || []).map((a: any) => {
           const fecha = a.fecha || null;
           const esFutura = fecha ? new Date(fecha) >= cutoffDate : false;
-          return { fecha, texto: a.texto, esFutura, crearAlerta: esFutura };
+          return { fecha, texto: a.texto, esFutura, crearAlerta: true, empresaId: null };
         });
 
         setParsedRows((prev) =>
@@ -483,6 +485,29 @@ export default function CargaMasiva() {
         if (r.rowIndex !== rowIndex) return r;
         const alertas = [...r.alertas];
         alertas[alertaIdx] = { ...alertas[alertaIdx], crearAlerta: !alertas[alertaIdx].crearAlerta };
+        return { ...r, alertas };
+      })
+    );
+  }, []);
+
+  /** Change empresa assignment for a specific alerta */
+  const setAlertaEmpresa = useCallback((rowIndex: number, alertaIdx: number, empresaId: string | null) => {
+    setParsedRows((prev) =>
+      prev.map((r) => {
+        if (r.rowIndex !== rowIndex) return r;
+        const alertas = [...r.alertas];
+        alertas[alertaIdx] = { ...alertas[alertaIdx], empresaId };
+        return { ...r, alertas };
+      })
+    );
+  }, []);
+
+  /** Mark all past alertas as not to create (or toggle them) */
+  const toggleAllPastAlertas = useCallback((rowIndex: number, crearAlerta: boolean) => {
+    setParsedRows((prev) =>
+      prev.map((r) => {
+        if (r.rowIndex !== rowIndex) return r;
+        const alertas = r.alertas.map((a) => a.esFutura ? a : { ...a, crearAlerta });
         return { ...r, alertas };
       })
     );
@@ -595,16 +620,18 @@ export default function CargaMasiva() {
           if (linkErr) throw linkErr;
         }
 
-        // Create alertas for selected entries
+        // Create alertas for selected entries (both past and future, none marked as completed)
         const alertasToCreate = row.alertas.filter((a) => a.crearAlerta && a.fecha);
         if (alertasToCreate.length > 0) {
           const alertInserts = alertasToCreate.map((a) => ({
             proyecto_id: projectId,
+            empresa_id: a.empresaId || null,
             titulo: "Seguimiento",
             texto: a.texto,
             fecha_seguimiento: a.fecha!,
             usuario_responsable_id: user.id,
             created_by: user.id,
+            completada: false,
           }));
           const { error: alertErr } = await supabase.from("alertas").insert(alertInserts as any[]);
           if (alertErr) throw alertErr;
@@ -746,15 +773,52 @@ export default function CargaMasiva() {
             </Button>
 
             {/* Show parsed alertas per row */}
-            {parsedRows.filter((r) => r.alertasParsed && r.alertas.length > 0).map((row) => (
+            {parsedRows.filter((r) => r.alertasParsed && r.alertas.length > 0).map((row) => {
+              const pastCount = row.alertas.filter((a) => !a.esFutura).length;
+              const pastCrearCount = row.alertas.filter((a) => !a.esFutura && a.crearAlerta).length;
+              // Get empresas from row data
+              const rowEmpresas: { id: string; nombre: string }[] = [];
+              for (let i = 1; i <= 4; i++) {
+                const empName = (row.data[`Empresa ${i}`] || "").trim();
+                if (empName && empresas) {
+                  const emp = empresas.find((e) => e.nombre === empName);
+                  if (emp) rowEmpresas.push({ id: emp.id, nombre: emp.nombre });
+                }
+              }
+
+              return (
               <div key={row.rowIndex} className="border rounded-md p-3 space-y-2">
-                <h4 className="text-sm font-medium">
-                  Fila {row.rowIndex}: {row.data["Nombre Proyecto"]}
-                  <span className="ml-2 text-muted-foreground text-xs">
-                    ({row.alertas.length} entradas, {row.alertas.filter((a) => a.esFutura).length} futuras)
-                  </span>
-                </h4>
-                <div className="space-y-1 max-h-[300px] overflow-auto">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">
+                    Fila {row.rowIndex}: {row.data["Nombre Proyecto"]}
+                    <span className="ml-2 text-muted-foreground text-xs">
+                      ({row.alertas.length} entradas, {row.alertas.filter((a) => a.esFutura).length} futuras, {pastCount} pasadas)
+                    </span>
+                  </h4>
+                  {pastCount > 0 && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[10px] h-6 px-2"
+                        onClick={() => toggleAllPastAlertas(row.rowIndex, true)}
+                        disabled={pastCrearCount === pastCount}
+                      >
+                        Incluir todas las pasadas
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[10px] h-6 px-2"
+                        onClick={() => toggleAllPastAlertas(row.rowIndex, false)}
+                        disabled={pastCrearCount === 0}
+                      >
+                        Excluir todas las pasadas
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1 max-h-[400px] overflow-auto">
                   {row.alertas.map((alerta, aIdx) => (
                     <div
                       key={aIdx}
@@ -768,7 +832,7 @@ export default function CargaMasiva() {
                         className="mt-0.5"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {alerta.crearAlerta ? (
                             <Bell className="w-3 h-3 text-primary shrink-0" />
                           ) : (
@@ -782,6 +846,28 @@ export default function CargaMasiva() {
                               2026
                             </Badge>
                           )}
+                          {!alerta.esFutura && alerta.fecha && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 text-muted-foreground border-muted-foreground">
+                              vencida
+                            </Badge>
+                          )}
+                          {/* Empresa assignment */}
+                          {alerta.crearAlerta && rowEmpresas.length > 0 && (
+                            <Select
+                              value={alerta.empresaId || "__madre__"}
+                              onValueChange={(v) => setAlertaEmpresa(row.rowIndex, aIdx, v === "__madre__" ? null : v)}
+                            >
+                              <SelectTrigger className="h-5 text-[10px] w-[130px] border-border">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__madre__" className="text-[10px]">Línea madre</SelectItem>
+                                {rowEmpresas.map((emp) => (
+                                  <SelectItem key={emp.id} value={emp.id} className="text-[10px]">{emp.nombre}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                         <p className="mt-0.5 text-foreground/80 break-words">{alerta.texto}</p>
                       </div>
@@ -789,7 +875,8 @@ export default function CargaMasiva() {
                   ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
         );
