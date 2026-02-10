@@ -179,9 +179,10 @@ export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onCompl
   const active = alertas.filter(a => !a.completada && !a.deleted);
   const completed = alertas.filter(a => a.completada && !a.deleted);
 
-  // Only show root-level alerts (children shown nested)
-  const activeRoots = active.filter(a => !a.parent_alerta_id || !alertas.some(p => p.id === a.parent_alerta_id && !p.deleted));
-  const completedRoots = completed.filter(a => !a.parent_alerta_id || !alertas.some(p => p.id === a.parent_alerta_id && !p.deleted));
+  // Only show root-level alerts (children shown nested) - use allAlertas for tree context
+  const allForTree = allAlertas || alertas;
+  const activeRoots = active.filter(a => !a.parent_alerta_id || !allForTree.some(p => p.id === a.parent_alerta_id && !p.deleted));
+  const completedRoots = completed.filter(a => !a.parent_alerta_id || !allForTree.some(p => p.id === a.parent_alerta_id && !p.deleted));
 
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>

@@ -813,17 +813,16 @@ export default function CargaMasiva() {
         }
 
         // Create alertas - handle parent-child dependencies
-        const alertasToCreate = row.alertas
+        // Selected (crearAlerta) => active, unselected with date => historical (completada)
+        const alertasWithDate = row.alertas
           .map((a, origIdx) => ({ ...a, origIdx }))
-          .filter((a) => a.crearAlerta && a.fecha);
+          .filter((a) => a.fecha);
 
-        if (alertasToCreate.length > 0) {
-          // Map original index -> created DB id for parent references
+        if (alertasWithDate.length > 0) {
           const origIdxToDbId: Record<number, string> = {};
 
-          // Insert root alertas first (no parent), then children
-          const roots = alertasToCreate.filter((a) => a.parentIndex === null);
-          const children = alertasToCreate.filter((a) => a.parentIndex !== null);
+          const roots = alertasWithDate.filter((a) => a.parentIndex === null);
+          const children = alertasWithDate.filter((a) => a.parentIndex !== null);
 
           if (roots.length > 0) {
             const rootInserts = roots.map((a) => ({
@@ -834,7 +833,9 @@ export default function CargaMasiva() {
               fecha_seguimiento: a.fecha!,
               usuario_responsable_id: user.id,
               created_by: user.id,
-              completada: false,
+              completada: !a.crearAlerta,
+              completed_at: !a.crearAlerta ? new Date().toISOString() : null,
+              completed_by: !a.crearAlerta ? user.id : null,
             }));
             const { data: createdRoots, error: rootErr } = await supabase
               .from("alertas")
@@ -846,7 +847,6 @@ export default function CargaMasiva() {
             });
           }
 
-          // Insert children with parent_alerta_id
           if (children.length > 0) {
             const childInserts = children.map((a) => ({
               proyecto_id: projectId,
@@ -856,7 +856,9 @@ export default function CargaMasiva() {
               fecha_seguimiento: a.fecha!,
               usuario_responsable_id: user.id,
               created_by: user.id,
-              completada: false,
+              completada: !a.crearAlerta,
+              completed_at: !a.crearAlerta ? new Date().toISOString() : null,
+              completed_by: !a.crearAlerta ? user.id : null,
               parent_alerta_id: a.parentIndex !== null ? origIdxToDbId[a.parentIndex] || null : null,
             }));
             const { error: childErr } = await supabase.from("alertas").insert(childInserts as any[]);
