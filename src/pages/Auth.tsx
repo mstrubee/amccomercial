@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import logoAmc from "@/assets/logo-amc.jpeg";
+import logoAmc from "@/assets/logo-amc.png";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
