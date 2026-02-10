@@ -562,6 +562,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_permissions: {
+        Row: {
+          created_at: string
+          dashboard_widgets: string[] | null
+          empresas_visibles: string[] | null
+          id: string
+          puede_editar: boolean
+          secciones_visibles: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dashboard_widgets?: string[] | null
+          empresas_visibles?: string[] | null
+          id?: string
+          puede_editar?: boolean
+          secciones_visibles?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dashboard_widgets?: string[] | null
+          empresas_visibles?: string[] | null
+          id?: string
+          puede_editar?: boolean
+          secciones_visibles?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
