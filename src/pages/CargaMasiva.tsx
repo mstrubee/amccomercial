@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useClasificaciones } from "@/hooks/useClasificaciones";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { REGIONES_CHILE } from "@/data/chile-geo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,8 +95,17 @@ export default function CargaMasiva() {
   const [aiPhase, setAiPhase] = useState<"idle" | "dropdowns" | "alertas" | "contactos" | "done">("idle");
   const [openProjects, setOpenProjects] = useState<Record<number, boolean>>({});
   const aiRunTriggered = useRef(false);
-  const [sampleFile, setSampleFile] = useState<{ name: string; url: string; path: string } | null>(null);
   const [uploadingSample, setUploadingSample] = useState(false);
+
+  // Load persisted sample files from DB
+  const { data: sampleFiles, refetch: refetchSamples } = useQuery({
+    queryKey: ["archivos-muestra"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("archivos_muestra" as any).select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown) as { id: string; nombre: string; path: string; url: string; created_at: string }[];
+    },
+  });
 
   const [estadosAMC] = useState<string[]>(["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"]);
 
@@ -867,7 +876,9 @@ export default function CargaMasiva() {
       const { error } = await supabase.storage.from("carga-masiva-muestras").upload(path, file);
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("carga-masiva-muestras").getPublicUrl(path);
-      setSampleFile({ name: file.name, url: urlData.publicUrl, path });
+      const { data: { user } } = await supabase.auth.getUser();
+      await (supabase.from("archivos_muestra" as any) as any).insert({ nombre: file.name, path, url: urlData.publicUrl, uploaded_by: user?.email || "" });
+      refetchSamples();
       toast.success("Archivo de muestra subido correctamente");
     } catch (err: any) {
       toast.error("Error al subir archivo: " + (err.message || ""));
@@ -875,14 +886,14 @@ export default function CargaMasiva() {
       setUploadingSample(false);
       e.target.value = "";
     }
-  }, []);
+  }, [refetchSamples]);
 
-  const removeSampleFile = useCallback(async () => {
-    if (!sampleFile) return;
-    await supabase.storage.from("carga-masiva-muestras").remove([sampleFile.path]);
-    setSampleFile(null);
+  const removeSampleFile = useCallback(async (fileRecord: { id: string; path: string }) => {
+    await supabase.storage.from("carga-masiva-muestras").remove([fileRecord.path]);
+    await (supabase.from("archivos_muestra" as any) as any).delete().eq("id", fileRecord.id);
+    refetchSamples();
     toast.info("Archivo de muestra eliminado");
-  }, [sampleFile]);
+  }, [refetchSamples]);
 
   const aiProcessing = aiPhase !== "idle" && aiPhase !== "done";
 
@@ -914,23 +925,26 @@ export default function CargaMasiva() {
               <Paperclip className="w-3 h-3 inline mr-1" />
               Opcionalmente, sube un archivo de muestra para tu registro personal (no es procesado por el sistema).
             </p>
-            {sampleFile ? (
-              <div className="flex items-center gap-2 text-sm">
-                <Paperclip className="w-4 h-4 text-muted-foreground" />
-                <a href={sampleFile.url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80 truncate max-w-[300px]">
-                  {sampleFile.name}
-                </a>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={removeSampleFile}>
-                  <Trash2 className="w-3 h-3 text-destructive" />
-                </Button>
+            {sampleFiles && sampleFiles.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {sampleFiles.map((sf) => (
+                  <div key={sf.id} className="flex items-center gap-2 text-sm">
+                    <Paperclip className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <a href={sf.url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80 truncate max-w-[300px]">
+                      {sf.nombre}
+                    </a>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeSampleFile(sf)}>
+                      <Trash2 className="w-3 h-3 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-input rounded-md cursor-pointer hover:bg-accent transition-colors text-xs text-muted-foreground">
-                {uploadingSample ? <Loader2 className="w-3 h-3 animate-spin" /> : <Paperclip className="w-3 h-3" />}
-                {uploadingSample ? "Subiendo..." : "Adjuntar archivo de muestra"}
-                <input type="file" className="hidden" onChange={handleSampleUpload} disabled={uploadingSample} />
-              </label>
             )}
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-input rounded-md cursor-pointer hover:bg-accent transition-colors text-xs text-muted-foreground">
+              {uploadingSample ? <Loader2 className="w-3 h-3 animate-spin" /> : <Paperclip className="w-3 h-3" />}
+              {uploadingSample ? "Subiendo..." : "Adjuntar archivo de muestra"}
+              <input type="file" className="hidden" onChange={handleSampleUpload} disabled={uploadingSample} />
+            </label>
           </div>
         </CardContent>
       </Card>
