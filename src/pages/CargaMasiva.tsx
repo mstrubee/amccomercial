@@ -701,10 +701,14 @@ export default function CargaMasiva() {
     );
   }, []);
 
+  const uploadingRef = useRef(false);
+
   const handleBulkInsert = useCallback(async () => {
+    if (uploadingRef.current) return;
     const validRows = parsedRows.filter((r) => r.valid);
     if (validRows.length === 0) { toast.error("No hay filas válidas para cargar"); return; }
 
+    uploadingRef.current = true;
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -869,6 +873,7 @@ export default function CargaMasiva() {
       toast.error("Error al cargar: " + err.message);
     } finally {
       setUploading(false);
+      uploadingRef.current = false;
     }
   }, [parsedRows, empresas, categorias, clasificaciones, queryClient]);
 

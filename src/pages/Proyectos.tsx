@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell } from "lucide-react";
@@ -45,6 +46,7 @@ export default function Proyectos() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<ProyectoWithEmpresas[] | null>(null);
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
@@ -345,6 +347,11 @@ export default function Proyectos() {
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" title="Eliminar grupo" onClick={(e) => { e.stopPropagation(); setDeleteGroupTarget(items); }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -528,6 +535,39 @@ export default function Proyectos() {
               }}
             >
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete group confirmation */}
+      <AlertDialog open={!!deleteGroupTarget} onOpenChange={(val) => !val && setDeleteGroupTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar proyecto completo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán <strong>{deleteGroupTarget?.[0]?.nombre}</strong> y todas sus {deleteGroupTarget?.length} sublíneas con sus alertas asociadas. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (deleteGroupTarget) {
+                  try {
+                    for (const p of deleteGroupTarget) {
+                      await deleteProyecto.mutateAsync(p.id);
+                    }
+                    toast.success(`Proyecto "${deleteGroupTarget[0].nombre}" eliminado completamente`);
+                  } catch (e: any) {
+                    toast.error("Error al eliminar: " + e.message);
+                  }
+                  setDeleteGroupTarget(null);
+                }
+              }}
+            >
+              Eliminar todo
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
