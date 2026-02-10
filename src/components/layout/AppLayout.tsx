@@ -8,9 +8,9 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
-  Users,
   LogOut,
-  FileUp,
+  Settings,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +25,7 @@ interface Props {
 
 export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const location = useLocation();
 
   const navItems = [
@@ -33,11 +34,16 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: P
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp },
     { path: "/alertas", label: "Alertas", icon: Bell },
-    ...(isAdmin ? [
-      { path: "/usuarios", label: "Usuarios", icon: Users },
-      { path: "/carga-masiva", label: "Carga Masiva", icon: FileUp },
-    ] : []),
   ];
+
+  const adminSubItems = [
+    { path: "/usuarios", label: "Usuarios" },
+    { path: "/carga-masiva", label: "Carga Masiva" },
+    { path: "/categorias", label: "Categorías" },
+    { path: "/clientes", label: "Clientes" },
+  ];
+
+  const isAdminPathActive = adminSubItems.some((i) => location.pathname === i.path);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -83,6 +89,54 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: P
               </Link>
             );
           })}
+
+          {/* Admin dropdown */}
+          {isAdmin && (
+            <div>
+              <button
+                onClick={() => setAdminOpen(!adminOpen)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 w-full",
+                  isAdminPathActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                )}
+              >
+                <Settings className={cn("w-5 h-5 shrink-0", isAdminPathActive && "text-sidebar-primary")} />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="whitespace-nowrap flex-1 text-left flex items-center justify-between">
+                      Administración
+                      <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", adminOpen && "rotate-180")} />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+              <AnimatePresence>
+                {adminOpen && !collapsed && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden ml-5 mt-1 space-y-0.5">
+                    {adminSubItems.map((sub) => {
+                      const isActive = location.pathname === sub.path;
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          className={cn(
+                            "block px-3 py-2 rounded-lg text-sm transition-colors",
+                            isActive
+                              ? "bg-sidebar-accent/70 text-sidebar-accent-foreground font-medium"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-accent-foreground"
+                          )}
+                        >
+                          {sub.label}
+                        </Link>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </nav>
 
         {/* User & Logout */}

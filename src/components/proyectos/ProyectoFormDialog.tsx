@@ -34,6 +34,7 @@ interface Props {
   isChildRow?: boolean;
   groupItems?: ProyectoWithEmpresas[];
   alertas?: AlertaWithRelations[];
+  isAdmin?: boolean;
 }
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
@@ -46,7 +47,7 @@ interface EmpresaRow {
   subcategoria_id: string | null;
 }
 
-export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow, groupItems, alertas }: Props) {
+export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -347,9 +348,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                     <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {mode === "create" ? "Empresas Asignadas" : isChildRow ? "Empresa" : "Empresas del Proyecto"}
                     </Label>
-                    <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
-                      <Settings2 className="w-3 h-3" /> Categorías
-                    </Button>
+                    {isAdmin && (
+                      <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
+                        <Settings2 className="w-3 h-3" /> Categorías
+                      </Button>
+                    )}
                   </div>
 
                   {mode === "create" ? (
@@ -373,6 +376,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                   categorias={categorias || []}
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
+                                  disabled={!isAdmin}
                                 />
                                 <Input
                                   type="number"
@@ -414,6 +418,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                   categorias={categorias || []}
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
+                                  disabled={!isAdmin}
                                 />
                                 <Input
                                   type="number"
@@ -448,6 +453,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                 categorias={categorias || []}
                                 value={getSelectValue(row)}
                                 onChange={(val) => handleCategoryChange(row.empresa_id, val)}
+                                disabled={!isAdmin}
                               />
                               <Input
                                 type="number"
@@ -651,10 +657,12 @@ function CategoriaSelect({
   categorias,
   value,
   onChange,
+  disabled,
 }: {
   categorias: CategoriaWithSubs[];
   value: string;
   onChange: (val: string) => void;
+  disabled?: boolean;
 }) {
   let displayColor = "#6b7280";
 
@@ -673,9 +681,10 @@ function CategoriaSelect({
   return (
     <div className="relative">
       <select
-        className="h-7 pl-6 pr-2 text-xs rounded-md border border-input bg-card appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-[140px]"
+        className="h-7 pl-6 pr-2 text-xs rounded-md border border-input bg-card appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-[140px] disabled:opacity-60 disabled:cursor-not-allowed"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
       >
         <option value="none">Elegir Categoría</option>
         {categorias.map((cat) => (
