@@ -1,18 +1,15 @@
 
-## Eliminar nombre de proyecto en sublíneas
+## Corregir error de largo maximo en alertas
 
-**Cambio**: En el archivo `src/pages/Proyectos.tsx`, línea 246, la celda de la sublínea muestra el nombre del proyecto (`p.nombre`), que ya aparece en la línea madre. Se eliminará ese texto y se dejará la celda vacía o se aprovechará el espacio.
+El error "value too long for type character varying(100)" ocurre porque las columnas `titulo` y `texto` de la tabla `alertas` tienen un limite de 100 caracteres. Al cargar datos masivamente, los textos generados por IA o ingresados manualmente pueden superar ese limite facilmente.
 
-### Detalle técnico
+### Solucion
 
-En la línea 246 del archivo `src/pages/Proyectos.tsx`:
+Ejecutar una migracion para cambiar ambas columnas de `character varying(100)` a `text` (sin limite de largo):
 
-```tsx
-// Antes:
-<td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline pl-10" onClick={() => setViewTarget(p)}>{p.nombre}</td>
-
-// Después:
-<td className="px-5 py-3 pl-10"></td>
+```sql
+ALTER TABLE public.alertas ALTER COLUMN titulo TYPE text;
+ALTER TABLE public.alertas ALTER COLUMN texto TYPE text;
 ```
 
-Se elimina el nombre del proyecto, el cursor pointer y el hover:underline de esa celda, ya que sin contenido clickeable no tienen sentido. La celda se mantiene para preservar la alineación de columnas de la tabla.
+Esto no afecta datos existentes ni requiere cambios en el codigo frontend, ya que los tipos de TypeScript generados ya usan `string` para ambos campos.
