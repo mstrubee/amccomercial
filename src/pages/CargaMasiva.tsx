@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight, Paperclip, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const ESTADOS_OBRA = [
@@ -95,6 +95,8 @@ export default function CargaMasiva() {
   const [aiPhase, setAiPhase] = useState<"idle" | "dropdowns" | "alertas" | "contactos" | "done">("idle");
   const [openProjects, setOpenProjects] = useState<Record<number, boolean>>({});
   const aiRunTriggered = useRef(false);
+  const [sampleFile, setSampleFile] = useState<{ name: string; url: string; path: string } | null>(null);
+  const [uploadingSample, setUploadingSample] = useState(false);
 
   const [estadosAMC] = useState<string[]>(["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"]);
 
@@ -855,6 +857,33 @@ export default function CargaMasiva() {
     });
   }, [parsedRows, dropdownCtx]);
 
+  const handleSampleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingSample(true);
+    try {
+      const ts = Date.now();
+      const path = `${ts}_${file.name}`;
+      const { error } = await supabase.storage.from("carga-masiva-muestras").upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("carga-masiva-muestras").getPublicUrl(path);
+      setSampleFile({ name: file.name, url: urlData.publicUrl, path });
+      toast.success("Archivo de muestra subido correctamente");
+    } catch (err: any) {
+      toast.error("Error al subir archivo: " + (err.message || ""));
+    } finally {
+      setUploadingSample(false);
+      e.target.value = "";
+    }
+  }, []);
+
+  const removeSampleFile = useCallback(async () => {
+    if (!sampleFile) return;
+    await supabase.storage.from("carga-masiva-muestras").remove([sampleFile.path]);
+    setSampleFile(null);
+    toast.info("Archivo de muestra eliminado");
+  }, [sampleFile]);
+
   const aiProcessing = aiPhase !== "idle" && aiPhase !== "done";
 
   return (
@@ -876,10 +905,33 @@ export default function CargaMasiva() {
             La plantilla incluye una columna "Notas / Alertas" donde puedes pegar texto corrido con fechas.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <Button onClick={downloadTemplate} variant="outline" className="gap-2">
             <FileSpreadsheet className="w-4 h-4" /> Descargar Plantilla Excel
           </Button>
+          <div className="border-t border-border pt-3">
+            <p className="text-xs text-muted-foreground mb-2">
+              <Paperclip className="w-3 h-3 inline mr-1" />
+              Opcionalmente, sube un archivo de muestra para tu registro personal (no es procesado por el sistema).
+            </p>
+            {sampleFile ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Paperclip className="w-4 h-4 text-muted-foreground" />
+                <a href={sampleFile.url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80 truncate max-w-[300px]">
+                  {sampleFile.name}
+                </a>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={removeSampleFile}>
+                  <Trash2 className="w-3 h-3 text-destructive" />
+                </Button>
+              </div>
+            ) : (
+              <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-input rounded-md cursor-pointer hover:bg-accent transition-colors text-xs text-muted-foreground">
+                {uploadingSample ? <Loader2 className="w-3 h-3 animate-spin" /> : <Paperclip className="w-3 h-3" />}
+                {uploadingSample ? "Subiendo..." : "Adjuntar archivo de muestra"}
+                <input type="file" className="hidden" onChange={handleSampleUpload} disabled={uploadingSample} />
+              </label>
+            )}
+          </div>
         </CardContent>
       </Card>
 
