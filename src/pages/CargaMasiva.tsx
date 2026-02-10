@@ -552,10 +552,10 @@ export default function CargaMasiva() {
         const fechaIngreso = parseDateValue(d["Fecha Ingreso"]);
         const fechaEstado = parseDateValue(d["Fecha Estado Obra"]);
 
-        // Build notas from non-alert entries
+        // Build notas from: unchecked entries + checked entries without dates (can't create DB alertas without fecha)
         const notasTexto = row.alertas
-          .filter((a) => !a.crearAlerta)
-          .map((a) => `${a.fecha || "s/f"}: ${a.texto}`)
+          .filter((a) => !a.crearAlerta || !a.fecha)
+          .map((a) => `${a.fecha || "Nota"}: ${a.texto}`)
           .join("\n");
 
         const projectPayload = {
@@ -839,8 +839,13 @@ export default function CargaMasiva() {
                             <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
                           )}
                           <span className="font-mono text-muted-foreground">
-                            {alerta.fecha || "s/f"}
+                            {alerta.fecha || "—"}
                           </span>
+                          {!alerta.fecha && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 text-amber-600 border-amber-600">
+                              Nota sin fecha
+                            </Badge>
+                          )}
                           {alerta.esFutura && (
                             <Badge variant="outline" className="text-[10px] px-1 py-0 text-primary border-primary">
                               2026

@@ -22,13 +22,14 @@ serve(async (req) => {
     const systemPrompt = `Eres un asistente que extrae alertas/notas individuales de un texto corrido de seguimiento comercial.
 
 REGLAS:
-- Cada entrada comienza con una fecha en formato DD/MM, DD-MM, "DD mes" (ej: "30 ene", "23-1", "19/01", "12 sept").
+- Cada entrada generalmente comienza con una fecha en formato DD/MM, DD-MM, "DD mes" (ej: "30 ene", "23-1", "19/01", "12 sept").
 - Separa cada entrada individual por su fecha.
-- Devuelve un array JSON de objetos con: { "fecha": "YYYY-MM-DD", "texto": "contenido de la nota" }
-- Para determinar el año: Enero y Febrero son 2026. Todos los demás meses son 2025.
-- Si la fecha no tiene mes claro o no se puede parsear, usa null en fecha.
-- Limpia espacios extra pero mantén el contenido original.
-- No inventes contenido, solo separa lo que existe.
+- IMPORTANTE: Si hay fragmentos de texto que NO comienzan con una fecha (ej: "AM TERRENO ?", texto suelto al inicio o final), inclúyelos también como entradas con fecha null. Estos son "notas sin fecha".
+- Devuelve un array JSON de objetos con: { "fecha": "YYYY-MM-DD" o null, "texto": "contenido corregido de la nota" }
+- Para determinar el año: Enero y Febrero son 2026. Todos los demás meses son 2025. Si el texto indica explícitamente otro año (ej: "7-12-23", "15/8/06"), respétalo (2023, 2006, etc.).
+- CORRECCIÓN ORTOGRÁFICA: Corrige errores de tipeo y faltas ortográficas en el texto de cada nota. Ejemplos: "proyectandpo" → "proyectando", "esxcribi" → "escribí", "acyualizado" → "actualizado", "qe" → "que", "ppto" puede mantenerse como abreviatura, "seg." puede mantenerse. Agrega tildes donde corresponda.
+- Limpia espacios extra.
+- No inventes contenido, solo separa y corrige lo que existe.
 - Si hay múltiples entradas en una misma línea separadas por "/" o similar, sepáralas solo si tienen fechas distintas.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
