@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import logoAmc from "@/assets/logo-amc.jpeg";
 
 interface Props {
   children: React.ReactNode;
@@ -46,9 +47,7 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail }: P
         className="relative flex flex-col bg-sidebar sidebar-glow border-r border-sidebar-border shrink-0"
       >
         <div className="flex items-center gap-3 px-5 h-16 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-            <span className="text-sidebar-primary-foreground font-bold text-sm">A</span>
-          </div>
+          <img src={logoAmc} alt="AMC" className="w-8 h-8 rounded-lg object-cover shrink-0" />
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
