@@ -1093,6 +1093,32 @@ export default function CargaMasiva() {
           <Button onClick={downloadTemplate} variant="outline" className="gap-2">
             <FileSpreadsheet className="w-4 h-4" /> Descargar Plantilla Excel
           </Button>
+          <div className="border-t border-border pt-3">
+            <p className="text-xs text-muted-foreground mb-2">
+              <Paperclip className="w-3 h-3 inline mr-1" />
+              Opcionalmente, sube un archivo de muestra para tu registro personal (no es procesado por el sistema).
+            </p>
+            {sampleFiles && sampleFiles.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {sampleFiles.map((sf) => (
+                  <div key={sf.id} className="flex items-center gap-2 text-sm">
+                    <Paperclip className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <a href={sf.url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80 truncate max-w-[300px]">
+                      {sf.nombre}
+                    </a>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeSampleFile(sf)}>
+                      <Trash2 className="w-3 h-3 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-input rounded-md cursor-pointer hover:bg-accent transition-colors text-xs text-foreground">
+              {uploadingSample ? <Loader2 className="w-3 h-3 animate-spin" /> : <Paperclip className="w-3 h-3" />}
+              {uploadingSample ? "Subiendo..." : "Adjuntar archivo de muestra"}
+              <input type="file" className="hidden" onChange={handleSampleUpload} disabled={uploadingSample} />
+            </label>
+          </div>
         </CardContent>
       </Card>
 
