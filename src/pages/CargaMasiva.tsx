@@ -15,6 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight, Paperclip, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ESTADOS_OBRA = [
   "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada",
@@ -132,6 +136,49 @@ export default function CargaMasiva() {
   const [openProjects, setOpenProjects] = useState<Record<number, boolean>>({});
   const aiRunTriggered = useRef(false);
   const [uploadingSample, setUploadingSample] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // --- SessionStorage persistence ---
+  const SESSION_KEY = "carga-masiva-state";
+  const restoredRef = useRef(false);
+
+  // Restore state from sessionStorage on mount
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (!saved) return;
+      const state = JSON.parse(saved);
+      if (state.parsedRows?.length > 0) {
+        setParsedRows(state.parsedRows);
+        setUploaded(state.uploaded ?? false);
+        setDropdownsMatched(state.dropdownsMatched ?? false);
+        setAiPhase(state.aiPhase ?? "done");
+        setOpenProjects(state.openProjects ?? {});
+        if (state.aiPhase === "done") aiRunTriggered.current = true;
+        toast.info("Estado de carga masiva restaurado");
+      }
+    } catch { /* ignore corrupt data */ }
+  }, []);
+
+  // Persist state to sessionStorage whenever it changes
+  useEffect(() => {
+    if (parsedRows.length === 0) return;
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        parsedRows,
+        uploaded,
+        dropdownsMatched,
+        aiPhase,
+        openProjects,
+      }));
+    } catch { /* storage full, ignore */ }
+  }, [parsedRows, uploaded, dropdownsMatched, aiPhase, openProjects]);
+
+  const clearSessionState = useCallback(() => {
+    sessionStorage.removeItem(SESSION_KEY);
+  }, []);
 
   // Load persisted sample files from DB
   const { data: sampleFiles, refetch: refetchSamples } = useQuery({
@@ -279,6 +326,7 @@ export default function CargaMasiva() {
       setDropdownsMatched(false);
       setAiPhase("idle");
       aiRunTriggered.current = false;
+      clearSessionState();
 
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -952,6 +1000,7 @@ export default function CargaMasiva() {
       queryClient.invalidateQueries({ queryKey: ["proyectos"] });
       queryClient.invalidateQueries({ queryKey: ["alertas"] });
       setUploaded(true);
+      clearSessionState();
       toast.success(`${validRows.length} proyectos cargados exitosamente`);
     } catch (err: any) {
       toast.error("Error al cargar: " + err.message);
@@ -1503,7 +1552,7 @@ export default function CargaMasiva() {
             </div>
 
               <div className="flex items-center gap-3">
-              <Button onClick={handleBulkInsert} disabled={validCount === 0 || uploading || uploaded} className="gap-2">
+              <Button onClick={() => setConfirmOpen(true)} disabled={validCount === 0 || uploading || uploaded} className="gap-2">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 {uploaded ? "Cargado" : uploading ? "Cargando..." : `Cargar ${validCount} Proyectos`}
               </Button>
@@ -1514,6 +1563,7 @@ export default function CargaMasiva() {
                     setParsedRows([]);
                     setDropdownsMatched(false);
                     setUploaded(false);
+                    clearSessionState();
                     toast.info("Carga masiva cancelada");
                   }}
                 >
@@ -1522,6 +1572,24 @@ export default function CargaMasiva() {
               )}
               {uploaded && <span className="text-sm text-green-600">✓ Proyectos cargados exitosamente</span>}
             </div>
+
+            {/* Confirmation dialog */}
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar carga de proyectos</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Está a punto de cargar {validCount} proyecto{validCount !== 1 ? "s" : ""}. Esta acción no se puede deshacer. ¿Desea continuar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => { setConfirmOpen(false); handleBulkInsert(); }}>
+                    Confirmar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       )}
