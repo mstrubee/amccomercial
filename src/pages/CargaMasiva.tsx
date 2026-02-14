@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight, Paperclip, Trash2 } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight, Paperclip, Trash2, Pause } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -140,6 +140,9 @@ export default function CargaMasiva() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
   const [uploadStartTime, setUploadStartTime] = useState<number | null>(null);
+  const abortUploadRef = useRef(false);
+  const [uploadPaused, setUploadPaused] = useState(false);
+  const [pauseDialogOpen, setPauseDialogOpen] = useState(false);
 
   // --- SessionStorage persistence ---
   const SESSION_KEY = "carga-masiva-state";
@@ -843,14 +846,27 @@ export default function CargaMasiva() {
 
     uploadingRef.current = true;
     setUploading(true);
-    setUploadProgress(0);
-    setUploadTotal(validRows.length);
-    setUploadStartTime(Date.now());
+    abortUploadRef.current = false;
+    setUploadPaused(false);
+    // If resuming, keep existing progress; otherwise reset
+    const startIdx = uploadPaused ? uploadProgress : 0;
+    if (!uploadPaused) {
+      setUploadProgress(0);
+      setUploadTotal(validRows.length);
+      setUploadStartTime(Date.now());
+    }
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
 
-      for (let rowIdx = 0; rowIdx < validRows.length; rowIdx++) {
+      for (let rowIdx = startIdx; rowIdx < validRows.length; rowIdx++) {
+        if (abortUploadRef.current) {
+          setUploadPaused(true);
+          setUploadProgress(rowIdx);
+          toast.info(`Carga detenida en ${rowIdx}/${validRows.length}`);
+          setPauseDialogOpen(true);
+          return;
+        }
         const row = validRows[rowIdx];
         setUploadProgress(rowIdx);
         const d = row.data;
@@ -1018,7 +1034,7 @@ export default function CargaMasiva() {
       uploadingRef.current = false;
       setUploadStartTime(null);
     }
-  }, [parsedRows, empresas, categorias, clasificaciones, queryClient]);
+  }, [parsedRows, empresas, categorias, clasificaciones, queryClient, uploadPaused, uploadProgress]);
 
   const validCount = parsedRows.filter((r) => r.valid).length;
   const errorCount = parsedRows.filter((r) => !r.valid).length;
@@ -1562,10 +1578,15 @@ export default function CargaMasiva() {
             </div>
 
               <div className="flex items-center gap-3">
-              <Button onClick={() => setConfirmOpen(true)} disabled={validCount === 0 || uploading || uploaded} className="gap-2">
+              <Button onClick={() => uploadPaused ? handleBulkInsert() : setConfirmOpen(true)} disabled={validCount === 0 || uploading || uploaded} className="gap-2">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {uploaded ? "Cargado" : uploading ? `Cargando ${uploadProgress}/${uploadTotal}...` : `Cargar ${validCount} Proyectos`}
+                {uploaded ? "Cargado" : uploading ? `Cargando ${uploadProgress}/${uploadTotal}...` : uploadPaused ? `Continuar (${uploadProgress}/${uploadTotal})` : `Cargar ${validCount} Proyectos`}
               </Button>
+              {uploading && (
+                <Button variant="destructive" size="sm" onClick={() => { abortUploadRef.current = true; }}>
+                  <Pause className="w-4 h-4 mr-1" /> Detener
+                </Button>
+              )}
               {uploading && uploadTotal > 0 && (
                 <div className="flex-1 max-w-xs space-y-1">
                   <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
@@ -1586,7 +1607,7 @@ export default function CargaMasiva() {
                   </p>
                 </div>
               )}
-              {!uploaded && !uploading && (
+              {!uploaded && !uploading && !uploadPaused && (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -1617,6 +1638,44 @@ export default function CargaMasiva() {
                   <AlertDialogAction onClick={() => { setConfirmOpen(false); handleBulkInsert(); }}>
                     Confirmar
                   </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Pause dialog - continue or cancel */}
+            <AlertDialog open={pauseDialogOpen} onOpenChange={setPauseDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Carga detenida</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se han cargado {uploadProgress} de {uploadTotal} proyectos. ¿Qué desea hacer?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel onClick={() => {
+                    setUploadPaused(false);
+                    setUploadProgress(0);
+                    setUploadTotal(0);
+                    setUploadStartTime(null);
+                    setParsedRows([]);
+                    setDropdownsMatched(false);
+                    clearSessionState();
+                    toast.info("Carga cancelada");
+                  }}>
+                    Cancelar carga
+                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={() => {
+                    setPauseDialogOpen(false);
+                    handleBulkInsert();
+                  }}>
+                    Continuar ahora
+                  </AlertDialogAction>
+                  <Button variant="outline" onClick={() => {
+                    setPauseDialogOpen(false);
+                    toast.info("Puede continuar la carga más tarde desde esta misma pantalla");
+                  }}>
+                    Continuar después
+                  </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
