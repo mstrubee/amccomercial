@@ -137,6 +137,9 @@ export default function CargaMasiva() {
   const aiRunTriggered = useRef(false);
   const [uploadingSample, setUploadingSample] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadTotal, setUploadTotal] = useState(0);
+  const [uploadStartTime, setUploadStartTime] = useState<number | null>(null);
 
   // --- SessionStorage persistence ---
   const SESSION_KEY = "carga-masiva-state";
@@ -840,11 +843,16 @@ export default function CargaMasiva() {
 
     uploadingRef.current = true;
     setUploading(true);
+    setUploadProgress(0);
+    setUploadTotal(validRows.length);
+    setUploadStartTime(Date.now());
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
 
-      for (const row of validRows) {
+      for (let rowIdx = 0; rowIdx < validRows.length; rowIdx++) {
+        const row = validRows[rowIdx];
+        setUploadProgress(rowIdx);
         const d = row.data;
 
         let clasificacion_id: string | null = null;
@@ -999,6 +1007,7 @@ export default function CargaMasiva() {
 
       queryClient.invalidateQueries({ queryKey: ["proyectos"] });
       queryClient.invalidateQueries({ queryKey: ["alertas"] });
+      setUploadProgress(validRows.length);
       setUploaded(true);
       clearSessionState();
       toast.success(`${validRows.length} proyectos cargados exitosamente`);
@@ -1007,6 +1016,7 @@ export default function CargaMasiva() {
     } finally {
       setUploading(false);
       uploadingRef.current = false;
+      setUploadStartTime(null);
     }
   }, [parsedRows, empresas, categorias, clasificaciones, queryClient]);
 
@@ -1554,8 +1564,28 @@ export default function CargaMasiva() {
               <div className="flex items-center gap-3">
               <Button onClick={() => setConfirmOpen(true)} disabled={validCount === 0 || uploading || uploaded} className="gap-2">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {uploaded ? "Cargado" : uploading ? "Cargando..." : `Cargar ${validCount} Proyectos`}
+                {uploaded ? "Cargado" : uploading ? `Cargando ${uploadProgress}/${uploadTotal}...` : `Cargar ${validCount} Proyectos`}
               </Button>
+              {uploading && uploadTotal > 0 && (
+                <div className="flex-1 max-w-xs space-y-1">
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.round((uploadProgress / uploadTotal) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {Math.round((uploadProgress / uploadTotal) * 100)}%
+                    {uploadStartTime && uploadProgress > 0 && (() => {
+                      const elapsed = (Date.now() - uploadStartTime) / 1000;
+                      const perItem = elapsed / uploadProgress;
+                      const remaining = Math.round(perItem * (uploadTotal - uploadProgress));
+                      if (remaining < 60) return ` · ~${remaining}s restantes`;
+                      return ` · ~${Math.ceil(remaining / 60)}min restantes`;
+                    })()}
+                  </p>
+                </div>
+              )}
               {!uploaded && !uploading && (
                 <Button
                   variant="outline"
