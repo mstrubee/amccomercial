@@ -46,6 +46,9 @@ const DROPDOWN_FIELDS: { column: string; getOptions: (ctx: DropdownCtx) => strin
   ])),
 ];
 
+/** Fields that should ideally have a value - shown in orange when empty after AI processing */
+const EXPECTED_FIELDS = ["Clasificación", "Estado Obra", "Estado AMC", "Región", "Comuna"];
+
 interface DropdownCtx {
   clasificacionNames: string[];
   estadosAMC: string[];
@@ -405,11 +408,43 @@ export default function CargaMasiva() {
       prev.map((row) => {
         if (row.rowIndex !== rowIndex) return row;
         const newData = { ...row.data, [column]: value };
+        // If updating region, clear comuna if it doesn't belong
+        if (column === "Región") {
+          const reg = REGIONES_CHILE.find((r) => r.nombre === value);
+          const currentComuna = (newData["Comuna"] || "").trim();
+          if (reg && currentComuna && !reg.comunas.some((c) => c.toLowerCase() === currentComuna.toLowerCase())) {
+            newData["Comuna"] = "";
+          }
+        }
         const newUnmatched = row.aiUnmatched.filter((f) => f !== column);
         return revalidateRow({ ...row, data: newData, aiUnmatched: newUnmatched });
       })
     );
   }, [revalidateRow]);
+
+  /** Remove a row from the parsed rows */
+  const removeRow = useCallback((rowIndex: number) => {
+    setParsedRows((prev) => prev.filter((row) => row.rowIndex !== rowIndex));
+    toast.info(`Fila ${rowIndex} eliminada`);
+  }, []);
+
+  /** Get comunas for a given region */
+  const getComunasForRegion = useCallback((region: string): string[] => {
+    const reg = REGIONES_CHILE.find((r) => r.nombre === region);
+    return reg ? reg.comunas : [];
+  }, []);
+
+  /** Check if a comuna is valid for the given region */
+  const isComunaValid = useCallback((comuna: string, region: string): boolean => {
+    if (!comuna) return true; // empty is not invalid, just missing
+    if (!region) {
+      // Check if comuna exists in any region
+      return REGIONES_CHILE.some((r) => r.comunas.some((c) => c.toLowerCase() === comuna.toLowerCase()));
+    }
+    const reg = REGIONES_CHILE.find((r) => r.nombre === region);
+    if (!reg) return false;
+    return reg.comunas.some((c) => c.toLowerCase() === comuna.toLowerCase());
+  }, []);
 
   /** Get options for a dropdown field column */
   const getOptionsForColumn = useCallback((column: string): string[] => {
@@ -1222,22 +1257,37 @@ export default function CargaMasiva() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">Fila</TableHead>
+                    <TableHead className="w-12">Fila</TableHead>
+                    <TableHead className="w-10"></TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Nombre Proyecto</TableHead>
                     <TableHead>Clasificación</TableHead>
                     <TableHead>Estado Obra</TableHead>
                     <TableHead>Estado AMC</TableHead>
                     <TableHead>Región</TableHead>
+                    <TableHead>Comuna</TableHead>
                     <TableHead>Empresas</TableHead>
                     <TableHead>Alertas</TableHead>
                     <TableHead>Errores</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {parsedRows.map((row) => (
+                  {parsedRows.map((row) => {
+                    const comuna = (row.data["Comuna"] || "").trim();
+                    const region = (row.data["Región"] || "").trim();
+                    const comunaInvalid = comuna && !isComunaValid(comuna, region);
+                    const comunaEmpty = !comuna && aiPhase === "done";
+                    const comunaOptions = region ? getComunasForRegion(region) : REGIONES_CHILE.flatMap((r) => r.comunas);
+
+                    return (
                     <TableRow key={row.rowIndex} className={!row.valid ? "bg-destructive/5" : ""}>
                       <TableCell className="font-mono text-xs">{row.rowIndex}</TableCell>
+                      <TableCell className="p-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeRow(row.rowIndex)} title="Eliminar fila">
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         {row.valid ? (
                           <Badge variant="outline" className="text-green-600 border-green-600">OK</Badge>
@@ -1247,35 +1297,38 @@ export default function CargaMasiva() {
                       </TableCell>
                       <TableCell className="font-medium">{row.data["Nombre Proyecto"]}</TableCell>
 
-                      {/* Clasificación - editable if unmatched */}
+                      {/* Clasificación */}
                       <TableCell>
                         <InlineDropdown
                           value={row.data["Clasificación"] || ""}
                           options={clasificacionNames}
                           isUnmatched={row.aiUnmatched.includes("Clasificación")}
                           isCorrected={row.aiCorrected.includes("Clasificación")}
+                          isEmpty={!(row.data["Clasificación"] || "").trim() && aiPhase === "done"}
                           onChange={(v) => updateRowField(row.rowIndex, "Clasificación", v)}
                         />
                       </TableCell>
 
-                      {/* Estado Obra - editable if unmatched */}
+                      {/* Estado Obra */}
                       <TableCell>
                         <InlineDropdown
                           value={row.data["Estado Obra"] || ""}
                           options={ESTADOS_OBRA}
                           isUnmatched={row.aiUnmatched.includes("Estado Obra")}
                           isCorrected={row.aiCorrected.includes("Estado Obra")}
+                          isEmpty={!(row.data["Estado Obra"] || "").trim() && aiPhase === "done"}
                           onChange={(v) => updateRowField(row.rowIndex, "Estado Obra", v)}
                         />
                       </TableCell>
 
-                      {/* Estado AMC - editable if unmatched */}
+                      {/* Estado AMC */}
                       <TableCell>
                         <InlineDropdown
                           value={row.data["Estado AMC"] || ""}
                           options={estadosAMC}
                           isUnmatched={row.aiUnmatched.includes("Estado AMC")}
                           isCorrected={row.aiCorrected.includes("Estado AMC")}
+                          isEmpty={!(row.data["Estado AMC"] || "").trim() && aiPhase === "done"}
                           onChange={(v) => updateRowField(row.rowIndex, "Estado AMC", v)}
                         />
                       </TableCell>
@@ -1287,8 +1340,50 @@ export default function CargaMasiva() {
                           options={regionNames}
                           isUnmatched={row.aiUnmatched.includes("Región")}
                           isCorrected={row.aiCorrected.includes("Región")}
+                          isEmpty={!(row.data["Región"] || "").trim() && aiPhase === "done"}
                           onChange={(v) => updateRowField(row.rowIndex, "Región", v)}
                         />
+                      </TableCell>
+
+                      {/* Comuna */}
+                      <TableCell>
+                        {comunaInvalid ? (
+                          <div>
+                            <span className="text-[10px] text-destructive line-through mr-1">{comuna}</span>
+                            <Select value="" onValueChange={(v) => updateRowField(row.rowIndex, "Comuna", v)}>
+                              <SelectTrigger className="h-7 text-xs border-destructive bg-destructive/5 w-[140px]">
+                                <SelectValue placeholder="Seleccionar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {comunaOptions.map((opt) => (
+                                  <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : comunaEmpty ? (
+                          <Select value="" onValueChange={(v) => updateRowField(row.rowIndex, "Comuna", v)}>
+                            <SelectTrigger className="h-7 text-xs border-orange-400 bg-orange-50/50 w-[140px]">
+                              <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {comunaOptions.map((opt) => (
+                                <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Select value={comuna} onValueChange={(v) => updateRowField(row.rowIndex, "Comuna", v)}>
+                            <SelectTrigger className="h-7 text-xs w-[140px] border-border">
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {comunaOptions.map((opt) => (
+                                <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
 
                       <TableCell className="text-xs">
@@ -1334,7 +1429,8 @@ export default function CargaMasiva() {
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -1372,6 +1468,7 @@ function InlineDropdown({
   options,
   isUnmatched,
   isCorrected,
+  isEmpty,
   onChange,
   placeholder,
 }: {
@@ -1379,6 +1476,7 @@ function InlineDropdown({
   options: string[];
   isUnmatched: boolean;
   isCorrected: boolean;
+  isEmpty?: boolean;
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
@@ -1402,6 +1500,21 @@ function InlineDropdown({
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="h-7 text-xs border-amber-500 bg-amber-50/50 w-[140px]" title="Corregido por IA - click para cambiar">
           <span className="flex items-center gap-1">✨ <SelectValue /></span>
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-7 text-xs border-orange-400 bg-orange-50/50 w-[140px]" title="Campo vacío - seleccionar valor">
+          <SelectValue placeholder={placeholder || "Seleccionar..."} />
         </SelectTrigger>
         <SelectContent>
           {options.map((opt) => (
