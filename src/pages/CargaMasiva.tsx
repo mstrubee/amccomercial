@@ -82,6 +82,39 @@ interface ParsedRow {
   aiUnmatched: string[];
 }
 
+/** Helper: invoke edge function with retry + exponential backoff */
+async function invokeWithRetry(
+  functionName: string,
+  body: any,
+  maxRetries = 3
+): Promise<any> {
+  let lastError: any;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const { data, error } = await supabase.functions.invoke(functionName, { body });
+      if (error) {
+        const msg = typeof error === "string" ? error : error.message || JSON.stringify(error);
+        if (msg.includes("Failed to send") || msg.includes("FunctionsHttpError") || msg.includes("timeout")) {
+          throw new Error(msg);
+        }
+        throw error;
+      }
+      return data;
+    } catch (err: any) {
+      lastError = err;
+      const msg = err?.message || "";
+      const isRetryable = msg.includes("Failed to send") || msg.includes("FunctionsHttpError") || msg.includes("timeout") || msg.includes("FunctionsFetchError");
+      if (!isRetryable || attempt === maxRetries - 1) throw err;
+      const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      console.warn(`Retry ${attempt + 1}/${maxRetries} for ${functionName} after ${delay}ms:`, msg);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export default function CargaMasiva() {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
@@ -465,17 +498,21 @@ export default function CargaMasiva() {
     setParsingAlertas(true);
     const cutoffDate = new Date("2026-01-01");
 
-    for (const row of rowsWithAlertas) {
+    let failedCount = 0;
+
+    for (let idx = 0; idx < rowsWithAlertas.length; idx++) {
+      const row = rowsWithAlertas[idx];
       setParsedRows((prev) =>
         prev.map((r) => r.rowIndex === row.rowIndex ? { ...r, alertasParsing: true } : r)
       );
 
       try {
-        const { data, error } = await supabase.functions.invoke("parse-alertas", {
-          body: { texto: row.data["Notas / Alertas"] },
-        });
+        // Add delay between calls to avoid overwhelming edge functions
+        if (idx > 0) await delay(500);
 
-        if (error) throw error;
+        const data = await invokeWithRetry("parse-alertas", {
+          texto: row.data["Notas / Alertas"],
+        });
 
         // Get empresas linked to this row for auto-assignment
         const rowEmpNames: { id: string; nombre: string }[] = [];
@@ -490,7 +527,6 @@ export default function CargaMasiva() {
         const alertas: ParsedAlerta[] = (data.alertas || []).map((a: any) => {
           const fecha = a.fecha || null;
           const esFutura = fecha ? new Date(fecha) >= cutoffDate : false;
-          // Auto-assign empresa if the alert text mentions a known empresa name
           let empresaId: string | null = null;
           if (rowEmpNames.length > 0) {
             const textoLower = (a.texto || "").toLowerCase();
@@ -508,7 +544,8 @@ export default function CargaMasiva() {
           )
         );
       } catch (err: any) {
-        toast.error(`Error procesando fila ${row.rowIndex}: ${err.message}`);
+        failedCount++;
+        console.error(`Error procesando fila ${row.rowIndex}:`, err);
         setParsedRows((prev) =>
           prev.map((r) => r.rowIndex === row.rowIndex ? { ...r, alertasParsing: false } : r)
         );
@@ -516,7 +553,11 @@ export default function CargaMasiva() {
     }
 
     setParsingAlertas(false);
-    toast.success("Alertas procesadas con IA");
+    if (failedCount > 0) {
+      toast.error(`${failedCount} fila(s) fallaron al procesar alertas. Use "Reintentar fallidas" para volver a intentar.`);
+    } else {
+      toast.success("Alertas procesadas con IA");
+    }
   }, [parsedRows, empresas]);
 
   /** Parse contacts with AI for rows that have multiple names in contact fields */
@@ -537,8 +578,13 @@ export default function CargaMasiva() {
 
     setParsingContactos(true);
 
-    for (const row of rowsWithMultipleContacts) {
+    let failedCount = 0;
+
+    for (let idx = 0; idx < rowsWithMultipleContacts.length; idx++) {
+      const row = rowsWithMultipleContacts[idx];
       try {
+        if (idx > 0) await delay(500);
+
         const contactos = contactFields.map((prefix) => ({
           categoria: prefix === "Const" ? "Constructora" : prefix,
           nombre: (row.data[`${prefix} Nombre`] || "").trim(),
@@ -549,11 +595,7 @@ export default function CargaMasiva() {
 
         if (contactos.length === 0) continue;
 
-        const { data, error } = await supabase.functions.invoke("parse-contactos", {
-          body: { contactos },
-        });
-
-        if (error) throw error;
+        const data = await invokeWithRetry("parse-contactos", { contactos });
 
         const parsed = data.contactos || [];
         setParsedRows((prev) =>
@@ -573,12 +615,17 @@ export default function CargaMasiva() {
           })
         );
       } catch (err: any) {
-        toast.error(`Error procesando contactos fila ${row.rowIndex}: ${err.message}`);
+        failedCount++;
+        console.error(`Error procesando contactos fila ${row.rowIndex}:`, err);
       }
     }
 
     setParsingContactos(false);
-    toast.success("Contactos procesados con IA");
+    if (failedCount > 0) {
+      toast.error(`${failedCount} fila(s) fallaron al procesar contactos. Use "Reintentar fallidas" para volver a intentar.`);
+    } else {
+      toast.success("Contactos procesados con IA");
+    }
   }, [parsedRows]);
 
   /** Auto-run AI pipeline when rows are loaded */
@@ -1081,25 +1128,45 @@ export default function CargaMasiva() {
                 </div>
               )}
               {aiPhase === "done" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setParsedRows((prev) => prev.map((r) => ({
-                      ...r,
-                      alertasParsed: false,
-                      alertas: [],
-                      aiCorrected: [],
-                      aiUnmatched: [],
-                    })));
-                    setDropdownsMatched(false);
-                    setAiPhase("idle");
-                    aiRunTriggered.current = false;
-                  }}
-                  className="gap-2"
-                >
-                  <Sparkles className="w-3 h-3" /> Reprocesar todo con IA
-                </Button>
+                <>
+                  {parsedRows.some((r) => r.valid && (r.data["Notas / Alertas"] || "").trim() && !r.alertasParsed) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={parsingAlertas || parsingContactos}
+                      onClick={async () => {
+                        setAiPhase("alertas");
+                        await alertasRef.current();
+                        setAiPhase("contactos");
+                        await contactosRef.current();
+                        setAiPhase("done");
+                      }}
+                      className="gap-2"
+                    >
+                      {parsingAlertas || parsingContactos ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertCircle className="w-3 h-3" />}
+                      Reintentar fallidas ({parsedRows.filter((r) => r.valid && (r.data["Notas / Alertas"] || "").trim() && !r.alertasParsed).length} filas)
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setParsedRows((prev) => prev.map((r) => ({
+                        ...r,
+                        alertasParsed: false,
+                        alertas: [],
+                        aiCorrected: [],
+                        aiUnmatched: [],
+                      })));
+                      setDropdownsMatched(false);
+                      setAiPhase("idle");
+                      aiRunTriggered.current = false;
+                    }}
+                    className="gap-2"
+                  >
+                    <Sparkles className="w-3 h-3" /> Reprocesar todo con IA
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
