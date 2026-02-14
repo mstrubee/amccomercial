@@ -1,49 +1,63 @@
 
 
-# Fix: "Failed to send a request to the Edge Function" en Carga Masiva
+# Confirmacion de carga + Persistencia de estado en Carga Masiva
 
-## Problema
+## 1. Confirmacion antes de cargar proyectos
 
-Cuando hay muchas filas con alertas, las llamadas secuenciales a la edge function `parse-alertas` fallan porque:
-1. Cada llamada al gateway de IA puede tardar 5-15 segundos
-2. Muchas llamadas consecutivas causan timeouts del lado del cliente
-3. No hay reintentos ante fallos transitorios
-4. Las funciones se reinician (boot/shutdown) sin procesar el request
+Agregar un dialogo de confirmacion (AlertDialog) cuando el usuario presiona "Cargar N Proyectos". El dialogo mostrara cuantos proyectos se van a cargar y pedira confirmacion explícita antes de proceder.
 
-## Solucion
+### Cambios en `src/pages/CargaMasiva.tsx`
+- Importar componentes de AlertDialog
+- Agregar estado `confirmOpen` para controlar el dialogo
+- El boton "Cargar N Proyectos" ahora abre el dialogo en vez de ejecutar directamente `handleBulkInsert`
+- El boton "Confirmar" dentro del dialogo ejecuta `handleBulkInsert`
+- Texto del dialogo: "Esta a punto de cargar N proyectos. Esta accion no se puede deshacer. Desea continuar?"
 
-### 1. Agregar retry con backoff exponencial en el cliente (`src/pages/CargaMasiva.tsx`)
+## 2. Persistencia del estado al navegar
 
-Crear una funcion helper `invokeWithRetry` que reintente hasta 3 veces con delays crecientes (1s, 2s, 4s) ante errores de tipo "Failed to send" o timeout.
+Actualmente, todo el estado de la carga masiva vive en `useState` local, por lo que se pierde al cambiar de seccion. La solucion es guardar el estado en `sessionStorage` y restaurarlo al volver.
 
-### 2. Agregar delay entre filas
+### Cambios en `src/pages/CargaMasiva.tsx`
 
-Insertar un pequeno delay (500ms) entre cada llamada secuencial para evitar saturar las edge functions con requests simultaneos.
+**Estado a persistir:**
+- `parsedRows` (las filas procesadas con sus datos, alertas, errores)
+- `uploaded` (si ya se cargo)
+- `dropdownsMatched` (si ya se hizo el matching de dropdowns)
+- `aiPhase` (fase actual del pipeline de IA)
+- `openProjects` (proyectos expandidos en la tabla)
 
-### 3. Aplicar el mismo patron a `parse-contactos`
+**Implementacion:**
+- Usar `useEffect` para guardar en `sessionStorage` cada vez que cambie `parsedRows` o los flags de estado
+- En la inicializacion del componente, verificar si hay estado guardado en `sessionStorage` y restaurarlo
+- Limpiar `sessionStorage` cuando:
+  - Se presiona "Cancelar"
+  - La carga se completa exitosamente
+  - Se sube un archivo nuevo (reemplaza el estado anterior)
 
-La funcion `parseContactosWithAI` tiene el mismo problema potencial, aplicar retry tambien.
+**Clave de almacenamiento:** `carga-masiva-state`
 
-### 4. Mejorar mensajes de error
-
-En vez de solo mostrar el error y continuar, mostrar cuantas filas fallaron al final y ofrecer un boton para reintentar solo las filas fallidas.
-
-## Cambios tecnicos
-
-### `src/pages/CargaMasiva.tsx`
-
-- Nueva funcion helper `invokeWithRetry(functionName, body, maxRetries = 3)` que envuelve `supabase.functions.invoke` con logica de retry
-- Agregar `await delay(500)` entre iteraciones del loop en `parseAlertasWithAI`
-- Agregar `await delay(500)` entre iteraciones del loop en `parseContactosWithAI`
-- Agregar boton "Reintentar fallidas" que filtra las filas que tienen alertas sin parsear y vuelve a correr el pipeline solo para esas
-
-### Detalle del retry
-
+**Estructura guardada:**
 ```text
-Intento 1 -> falla -> esperar 1s
-Intento 2 -> falla -> esperar 2s  
-Intento 3 -> falla -> marcar como error, continuar con siguiente fila
+{
+  parsedRows: ParsedRow[],
+  uploaded: boolean,
+  dropdownsMatched: boolean,
+  aiPhase: string,
+  openProjects: Record<number, boolean>
+}
 ```
 
-No se requieren cambios en las edge functions ni en la base de datos.
+### Flujo del usuario tras la correccion
+
+```text
+1. Usuario sube Excel -> se procesa con IA
+2. Usuario navega a /proyectos para verificar
+3. Usuario vuelve a /carga-masiva
+4. El estado se restaura automaticamente desde sessionStorage
+5. El usuario puede continuar editando o cargar los proyectos
+```
+
+## Archivos a modificar
+
+- `src/pages/CargaMasiva.tsx` - Unico archivo afectado
 
