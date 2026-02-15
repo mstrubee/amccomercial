@@ -629,7 +629,7 @@ export default function CargaMasiva() {
         }
 
         const alertas: ParsedAlerta[] = (data.alertas || []).map((a: any) => {
-          const fecha = a.fecha || null;
+          const fecha = (a.fecha && a.fecha !== "null") ? a.fecha : null;
           const esFutura = fecha ? new Date(fecha) >= cutoffDate : false;
           let empresaId: string | null = null;
           if (rowEmpNames.length > 0) {
@@ -969,7 +969,7 @@ export default function CargaMasiva() {
           fecha_ingreso: fechaIngreso || new Date().toISOString().split("T")[0],
           clasificacion_id,
           estado_obra: safeStr(d["Estado Obra"]),
-          fecha_estado_obra: fechaEstado || null,
+          fecha_estado_obra: (fechaEstado && fechaEstado !== "null") ? fechaEstado : null,
           estado_amc: safeStr(d["Estado AMC"]) || "Vigente",
           direccion: safeStr(d["Dirección"]),
           region: safeStr(d["Región"]),
@@ -1030,7 +1030,7 @@ export default function CargaMasiva() {
         // Selected (crearAlerta) => active, unselected with date => historical (completada)
         const alertasWithDate = row.alertas
           .map((a, origIdx) => ({ ...a, origIdx }))
-          .filter((a) => a.fecha);
+          .filter((a) => a.fecha && a.fecha !== "null");
 
         if (alertasWithDate.length > 0) {
           const origIdxToDbId: Record<number, string> = {};
