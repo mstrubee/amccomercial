@@ -45,6 +45,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
   const [editCatName, setEditCatName] = useState("");
   const [editCatColor, setEditCatColor] = useState("");
   const [editCatAdj, setEditCatAdj] = useState(false);
+  const [editCatFecha, setEditCatFecha] = useState(false);
 
   // New subcategory form
   const [newSubCatId, setNewSubCatId] = useState<string | null>(null);
@@ -71,11 +72,12 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
     setEditCatName(cat.nombre);
     setEditCatColor(cat.color);
     setEditCatAdj(cat.es_adjudicado);
+    setEditCatFecha((cat as any).permite_fecha || false);
   };
 
   const handleUpdateCat = () => {
     if (!editingCat || !editCatName.trim()) return;
-    updateCat.mutate({ id: editingCat.id, nombre: editCatName.trim(), color: editCatColor, es_adjudicado: editCatAdj });
+    updateCat.mutate({ id: editingCat.id, nombre: editCatName.trim(), color: editCatColor, es_adjudicado: editCatAdj, permite_fecha: editCatFecha });
     setEditingCat(null);
   };
 
@@ -130,6 +132,10 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                       <Checkbox checked={editCatAdj} onCheckedChange={(v) => setEditCatAdj(!!v)} />
                       <span className="text-xs text-muted-foreground">Marca como adjudicado</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={editCatFecha} onCheckedChange={(v) => setEditCatFecha(!!v)} />
+                      <span className="text-xs text-muted-foreground">Permite fecha y alerta</span>
+                    </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={handleUpdateCat}>Guardar</Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingCat(null)}>Cancelar</Button>
@@ -146,6 +152,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                     <div className="w-4 h-4 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: cat.color }} />
                     <span className="text-sm font-medium text-card-foreground flex-1">{cat.nombre}</span>
                     {cat.es_adjudicado && <span className="text-[10px] font-semibold text-success uppercase">Adj.</span>}
+                    {(cat as any).permite_fecha && <span className="text-[10px] font-semibold text-amber-500 uppercase">📅</span>}
                     {cat.subcategorias_proyecto.length > 0 && (
                       <span className="text-[10px] text-muted-foreground">{cat.subcategorias_proyecto.length} sub</span>
                     )}

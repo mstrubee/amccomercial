@@ -724,6 +724,9 @@ export default function Proyectos() {
           isLoading={updateProyecto.isPending}
           isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => a.proyecto_id === editTarget.id)}
+          onCreateAlertaFromCategoria={(ctx) => {
+            setAlertaCreateContext({ proyecto_id: ctx.proyecto_id, empresa_id: ctx.empresa_id, defaultTexto: `Seguimiento categoría` });
+          }}
           onSubmit={(data) => {
             updateProyecto.mutate({ ...data, id: editTarget.id }, { onSuccess: () => setEditTarget(null) });
           }}
@@ -995,6 +998,7 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
+        const fechaCat = (pe as any).fecha_categoria || null;
 
         return (
           <div key={pe.id} className="leading-tight">
@@ -1013,6 +1017,11 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />
               )}
               {pe.empresas.nombre.split(" ")[0]}
+              {fechaCat && (
+                <span className="text-[9px] opacity-75 ml-0.5">
+                  {new Date(fechaCat + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
+                </span>
+              )}
             </span>
             {statusName && (
               <span className="ml-1 text-[10px] text-muted-foreground">{statusName}</span>
@@ -1053,6 +1062,7 @@ function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
+        const fechaCat = (pe as any).fecha_categoria || null;
         return (
           <span
             key={pe.id}
@@ -1069,6 +1079,11 @@ function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
             {statusColor && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />}
             {pe.empresas.nombre.split(" ")[0]}
             {statusName && <span className="text-[10px] opacity-80">· {statusName}</span>}
+            {fechaCat && (
+              <span className="text-[9px] opacity-75">
+                {new Date(fechaCat + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
+              </span>
+            )}
           </span>
         );
       })}
