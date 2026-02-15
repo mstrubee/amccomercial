@@ -29,6 +29,19 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+/** Deduplicate alertas by content key, keeping the oldest by created_at */
+function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
+  const seen = new Map<string, AlertaWithRelations>();
+  for (const a of alertas) {
+    const key = `${a.titulo}|${a.texto}|${a.fecha_seguimiento}|${a.empresa_id ?? ""}`;
+    const existing = seen.get(key);
+    if (!existing || a.created_at < existing.created_at) {
+      seen.set(key, a);
+    }
+  }
+  return Array.from(seen.values());
+}
+
 const ESTADOS_AMC = ["Todos", "Vigente", "Todo Ofrecido", "Sin Respuesta", "Descartado"];
 const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
@@ -445,12 +458,7 @@ export default function Proyectos() {
                           {(() => {
                             const groupIds = new Set(items.map(i => i.id));
                             const parentAlertasRaw = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
-                            const seenAlertIds = new Set<string>();
-                            const parentAlertas = parentAlertasRaw.filter(a => {
-                              if (seenAlertIds.has(a.id)) return false;
-                              seenAlertIds.add(a.id);
-                              return true;
-                            });
+                            const parentAlertas = deduplicateAlertas(parentAlertasRaw);
                             const activeCount = parentAlertas.filter(a => !a.completada && !a.deleted).length;
                             return (
                               <Popover>
@@ -500,7 +508,9 @@ export default function Proyectos() {
                     <AnimatePresence>
                       {expanded && items.map((p, childIdx) => {
                         const empresaId = p.proyecto_empresas?.[0]?.empresa_id || null;
-                        const childAlertas = empresaId ? (alertas || []).filter(a => a.proyecto_id === p.id && a.empresa_id === empresaId) : [];
+const groupChildIds = new Set(items.map(i => i.id));
+const childAlertasRaw = empresaId ? (alertas || []).filter(a => groupChildIds.has(a.proyecto_id) && a.empresa_id === empresaId) : [];
+                        const childAlertas = deduplicateAlertas(childAlertasRaw);
                         const childBg = isEven ? "bg-muted/30" : "bg-secondary/10";
                         return (
                           <Fragment key={p.id}>
