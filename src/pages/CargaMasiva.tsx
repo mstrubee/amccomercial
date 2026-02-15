@@ -1006,8 +1006,35 @@ export default function CargaMasiva() {
           .maybeSingle();
 
         if (existingProj) {
-          // Project already exists (likely from a previous attempt), skip creation
+          // Project already exists — update only non-empty fields
           projectId = existingProj.id;
+          const updatePayload: Record<string, any> = {};
+          for (const [key, val] of Object.entries(projectPayload)) {
+            if (val !== null && val !== undefined && val !== "") {
+              updatePayload[key] = val;
+            }
+          }
+          if (Object.keys(updatePayload).length > 0) {
+            const { error: updErr } = await supabase
+              .from("proyectos")
+              .update(updatePayload as any)
+              .eq("id", projectId);
+            if (updErr) throw updErr;
+          }
+          // Update empresa links if any
+          if (empLinks.length > 0) {
+            await supabase.from("proyecto_empresas").delete().eq("proyecto_id", projectId);
+            const links = empLinks.map((el) => ({
+              proyecto_id: projectId,
+              empresa_id: el.empresa_id,
+              monto_cotizacion: 0,
+              adjudicado: false,
+              categoria_id: el.categoria_id,
+              subcategoria_id: null,
+            }));
+            const { error: linkErr } = await supabase.from("proyecto_empresas").insert(links);
+            if (linkErr) throw linkErr;
+          }
         } else if (empLinks.length === 0) {
           const { data: created, error } = await supabase
             .from("proyectos")
@@ -1631,7 +1658,7 @@ export default function CargaMasiva() {
                           </div>
                         ) : comunaEmpty ? (
                           <Select value="" onValueChange={(v) => updateRowField(row.rowIndex, "Comuna", v)}>
-                            <SelectTrigger className="h-7 text-xs border-orange-400 bg-orange-50/50 w-[140px]">
+                            <SelectTrigger className="h-7 text-xs border-destructive bg-destructive/10 w-[140px]">
                               <SelectValue placeholder="Seleccionar..." />
                             </SelectTrigger>
                             <SelectContent>
@@ -1858,7 +1885,7 @@ function InlineDropdown({
   if (isEmpty) {
     return (
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-7 text-xs border-orange-400 bg-orange-50/50 w-[140px]" title="Campo vacío - seleccionar valor">
+        <SelectTrigger className="h-7 text-xs border-destructive bg-destructive/10 w-[140px]" title="Campo vacío - seleccionar valor">
           <SelectValue placeholder={placeholder || "Seleccionar..."} />
         </SelectTrigger>
         <SelectContent>
