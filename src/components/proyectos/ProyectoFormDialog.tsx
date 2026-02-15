@@ -28,6 +28,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: ProyectoInput) => void;
+  onCreateAlertaFromCategoria?: (context: { proyecto_id: string; empresa_id: string; fecha: string }) => void;
   isLoading?: boolean;
   initialData?: ProyectoWithEmpresas;
   mode: "create" | "edit";
@@ -45,9 +46,10 @@ interface EmpresaRow {
   monto: number;
   categoria_id: string | null;
   subcategoria_id: string | null;
+  fecha_categoria: string | null;
 }
 
-export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
+export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCreateAlertaFromCategoria, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -63,6 +65,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split("T")[0]);
   const [clasificacionId, setClasificacionId] = useState<string | null>(null);
   const [empresaRows, setEmpresaRows] = useState<EmpresaRow[]>([]);
+  const [crearAlertaEmpresaIds, setCrearAlertaEmpresaIds] = useState<Set<string>>(new Set());
   const [showCategoriasManager, setShowCategoriasManager] = useState(false);
 
   // Contactos
@@ -102,6 +105,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
   useEffect(() => {
     if (!open) return;
+    setCrearAlertaEmpresaIds(new Set());
     // Reset scroll to top when dialog opens
     setTimeout(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -122,7 +126,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
       // Build empresa rows from existing links (or from all group items for parent edit)
       if (empresas) {
         // Collect all empresa links across group items (parent edit) or just from this project
-        const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null }[] = [];
+        const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null; fecha_categoria: string | null }[] = [];
         const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
         for (const item of sourceItems) {
           for (const pe of (item.proyecto_empresas || [])) {
@@ -132,6 +136,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                 monto_cotizacion: (pe as any).monto_cotizacion || 0,
                 categoria_id: (pe as any).categoria_id || null,
                 subcategoria_id: (pe as any).subcategoria_id || null,
+                fecha_categoria: (pe as any).fecha_categoria || null,
               });
             }
           }
@@ -144,6 +149,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
             monto: link?.monto_cotizacion || 0,
             categoria_id: link?.categoria_id || null,
             subcategoria_id: link?.subcategoria_id || null,
+            fecha_categoria: link?.fecha_categoria || null,
           };
         });
         setEmpresaRows(rows);
@@ -178,6 +184,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
           monto: 0,
           categoria_id: null,
           subcategoria_id: null,
+          fecha_categoria: null,
         })));
       }
       setArqNombre(""); setArqContacto(""); setArqMail(""); setArqTelefono("");
@@ -223,19 +230,41 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
     setEmpresaRows((prev) => prev.map((r) => r.empresa_id === empresa_id ? { ...r, ...updates } : r));
   };
 
+  const categoryPermiteFecha = (catId: string | null, subId: string | null): boolean => {
+    if (!categorias) return false;
+    // Check subcategory's parent category
+    if (subId) {
+      for (const cat of categorias) {
+        if (cat.subcategorias_proyecto.some(s => s.id === subId)) {
+          return (cat as any).permite_fecha || false;
+        }
+      }
+    }
+    if (catId) {
+      const cat = categorias.find(c => c.id === catId);
+      return (cat as any)?.permite_fecha || false;
+    }
+    return false;
+  };
+
   const handleCategoryChange = (empresa_id: string, value: string) => {
     if (!value || value === "none") {
-      updateEmpresaRow(empresa_id, { categoria_id: null, subcategoria_id: null });
+      updateEmpresaRow(empresa_id, { categoria_id: null, subcategoria_id: null, fecha_categoria: null });
       return;
     }
+    let newCatId: string | null = null;
+    let newSubId: string | null = null;
     if (value.startsWith("sub:")) {
-      const subId = value.replace("sub:", "");
-      const parentCat = categorias?.find((c) => c.subcategorias_proyecto.some((s) => s.id === subId));
-      updateEmpresaRow(empresa_id, { categoria_id: parentCat?.id || null, subcategoria_id: subId });
+      newSubId = value.replace("sub:", "");
+      const parentCat = categorias?.find((c) => c.subcategorias_proyecto.some((s) => s.id === newSubId));
+      newCatId = parentCat?.id || null;
     } else {
-      const catId = value.replace("cat:", "");
-      updateEmpresaRow(empresa_id, { categoria_id: catId, subcategoria_id: null });
+      newCatId = value.replace("cat:", "");
     }
+    const permiteFecha = categoryPermiteFecha(newCatId, newSubId);
+    const row = empresaRows.find(r => r.empresa_id === empresa_id);
+    const fecha = permiteFecha && !row?.fecha_categoria ? new Date().toISOString().split("T")[0] : row?.fecha_categoria || null;
+    updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null });
   };
 
   const getSelectValue = (row: EmpresaRow): string => {
@@ -256,9 +285,24 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
         adjudicado: isAdjudicado(r.categoria_id, r.subcategoria_id),
         categoria_id: r.categoria_id,
         subcategoria_id: r.subcategoria_id,
+        fecha_categoria: r.fecha_categoria,
       }));
 
     snapshotRef.current = "";
+
+    // Trigger alert creation for empresas that requested it
+    if (onCreateAlertaFromCategoria && initialData) {
+      for (const row of empresaRows) {
+        if (crearAlertaEmpresaIds.has(row.empresa_id) && row.fecha_categoria) {
+          onCreateAlertaFromCategoria({
+            proyecto_id: initialData.id,
+            empresa_id: row.empresa_id,
+            fecha: row.fecha_categoria,
+          });
+        }
+      }
+    }
+    setCrearAlertaEmpresaIds(new Set());
 
     onSubmit({
       nombre: nombre.trim(),
@@ -377,6 +421,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                               <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
                             </div>
                             {row.selected && (
+                              <>
                               <div className="mt-2 pl-6 flex items-center gap-2 flex-wrap">
                                 <CategoriaSelect
                                   categorias={categorias || []}
@@ -398,6 +443,19 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                   <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
                                 )}
                               </div>
+                              {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
+                                <div className="mt-1.5 pl-6 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
+                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || ""} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                  </div>
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
+                                    <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5"><Bell className="w-2.5 h-2.5" /> Crear alerta de seguimiento</span>
+                                  </label>
+                                </div>
+                              )}
+                              </>
                             )}
                           </div>
                         );
@@ -419,6 +477,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                               <span className="text-sm font-medium text-card-foreground flex-1">{emp.nombre}</span>
                             </div>
                             {row.selected && (
+                              <>
                               <div className="mt-2 pl-6 flex items-center gap-2 flex-wrap">
                                 <CategoriaSelect
                                   categorias={categorias || []}
@@ -440,6 +499,19 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                   <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
                                 )}
                               </div>
+                              {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
+                                <div className="mt-1.5 pl-6 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
+                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || ""} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                  </div>
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
+                                    <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5"><Bell className="w-2.5 h-2.5" /> Crear alerta de seguimiento</span>
+                                  </label>
+                                </div>
+                              )}
+                              </>
                             )}
                           </div>
                         );
@@ -475,6 +547,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                                 <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
                               )}
                             </div>
+                            {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
+                              <div className="mt-1.5 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
+                                  <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || ""} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                </div>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
+                                  <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5"><Bell className="w-2.5 h-2.5" /> Crear alerta de seguimiento</span>
+                                </label>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

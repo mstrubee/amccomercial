@@ -53,11 +53,11 @@ export function useCreateCategoria() {
 export function useUpdateCategoria() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; nombre: string; color: string; es_adjudicado: boolean }) => {
+    mutationFn: async (input: { id: string; nombre: string; color: string; es_adjudicado: boolean; permite_fecha?: boolean }) => {
       const { id, ...rest } = input;
       const { error } = await supabase
         .from("categorias_proyecto")
-        .update(rest)
+        .update(rest as any)
         .eq("id", id);
       if (error) throw error;
     },

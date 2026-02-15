@@ -155,6 +155,7 @@ export type Database = {
           id: string
           nombre: string
           orden: number
+          permite_fecha: boolean
         }
         Insert: {
           color?: string
@@ -163,6 +164,7 @@ export type Database = {
           id?: string
           nombre: string
           orden?: number
+          permite_fecha?: boolean
         }
         Update: {
           color?: string
@@ -171,6 +173,7 @@ export type Database = {
           id?: string
           nombre?: string
           orden?: number
+          permite_fecha?: boolean
         }
         Relationships: []
       }
@@ -333,6 +336,7 @@ export type Database = {
           adjudicado: boolean
           categoria_id: string | null
           empresa_id: string
+          fecha_categoria: string | null
           id: string
           monto_cotizacion: number | null
           proyecto_id: string
@@ -342,6 +346,7 @@ export type Database = {
           adjudicado?: boolean
           categoria_id?: string | null
           empresa_id: string
+          fecha_categoria?: string | null
           id?: string
           monto_cotizacion?: number | null
           proyecto_id: string
@@ -351,6 +356,7 @@ export type Database = {
           adjudicado?: boolean
           categoria_id?: string | null
           empresa_id?: string
+          fecha_categoria?: string | null
           id?: string
           monto_cotizacion?: number | null
           proyecto_id?: string

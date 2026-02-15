@@ -21,6 +21,7 @@ export interface EmpresaLink {
   adjudicado: boolean;
   categoria_id: string | null;
   subcategoria_id: string | null;
+  fecha_categoria: string | null;
 }
 
 export function useProyectos() {
@@ -108,6 +109,7 @@ export function useCreateProyecto() {
         adjudicado: empresa_links[i].adjudicado,
         categoria_id: empresa_links[i].categoria_id || null,
         subcategoria_id: empresa_links[i].subcategoria_id || null,
+        fecha_categoria: empresa_links[i].fecha_categoria || null,
       }));
 
       const { error: linkError } = await supabase
@@ -153,6 +155,7 @@ export function useUpdateProyecto() {
             adjudicado: el.adjudicado,
             categoria_id: el.categoria_id || null,
             subcategoria_id: el.subcategoria_id || null,
+            fecha_categoria: el.fecha_categoria || null,
           })));
         if (linkError) throw linkError;
       }
