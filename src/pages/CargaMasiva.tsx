@@ -12,13 +12,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight, Paperclip, Trash2, Pause } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Brain, Bell, FileText, Users, Sparkles, Plus, Link, ChevronDown, ChevronRight, Paperclip, Trash2, Pause, Play, AlertTriangle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/** Safely convert any value to a trimmed string */
+function safeStr(val: any): string {
+  if (val === null || val === undefined) return "";
+  return String(val).trim();
+}
 
 const ESTADOS_OBRA = [
   "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada",
@@ -143,6 +150,10 @@ export default function CargaMasiva() {
   const abortUploadRef = useRef(false);
   const [uploadPaused, setUploadPaused] = useState(false);
   const [pauseDialogOpen, setPauseDialogOpen] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [aiProgress, setAiProgress] = useState(0);
+  const [aiTotal, setAiTotal] = useState(0);
 
   // --- SessionStorage persistence ---
   const SESSION_KEY = "carga-masiva-state";
@@ -168,10 +179,10 @@ export default function CargaMasiva() {
           setUploadPaused(true);
           setUploadProgress(state.uploadProgress);
           setUploadTotal(state.uploadTotal ?? state.parsedRows.length);
-          toast.info("Carga masiva pausada restaurada — puede continuar donde quedó");
-        } else {
-          toast.info("Estado de carga masiva restaurado");
         }
+        if (state.uploadedFileName) setUploadedFileName(state.uploadedFileName);
+        if (state.uploadedFilePath) setUploadedFilePath(state.uploadedFilePath);
+        toast.info("Estado de carga masiva restaurado");
       }
     } catch { /* ignore corrupt data */ }
   }, []);
@@ -189,9 +200,11 @@ export default function CargaMasiva() {
         uploadPaused,
         uploadProgress,
         uploadTotal,
+        uploadedFileName,
+        uploadedFilePath,
       }));
     } catch { /* storage full, ignore */ }
-  }, [parsedRows, uploaded, dropdownsMatched, aiPhase, openProjects, uploadPaused, uploadProgress, uploadTotal]);
+  }, [parsedRows, uploaded, dropdownsMatched, aiPhase, openProjects, uploadPaused, uploadProgress, uploadTotal, uploadedFileName, uploadedFilePath]);
 
   const clearSessionState = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY);
@@ -343,7 +356,24 @@ export default function CargaMasiva() {
       setDropdownsMatched(false);
       setAiPhase("idle");
       aiRunTriggered.current = false;
+      setUploadPaused(false);
+      setUploadProgress(0);
+      setUploadTotal(0);
       clearSessionState();
+
+      // Store file in storage with date prefix
+      const now = new Date();
+      const datePrefix = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}_`;
+      const storageName = `${datePrefix}${file.name}`;
+      supabase.storage.from("carga-masiva-archivos").upload(storageName, file).then(({ error }) => {
+        if (error) {
+          console.warn("Error storing file:", error.message);
+        } else {
+          setUploadedFileName(storageName);
+          setUploadedFilePath(storageName);
+          toast.success(`Archivo almacenado: ${storageName}`);
+        }
+      });
 
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -351,9 +381,18 @@ export default function CargaMasiva() {
           const data = evt.target?.result;
           const wb = XLSX.read(data, { type: "array" });
           const ws = wb.Sheets[wb.SheetNames[0]];
-          const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+          // Convert all values to strings to prevent trim() errors on numbers
+          const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
           if (rows.length === 0) { toast.error("El archivo no contiene datos"); return; }
-          const parsed = rows.map((row, i) => validateRowBasic(row, i));
+          // Ensure all values are strings
+          const safeRows = rows.map((row) => {
+            const safe: Record<string, string> = {};
+            for (const [k, v] of Object.entries(row)) {
+              safe[k] = String(v ?? "");
+            }
+            return safe;
+          });
+          const parsed = safeRows.map((row, i) => validateRowBasic(row, i));
           setParsedRows(parsed);
           aiRunTriggered.current = false;
           toast.info(`${parsed.length} filas leídas. Iniciando procesamiento con IA...`);
@@ -362,7 +401,7 @@ export default function CargaMasiva() {
       reader.readAsArrayBuffer(file);
       e.target.value = "";
     },
-    [validateRowBasic]
+    [validateRowBasic, clearSessionState]
   );
 
 
@@ -706,12 +745,22 @@ export default function CargaMasiva() {
       aiRunTriggered.current = true;
       (async () => {
         try {
+          const totalSteps = parsedRows.length * 3; // 3 phases
+          setAiTotal(totalSteps);
+          setAiProgress(0);
+
           setAiPhase("dropdowns");
           await matchRef.current();
+          setAiProgress(parsedRows.length);
+
           setAiPhase("alertas");
           await alertasRef.current();
+          setAiProgress(parsedRows.length * 2);
+
           setAiPhase("contactos");
           await contactosRef.current();
+          setAiProgress(totalSteps);
+
           setAiPhase("done");
           setOpenProjects(() => {
             const opens: Record<number, boolean> = {};
@@ -883,7 +932,7 @@ export default function CargaMasiva() {
         const d = row.data;
 
         let clasificacion_id: string | null = null;
-        const clsName = (d["Clasificación"] || "").trim();
+        const clsName = safeStr(d["Clasificación"]);
         if (clsName && clasificaciones) {
           const found = clasificaciones.find((c) => c.nombre === clsName);
           if (found) clasificacion_id = found.id;
@@ -891,8 +940,8 @@ export default function CargaMasiva() {
 
         const empLinks: { empresa_id: string; categoria_id: string | null }[] = [];
         for (let i = 1; i <= 4; i++) {
-          const empName = (d[`Empresa ${i}`] || "").trim();
-          const catName = (d[`Categoría Empresa ${i}`] || "").trim();
+          const empName = safeStr(d[`Empresa ${i}`]);
+          const catName = safeStr(d[`Categoría Empresa ${i}`]);
           if (empName && empresas) {
             const emp = empresas.find((e) => e.nombre === empName);
             if (emp) {
@@ -916,31 +965,31 @@ export default function CargaMasiva() {
           .join("\n");
 
         const projectPayload = {
-          nombre: d["Nombre Proyecto"]?.trim() || "",
+          nombre: safeStr(d["Nombre Proyecto"]),
           fecha_ingreso: fechaIngreso || new Date().toISOString().split("T")[0],
           clasificacion_id,
-          estado_obra: d["Estado Obra"]?.trim() || "",
+          estado_obra: safeStr(d["Estado Obra"]),
           fecha_estado_obra: fechaEstado || null,
-          estado_amc: d["Estado AMC"]?.trim() || "Vigente",
-          direccion: d["Dirección"]?.trim() || "",
-          region: d["Región"]?.trim() || "",
-          comuna: d["Comuna"]?.trim() || "",
-          arq_nombre: d["Arq Nombre"]?.trim() || "",
-          arq_contacto: d["Arq Contacto"]?.trim() || "",
-          arq_mail: d["Arq Email"]?.trim() || "",
-          arq_telefono: d["Arq Teléfono"]?.trim() || "",
-          const_nombre: d["Const Nombre"]?.trim() || "",
-          const_contacto: d["Const Contacto"]?.trim() || "",
-          const_mail: d["Const Email"]?.trim() || "",
-          const_telefono: d["Const Teléfono"]?.trim() || "",
-          ito_nombre: d["ITO Nombre"]?.trim() || "",
-          ito_contacto: d["ITO Contacto"]?.trim() || "",
-          ito_mail: d["ITO Email"]?.trim() || "",
-          ito_telefono: d["ITO Teléfono"]?.trim() || "",
-          duenos_nombre: d["Dueños Nombre"]?.trim() || "",
-          duenos_contacto: d["Dueños Contacto"]?.trim() || "",
-          duenos_mail: d["Dueños Email"]?.trim() || "",
-          duenos_telefono: d["Dueños Teléfono"]?.trim() || "",
+          estado_amc: safeStr(d["Estado AMC"]) || "Vigente",
+          direccion: safeStr(d["Dirección"]),
+          region: safeStr(d["Región"]),
+          comuna: safeStr(d["Comuna"]),
+          arq_nombre: safeStr(d["Arq Nombre"]),
+          arq_contacto: safeStr(d["Arq Contacto"]),
+          arq_mail: safeStr(d["Arq Email"]),
+          arq_telefono: safeStr(d["Arq Teléfono"]),
+          const_nombre: safeStr(d["Const Nombre"]),
+          const_contacto: safeStr(d["Const Contacto"]),
+          const_mail: safeStr(d["Const Email"]),
+          const_telefono: safeStr(d["Const Teléfono"]),
+          ito_nombre: safeStr(d["ITO Nombre"]),
+          ito_contacto: safeStr(d["ITO Contacto"]),
+          ito_mail: safeStr(d["ITO Email"]),
+          ito_telefono: safeStr(d["ITO Teléfono"]),
+          duenos_nombre: safeStr(d["Dueños Nombre"]),
+          duenos_contacto: safeStr(d["Dueños Contacto"]),
+          duenos_mail: safeStr(d["Dueños Email"]),
+          duenos_telefono: safeStr(d["Dueños Teléfono"]),
           adjudicado: false,
           notas: notasTexto,
         };
@@ -1040,12 +1089,15 @@ export default function CargaMasiva() {
       toast.success(`${validRows.length} proyectos cargados exitosamente`);
     } catch (err: any) {
       toast.error("Error al cargar: " + err.message);
+      // Auto-pause on error so user can resume
+      setUploadPaused(true);
+      setPauseDialogOpen(true);
     } finally {
       setUploading(false);
       uploadingRef.current = false;
       setUploadStartTime(null);
     }
-  }, [parsedRows, empresas, categorias, clasificaciones, queryClient, uploadPaused, uploadProgress]);
+  }, [parsedRows, empresas, categorias, clasificaciones, queryClient, uploadPaused, uploadProgress, clearSessionState]);
 
   const validCount = parsedRows.filter((r) => r.valid).length;
   const errorCount = parsedRows.filter((r) => !r.valid).length;
@@ -1167,11 +1219,27 @@ export default function CargaMasiva() {
           </CardTitle>
           <CardDescription>Acepta archivos .xlsx o .csv</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <label className="inline-flex items-center gap-2 px-4 py-2 border border-input rounded-md cursor-pointer hover:bg-accent transition-colors text-sm">
             <Upload className="w-4 h-4" /> Seleccionar archivo
             <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileUpload} />
           </label>
+          {uploadedFileName && (
+            <div className="flex items-center gap-2 text-sm">
+              <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
+              <span className="text-foreground truncate max-w-[400px]">{uploadedFileName}</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
+                if (uploadedFilePath) {
+                  await supabase.storage.from("carga-masiva-archivos").remove([uploadedFilePath]);
+                }
+                setUploadedFileName(null);
+                setUploadedFilePath(null);
+                toast.info("Archivo eliminado");
+              }}>
+                <Trash2 className="w-3 h-3 text-destructive" />
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1200,17 +1268,25 @@ export default function CargaMasiva() {
           <CardContent>
             <div className="flex items-center gap-3">
               {aiProcessing && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="flex gap-1">
-                    <div className={`w-2 h-2 rounded-full ${aiPhase === "dropdowns" ? "bg-primary animate-pulse" : "bg-green-500"}`} />
-                    <div className={`w-2 h-2 rounded-full ${aiPhase === "alertas" ? "bg-primary animate-pulse" : aiPhase === "contactos" ? "bg-green-500" : "bg-muted"}`} />
-                    <div className={`w-2 h-2 rounded-full ${aiPhase === "contactos" ? "bg-primary animate-pulse" : "bg-muted"}`} />
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex gap-1">
+                      <div className={`w-2 h-2 rounded-full ${aiPhase === "dropdowns" ? "bg-primary animate-pulse" : "bg-green-500"}`} />
+                      <div className={`w-2 h-2 rounded-full ${aiPhase === "alertas" ? "bg-primary animate-pulse" : aiPhase === "contactos" ? "bg-green-500" : "bg-muted"}`} />
+                      <div className={`w-2 h-2 rounded-full ${aiPhase === "contactos" ? "bg-primary animate-pulse" : "bg-muted"}`} />
+                    </div>
+                    <span className="text-xs">
+                      {aiPhase === "dropdowns" && "1/3 Clasificación"}
+                      {aiPhase === "alertas" && "2/3 Alertas"}
+                      {aiPhase === "contactos" && "3/3 Contactos"}
+                    </span>
                   </div>
-                  <span className="text-xs">
-                    {aiPhase === "dropdowns" && "1/3 Clasificación"}
-                    {aiPhase === "alertas" && "2/3 Alertas"}
-                    {aiPhase === "contactos" && "3/3 Contactos"}
-                  </span>
+                  {aiTotal > 0 && (
+                    <div className="space-y-1">
+                      <Progress value={Math.round((aiProgress / aiTotal) * 100)} className="h-2" />
+                      <p className="text-xs text-muted-foreground">{Math.round((aiProgress / aiTotal) * 100)}% procesado</p>
+                    </div>
+                  )}
                 </div>
               )}
               {aiPhase === "done" && (
@@ -1382,6 +1458,33 @@ export default function CargaMasiva() {
             })}
           </CardContent>
         </Card>
+      )}
+
+      {/* Paused upload banner */}
+      {uploadPaused && !uploading && parsedRows.length > 0 && (
+        <div className="flex items-center gap-3 p-4 rounded-lg border border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Carga masiva pausada</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Se cargaron {uploadProgress} de {uploadTotal} proyectos. Puede continuar o cancelar.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleBulkInsert} className="gap-1">
+              <Play className="w-3 h-3" /> Continuar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              setUploadPaused(false);
+              setUploadProgress(0);
+              setUploadTotal(0);
+              setParsedRows([]);
+              setDropdownsMatched(false);
+              clearSessionState();
+              toast.info("Carga cancelada");
+            }}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Step final: Preview & confirm */}
@@ -1598,17 +1701,12 @@ export default function CargaMasiva() {
                   <Pause className="w-4 h-4 mr-1" /> Detener
                 </Button>
               )}
-              {uploading && uploadTotal > 0 && (
+              {(uploading || uploadPaused) && uploadTotal > 0 && (
                 <div className="flex-1 max-w-xs space-y-1">
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.round((uploadProgress / uploadTotal) * 100)}%` }}
-                    />
-                  </div>
+                  <Progress value={Math.round((uploadProgress / uploadTotal) * 100)} className="h-2" />
                   <p className="text-xs text-muted-foreground">
-                    {Math.round((uploadProgress / uploadTotal) * 100)}%
-                    {uploadStartTime && uploadProgress > 0 && (() => {
+                    {Math.round((uploadProgress / uploadTotal) * 100)}% — {uploadProgress}/{uploadTotal}
+                    {uploading && uploadStartTime && uploadProgress > 0 && (() => {
                       const elapsed = (Date.now() - uploadStartTime) / 1000;
                       const perItem = elapsed / uploadProgress;
                       const remaining = Math.round(perItem * (uploadTotal - uploadProgress));
