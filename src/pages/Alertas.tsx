@@ -322,6 +322,13 @@ export default function Alertas() {
                           <GitBranch className="w-3.5 h-3.5" />
                         </Button>
                       )}
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Crear dependiente" onClick={() => {
+                        setEditTarget(null);
+                        setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
+                        setDialogOpen(true);
+                      }}>
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditTarget(a); setDialogOpen(true); }}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
