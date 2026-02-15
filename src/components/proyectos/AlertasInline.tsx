@@ -223,8 +223,12 @@ export function AlertasFullView({ alertas, allAlertas, onEdit, onDelete, onCompl
 
   // Only show root-level alerts (children shown nested) - use allAlertas for tree context
   const allForTree = allAlertas || alertas;
-  const activeRoots = active.filter(a => !a.parent_alerta_id || !allForTree.some(p => p.id === a.parent_alerta_id && !p.deleted));
-  const completedRoots = completed.filter(a => !a.parent_alerta_id || !allForTree.some(p => p.id === a.parent_alerta_id && !p.deleted));
+  const activeRoots = active
+    .filter(a => !a.parent_alerta_id || !allForTree.some(p => p.id === a.parent_alerta_id && !p.deleted))
+    .sort((a, b) => parseLocalDate(b.fecha_seguimiento).getTime() - parseLocalDate(a.fecha_seguimiento).getTime());
+  const completedRoots = completed
+    .filter(a => !a.parent_alerta_id || !allForTree.some(p => p.id === a.parent_alerta_id && !p.deleted))
+    .sort((a, b) => parseLocalDate(b.fecha_seguimiento).getTime() - parseLocalDate(a.fecha_seguimiento).getTime());
 
   return (
     <div className="space-y-3" onClick={(e) => e.stopPropagation()}>

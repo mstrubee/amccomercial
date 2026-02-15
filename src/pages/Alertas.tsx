@@ -65,7 +65,7 @@ export default function Alertas() {
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [filterProyecto, setFilterProyecto] = useState<string>("all");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
