@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, ChevronDown, ChevronUp, Circle, ExternalLink } from "lucide-react";
+import { Bell, CheckCircle2, ChevronDown, ChevronUp, Circle, ExternalLink } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAlertas, useToggleAlertaCompletada, useCreateAlerta, AlertaWithRelations, AlertaInput } from "@/hooks/useAlertas";
 import { useEmpresas } from "@/hooks/useEmpresas";
@@ -44,9 +44,9 @@ export default function AlertaWidget() {
   const relevantAlertas = useMemo(() => {
     if (!alertas) return [];
     return alertas
-      .filter((a) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), endOfWeek))
+      .filter((a) => !a.completada)
       .sort((a, b) => parseLocalDate(a.fecha_seguimiento).getTime() - parseLocalDate(b.fecha_seguimiento).getTime());
-  }, [alertas, endOfWeek]);
+  }, [alertas]);
 
   const proyectosList = useMemo(() => {
     if (!proyectosRaw) return [];
@@ -105,14 +105,17 @@ export default function AlertaWidget() {
                         key={a.id}
                         className={cn(
                           "flex items-start gap-2 px-4 py-2.5 border-b border-border last:border-0 hover:bg-secondary/20 transition-colors",
-                          vencida && "bg-destructive/5"
+                          vencida && "bg-secondary/30"
                         )}
                       >
                         <button onClick={() => setCompleteTarget(a)} className="mt-0.5 shrink-0">
-                          <Circle className={cn("w-4 h-4", vencida ? "text-destructive" : "text-muted-foreground")} />
+                          {vencida
+                            ? <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                            : <Circle className="w-4 h-4 text-muted-foreground" />
+                          }
                         </button>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-card-foreground truncate">{a.texto}</p>
+                          <p className={cn("text-xs font-medium truncate", vencida ? "line-through text-muted-foreground" : "text-card-foreground")}>{a.texto}</p>
                           <button
                             className="text-[10px] text-muted-foreground truncate hover:text-primary flex items-center gap-0.5 group"
                             onClick={(e) => {
