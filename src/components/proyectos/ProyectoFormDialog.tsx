@@ -276,13 +276,13 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   return (
     <>
       <Dialog open={open} onOpenChange={handleRequestClose}>
-        <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <ScrollArea className="flex-1 px-6">
-              <div className="space-y-5 pb-4">
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <ScrollArea className="flex-1 px-6 overflow-hidden">
+              <div className="space-y-5 pb-4 max-w-full">
               {/* Nombre */}
               <div className="space-y-1">
                 <Label htmlFor="pnombre">Nombre del Proyecto *</Label>
@@ -290,7 +290,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
               </div>
 
               {/* Fecha Ingreso + Clasificación */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 min-w-0">
                 <div className="space-y-1">
                   <Label>Fecha Ingreso</Label>
                   <Input type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} />
