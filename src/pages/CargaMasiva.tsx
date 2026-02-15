@@ -1176,8 +1176,12 @@ export default function CargaMasiva() {
       if (!(row.data[field] || "").trim()) return true;
     }
     if (row.aiUnmatched.length > 0) return true;
+    // Check if comuna is invalid for its region (shows "Seleccionar" in UI)
+    const comuna = (row.data["Comuna"] || "").trim();
+    const region = (row.data["Región"] || "").trim();
+    if (comuna && !isComunaValid(comuna, region)) return true;
     return false;
-  }, [aiPhase]);
+  }, [aiPhase, isComunaValid]);
 
   const pendingCount = useMemo(() => parsedRows.filter(rowHasPendingFields).length, [parsedRows, rowHasPendingFields]);
 
