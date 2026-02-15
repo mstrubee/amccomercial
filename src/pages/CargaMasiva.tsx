@@ -1168,6 +1168,25 @@ export default function CargaMasiva() {
     });
   }, [parsedRows, dropdownCtx]);
 
+  /** Check if a row has any pending "Seleccionar" fields */
+  const rowHasPendingFields = useCallback((row: ParsedRow): boolean => {
+    if (aiPhase !== "done") return false;
+    for (const field of EXPECTED_FIELDS) {
+      if (!(row.data[field] || "").trim()) return true;
+    }
+    if (row.aiUnmatched.length > 0) return true;
+    return false;
+  }, [aiPhase]);
+
+  const pendingCount = useMemo(() => parsedRows.filter(rowHasPendingFields).length, [parsedRows, rowHasPendingFields]);
+
+  const displayRows = useMemo(() => {
+    if (filterPendientes && aiPhase === "done") {
+      return parsedRows.filter(rowHasPendingFields);
+    }
+    return parsedRows;
+  }, [parsedRows, filterPendientes, aiPhase, rowHasPendingFields]);
+
   const handleSampleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1555,10 +1574,11 @@ export default function CargaMasiva() {
                 <Checkbox
                   id="filter-pendientes"
                   checked={filterPendientes}
-                  onCheckedChange={(v) => setFilterPendientes(!!v)}
+                  onCheckedChange={(checked) => setFilterPendientes(checked === true)}
                 />
                 <label htmlFor="filter-pendientes" className="text-xs text-muted-foreground cursor-pointer select-none">
                   Mostrar solo filas con campos pendientes ("Seleccionar")
+                  {pendingCount > 0 && <span className="ml-1 text-destructive font-medium">({pendingCount})</span>}
                 </label>
               </div>
             )}
@@ -1581,15 +1601,7 @@ export default function CargaMasiva() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                {(filterPendientes && aiPhase === "done"
-                  ? parsedRows.filter((row) => {
-                      for (const field of EXPECTED_FIELDS) {
-                        if (!(row.data[field] || "").trim()) return true;
-                      }
-                      return row.aiUnmatched.length > 0;
-                    })
-                  : parsedRows
-                ).map((row, displayIndex) => {
+                {displayRows.map((row, displayIndex) => {
                     const comuna = (row.data["Comuna"] || "").trim();
                     const region = (row.data["Región"] || "").trim();
                     const comunaInvalid = comuna && !isComunaValid(comuna, region);
