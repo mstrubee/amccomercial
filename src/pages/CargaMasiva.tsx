@@ -163,7 +163,15 @@ export default function CargaMasiva() {
         setAiPhase(state.aiPhase ?? "done");
         setOpenProjects(state.openProjects ?? {});
         if (state.aiPhase === "done") aiRunTriggered.current = true;
-        toast.info("Estado de carga masiva restaurado");
+        // Restore paused upload progress
+        if (state.uploadPaused && state.uploadProgress > 0) {
+          setUploadPaused(true);
+          setUploadProgress(state.uploadProgress);
+          setUploadTotal(state.uploadTotal ?? state.parsedRows.length);
+          toast.info("Carga masiva pausada restaurada — puede continuar donde quedó");
+        } else {
+          toast.info("Estado de carga masiva restaurado");
+        }
       }
     } catch { /* ignore corrupt data */ }
   }, []);
@@ -178,9 +186,12 @@ export default function CargaMasiva() {
         dropdownsMatched,
         aiPhase,
         openProjects,
+        uploadPaused,
+        uploadProgress,
+        uploadTotal,
       }));
     } catch { /* storage full, ignore */ }
-  }, [parsedRows, uploaded, dropdownsMatched, aiPhase, openProjects]);
+  }, [parsedRows, uploaded, dropdownsMatched, aiPhase, openProjects, uploadPaused, uploadProgress, uploadTotal]);
 
   const clearSessionState = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY);
