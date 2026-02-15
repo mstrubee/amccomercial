@@ -9,6 +9,8 @@ interface KpiCardProps {
   icon: LucideIcon;
   variant?: "default" | "success" | "info" | "warning";
   delay?: number;
+  onClick?: () => void;
+  active?: boolean;
 }
 
 const variantStyles = {
@@ -18,6 +20,13 @@ const variantStyles = {
   warning: "bg-card border-warning/20",
 };
 
+const activeStyles = {
+  default: "ring-2 ring-foreground/20 border-foreground/30",
+  success: "ring-2 ring-success/40 border-success/50",
+  info: "ring-2 ring-info/40 border-info/50",
+  warning: "ring-2 ring-warning/40 border-warning/50",
+};
+
 const iconStyles = {
   default: "bg-secondary text-secondary-foreground",
   success: "bg-success/10 text-success",
@@ -25,13 +34,19 @@ const iconStyles = {
   warning: "bg-warning/10 text-warning",
 };
 
-export default function KpiCard({ title, value, subtitle, icon: Icon, variant = "default", delay = 0 }: KpiCardProps) {
+export default function KpiCard({ title, value, subtitle, icon: Icon, variant = "default", delay = 0, onClick, active }: KpiCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay }}
-      className={cn("rounded-xl border p-5 shadow-sm", variantStyles[variant])}
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border p-5 shadow-sm transition-all",
+        variantStyles[variant],
+        onClick && "cursor-pointer hover:shadow-md",
+        active && activeStyles[variant],
+      )}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
