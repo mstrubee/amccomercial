@@ -236,8 +236,7 @@ export default function Alertas() {
       </div>
 
       {/* Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div />
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-start">
         <div className="flex gap-2 items-center flex-wrap">
           <Select value={filterProyecto} onValueChange={setFilterProyecto}>
             <SelectTrigger className="w-48">
