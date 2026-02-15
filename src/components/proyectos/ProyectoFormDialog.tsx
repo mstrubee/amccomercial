@@ -276,12 +276,13 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
   return (
     <>
       <Dialog open={open} onOpenChange={handleRequestClose}>
-        <DialogContent className="max-w-2xl max-h-[85vh] p-0">
-          <DialogHeader className="px-6 pt-6 pb-2">
+        <DialogContent className="max-w-2xl max-h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] px-6 pb-6">
-            <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <ScrollArea className="flex-1 px-6">
+              <div className="space-y-5 pb-4">
               {/* Nombre */}
               <div className="space-y-1">
                 <Label htmlFor="pnombre">Nombre del Proyecto *</Label>
@@ -294,10 +295,10 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                   <Label>Fecha Ingreso</Label>
                   <Input type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 min-w-0">
                   <Label>Clasificación</Label>
                   <select
-                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring truncate"
                     value={clasificacionId || ""}
                     onChange={(e) => setClasificacionId(e.target.value || null)}
                   >
@@ -587,12 +588,13 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
               </CollapsibleSection>
               </>)}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-border">
-                <Button type="button" variant="outline" onClick={() => handleRequestClose(false)}>Cancelar</Button>
-                <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
               </div>
-            </form>
-          </ScrollArea>
+            </ScrollArea>
+            <div className="flex justify-end gap-2 px-6 py-3 border-t border-border shrink-0">
+              <Button type="button" variant="outline" onClick={() => handleRequestClose(false)}>Cancelar</Button>
+              <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
