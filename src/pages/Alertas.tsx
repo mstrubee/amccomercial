@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import KpiCard from "@/components/dashboard/KpiCard";
 import {
@@ -71,6 +73,8 @@ export default function Alertas() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [filterProyecto, setFilterProyecto] = useState<string>("all");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
+  const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -118,6 +122,15 @@ export default function Alertas() {
       list = list.filter((a) => a.proyecto_id === filterProyecto);
     }
 
+    if (fechaDesde) {
+      const desde = startOfDay(fechaDesde);
+      list = list.filter((a) => parseLocalDate(a.fecha_seguimiento) >= desde);
+    }
+    if (fechaHasta) {
+      const hasta = startOfDay(fechaHasta);
+      list = list.filter((a) => parseLocalDate(a.fecha_seguimiento) <= hasta);
+    }
+
     if (search.trim()) {
       const s = search.toLowerCase();
       list = list.filter((a) =>
@@ -134,7 +147,7 @@ export default function Alertas() {
     });
 
     return list;
-  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, sortDir]);
+  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, sortDir, fechaDesde, fechaHasta]);
 
   const handleGenerateTitles = async () => {
     setGeneratingTitles(true);
@@ -252,6 +265,33 @@ export default function Alertas() {
               ))}
             </SelectContent>
           </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                <CalendarDays className="w-4 h-4" />
+                {fechaDesde ? format(fechaDesde, "dd/MM/yy", { locale: es }) : "Desde"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={fechaDesde} onSelect={setFechaDesde} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                <CalendarDays className="w-4 h-4" />
+                {fechaHasta ? format(fechaHasta, "dd/MM/yy", { locale: es }) : "Hasta"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={fechaHasta} onSelect={setFechaHasta} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          {(fechaDesde || fechaHasta) && (
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setFechaDesde(undefined); setFechaHasta(undefined); }} title="Limpiar fechas">
+              <X className="w-4 h-4" />
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} title="Ordenar por fecha">
             <ArrowUpDown className="w-4 h-4 mr-1" />
             {sortDir === "asc" ? "Más antigua" : "Más reciente"}
