@@ -44,9 +44,9 @@ export default function AlertaWidget() {
   const relevantAlertas = useMemo(() => {
     if (!alertas) return [];
     return alertas
-      .filter((a) => !a.completada)
+      .filter((a) => !a.completada && !isBefore(parseLocalDate(a.fecha_seguimiento), today))
       .sort((a, b) => parseLocalDate(a.fecha_seguimiento).getTime() - parseLocalDate(b.fecha_seguimiento).getTime());
-  }, [alertas]);
+  }, [alertas, today]);
 
   const proyectosList = useMemo(() => {
     if (!proyectosRaw) return [];
@@ -57,7 +57,6 @@ export default function AlertaWidget() {
     return Array.from(seen.values()).sort((a, b) => a.numero - b.numero);
   }, [proyectosRaw]);
 
-  const vencidasCount = relevantAlertas.filter((a) => isBefore(parseLocalDate(a.fecha_seguimiento), today)).length;
   const hoyCount = relevantAlertas.filter((a) => isToday(parseLocalDate(a.fecha_seguimiento))).length;
 
   const handleSubmit = (data: AlertaInput & { id?: string }) => {
@@ -76,19 +75,13 @@ export default function AlertaWidget() {
             onClick={() => setExpanded(!expanded)}
             className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/30 transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Bell className="w-4 h-4 text-accent" />
-                {vencidasCount > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive" />}
-              </div>
-              <span className="text-sm font-semibold text-card-foreground">Alertas ({relevantAlertas.length})</span>
-              {vencidasCount > 0 && (
-                <span className="text-xs bg-destructive/10 text-destructive px-1.5 py-0.5 rounded font-medium">{vencidasCount} vencidas</span>
-              )}
-              {hoyCount > 0 && (
-                <span className="text-xs bg-warning/10 text-warning px-1.5 py-0.5 rounded font-medium">{hoyCount} hoy</span>
-              )}
-            </div>
+             <div className="flex items-center gap-2">
+               <Bell className="w-4 h-4 text-accent" />
+               <span className="text-sm font-semibold text-card-foreground">Alertas ({relevantAlertas.length})</span>
+               {hoyCount > 0 && (
+                 <span className="text-xs bg-warning/10 text-warning px-1.5 py-0.5 rounded font-medium">{hoyCount} hoy</span>
+               )}
+             </div>
             {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronUp className="w-4 h-4 text-muted-foreground" />}
           </button>
 
@@ -98,24 +91,17 @@ export default function AlertaWidget() {
               <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="border-t border-border max-h-64 overflow-y-auto">
                   {relevantAlertas.map((a) => {
-                    const vencida = isBefore(parseLocalDate(a.fecha_seguimiento), today);
                     const hoy = isToday(parseLocalDate(a.fecha_seguimiento));
                     return (
                       <div
                         key={a.id}
-                        className={cn(
-                          "flex items-start gap-2 px-4 py-2.5 border-b border-border last:border-0 hover:bg-secondary/20 transition-colors",
-                          vencida && "bg-secondary/30"
-                        )}
+                        className="flex items-start gap-2 px-4 py-2.5 border-b border-border last:border-0 hover:bg-secondary/20 transition-colors"
                       >
                         <button onClick={() => setCompleteTarget(a)} className="mt-0.5 shrink-0">
-                          {vencida
-                            ? <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
-                            : <Circle className="w-4 h-4 text-muted-foreground" />
-                          }
+                          <Circle className="w-4 h-4 text-muted-foreground" />
                         </button>
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-xs font-medium truncate", vencida ? "line-through text-muted-foreground" : "text-card-foreground")}>{a.texto}</p>
+                          <p className="text-xs font-medium text-card-foreground truncate">{a.texto}</p>
                           <button
                             className="text-[10px] text-muted-foreground truncate hover:text-primary flex items-center gap-0.5 group"
                             onClick={(e) => {
@@ -133,8 +119,8 @@ export default function AlertaWidget() {
                             <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </button>
                         </div>
-                        <span className={cn("text-[10px] font-medium shrink-0 mt-0.5", vencida ? "text-destructive" : hoy ? "text-warning" : "text-muted-foreground")}>
-                          {vencida ? "Vencida" : hoy ? "Hoy" : format(parseLocalDate(a.fecha_seguimiento), "dd MMM", { locale: es })}
+                        <span className={cn("text-[10px] font-medium shrink-0 mt-0.5", hoy ? "text-warning" : "text-muted-foreground")}>
+                          {hoy ? "Hoy" : format(parseLocalDate(a.fecha_seguimiento), "dd MMM", { locale: es })}
                         </span>
                       </div>
                     );

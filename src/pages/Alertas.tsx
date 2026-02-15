@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import {
@@ -33,6 +34,7 @@ import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 type FilterTab = "todas" | "activas" | "7dias" | "30dias" | "vencidas";
+type SortDir = "asc" | "desc";
 
 export default function Alertas() {
   const { data: alertas, isLoading } = useAlertas();
@@ -62,6 +64,8 @@ export default function Alertas() {
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [filterProyecto, setFilterProyecto] = useState<string>("all");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -80,8 +84,9 @@ export default function Alertas() {
 
   const stats = useMemo(() => {
     if (!alertas) return { total: 0, activas: 0, prox7: 0, prox30: 0, vencidas: 0 };
-    const activas = alertas.filter((a) => !a.completada);
-    const vencidas = activas.filter((a) => isBefore(parseLocalDate(a.fecha_seguimiento), today));
+    // Overdue alerts count as "vencidas" but are treated as completed visually
+    const activas = alertas.filter((a) => !a.completada && !isBefore(parseLocalDate(a.fecha_seguimiento), today));
+    const vencidas = alertas.filter((a) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today));
     const prox7 = activas.filter((a) => {
       const d = parseLocalDate(a.fecha_seguimiento);
       return d >= today && d <= in7;
@@ -96,10 +101,17 @@ export default function Alertas() {
   const filtered = useMemo(() => {
     if (!alertas) return [];
     let list = alertas;
-    if (activeTab === "activas") list = list.filter((a) => !a.completada);
-    else if (activeTab === "vencidas") list = list.filter((a) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today));
-    else if (activeTab === "7dias") list = list.filter((a) => !a.completada && parseLocalDate(a.fecha_seguimiento) >= today && parseLocalDate(a.fecha_seguimiento) <= in7);
-    else if (activeTab === "30dias") list = list.filter((a) => !a.completada && parseLocalDate(a.fecha_seguimiento) >= today && parseLocalDate(a.fecha_seguimiento) <= in30);
+
+    const isOverdue = (a: AlertaWithRelations) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today);
+
+    if (activeTab === "activas") list = list.filter((a) => !a.completada && !isOverdue(a));
+    else if (activeTab === "vencidas") list = list.filter((a) => isOverdue(a));
+    else if (activeTab === "7dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in7);
+    else if (activeTab === "30dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in30);
+
+    if (filterProyecto !== "all") {
+      list = list.filter((a) => a.proyecto_id === filterProyecto);
+    }
 
     if (search.trim()) {
       const s = search.toLowerCase();
@@ -110,8 +122,14 @@ export default function Alertas() {
         a.empresas?.nombre?.toLowerCase().includes(s)
       );
     }
+
+    list = [...list].sort((a, b) => {
+      const diff = parseLocalDate(a.fecha_seguimiento).getTime() - parseLocalDate(b.fecha_seguimiento).getTime();
+      return sortDir === "asc" ? diff : -diff;
+    });
+
     return list;
-  }, [alertas, activeTab, search, today, in7, in30]);
+  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, sortDir]);
 
   const handleSubmit = (data: AlertaInput & { id?: string }) => {
     if (data.empresa_id === "none") data.empresa_id = null;
@@ -187,9 +205,26 @@ export default function Alertas() {
             </button>
           ))}
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar alertas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <div className="flex gap-2 items-center">
+          <Select value={filterProyecto} onValueChange={setFilterProyecto}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todos los proyectos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los proyectos</SelectItem>
+              {proyectosList.map((p) => (
+                <SelectItem key={p.id} value={p.id}>#{p.numero} {p.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} title="Ordenar por fecha">
+            <ArrowUpDown className="w-4 h-4 mr-1" />
+            {sortDir === "asc" ? "Más antigua" : "Más reciente"}
+          </Button>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Buscar alertas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          </div>
         </div>
       </div>
 
@@ -212,8 +247,11 @@ export default function Alertas() {
               {filtered.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
               )}
-              {filtered.map((a) => (
-                <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", isVencida(a) && "bg-destructive/5")}>
+              {filtered.map((a) => {
+                const vencida = isVencida(a);
+                const looksCompleted = a.completada || vencida;
+                return (
+                <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", vencida && "bg-secondary/10")}>
                   <td className="px-5 py-3">
                     <button onClick={() => {
                       if (a.completada) {
@@ -222,15 +260,16 @@ export default function Alertas() {
                         setCompleteTarget(a);
                       }
                     }}>
-                      {a.completada
+                      {looksCompleted
                         ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        : <Circle className={cn("w-5 h-5", isVencida(a) ? "text-destructive" : "text-muted-foreground")} />
+                        : <Circle className="w-5 h-5 text-muted-foreground" />
                       }
                     </button>
                   </td>
-                  <td className={cn("px-5 py-3 font-medium max-w-[200px]", a.completada ? "line-through text-muted-foreground" : "text-card-foreground")}>
+                  <td className={cn("px-5 py-3 font-medium max-w-[200px]", looksCompleted ? "line-through text-muted-foreground" : "text-card-foreground")}>
                     {(a as any).titulo && <div className="text-[11px] font-semibold text-amber-700">{(a as any).titulo}</div>}
                     {a.texto}
+                    {vencida && <span className="ml-1 text-[10px] text-muted-foreground">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}
@@ -239,9 +278,8 @@ export default function Alertas() {
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
                   </td>
-                  <td className={cn("px-5 py-3 text-sm", isVencida(a) ? "text-destructive font-medium" : "text-muted-foreground")}>
+                  <td className="px-5 py-3 text-sm text-muted-foreground">
                     {format(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
-                    {isVencida(a) && <span className="ml-1 text-xs">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex gap-1 justify-end">
@@ -259,7 +297,8 @@ export default function Alertas() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
