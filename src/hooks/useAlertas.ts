@@ -29,32 +29,67 @@ export interface AlertaWithRelations extends AlertaRow {
   responsable_profile: { display_name: string; email: string } | null;
 }
 
+async function fetchAllAlertas(includeDeleted: boolean = false) {
+  const allData: any[] = [];
+  const batchSize = 1000;
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("alertas")
+      .select("*, proyectos(id, nombre, numero), empresas(id, nombre)")
+      .order("fecha_seguimiento", { ascending: true })
+      .range(offset, offset + batchSize - 1);
+
+    if (!includeDeleted) {
+      query = query.eq("deleted", false);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData.push(...data);
+      offset += batchSize;
+      hasMore = data.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+async function enrichWithProfiles(data: any[], allUserFields: boolean = false) {
+  const userIds = [...new Set(data.flatMap((a: any) =>
+    allUserFields
+      ? [a.usuario_responsable_id, a.created_by, a.completed_by, a.updated_by, a.deleted_by].filter(Boolean)
+      : [a.usuario_responsable_id]
+  ))];
+  let profilesMap: Record<string, { display_name: string; email: string }> = {};
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, display_name, email")
+      .in("user_id", userIds);
+    if (profiles) {
+      profiles.forEach((p: any) => {
+        profilesMap[p.user_id] = { display_name: p.display_name, email: p.email };
+      });
+    }
+  }
+  return profilesMap;
+}
+
 export function useAlertas() {
   return useQuery({
     queryKey: ["alertas"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alertas")
-        .select("*, proyectos(id, nombre, numero), empresas(id, nombre)")
-        .eq("deleted", false)
-        .order("fecha_seguimiento", { ascending: true });
-      if (error) throw error;
+      const data = await fetchAllAlertas(false);
+      const profilesMap = await enrichWithProfiles(data);
 
-      const userIds = [...new Set((data || []).map((a: any) => a.usuario_responsable_id))];
-      let profilesMap: Record<string, { display_name: string; email: string }> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, email")
-          .in("user_id", userIds);
-        if (profiles) {
-          profiles.forEach((p: any) => {
-            profilesMap[p.user_id] = { display_name: p.display_name, email: p.email };
-          });
-        }
-      }
-
-      return (data || []).map((a: any) => ({
+      return data.map((a: any) => ({
         ...a,
         responsable_profile: profilesMap[a.usuario_responsable_id] || null,
       })) as AlertaWithRelations[];
@@ -67,29 +102,10 @@ export function useAllAlertas() {
   return useQuery({
     queryKey: ["alertas-all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alertas")
-        .select("*, proyectos(id, nombre, numero), empresas(id, nombre)")
-        .order("created_at", { ascending: true });
-      if (error) throw error;
+      const data = await fetchAllAlertas(true);
+      const profilesMap = await enrichWithProfiles(data, true);
 
-      const userIds = [...new Set((data || []).flatMap((a: any) => [
-        a.usuario_responsable_id, a.created_by, a.completed_by, a.updated_by, a.deleted_by,
-      ].filter(Boolean)))];
-      let profilesMap: Record<string, { display_name: string; email: string }> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, email")
-          .in("user_id", userIds);
-        if (profiles) {
-          profiles.forEach((p: any) => {
-            profilesMap[p.user_id] = { display_name: p.display_name, email: p.email };
-          });
-        }
-      }
-
-      return (data || []).map((a: any) => ({
+      return data.map((a: any) => ({
         ...a,
         responsable_profile: profilesMap[a.usuario_responsable_id] || null,
         _profilesMap: profilesMap,
