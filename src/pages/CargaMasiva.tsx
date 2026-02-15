@@ -1581,16 +1581,15 @@ export default function CargaMasiva() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                {(() => {
-                  const rowsToShow = filterPendientes && aiPhase === "done"
-                    ? parsedRows.filter((row) => {
-                        for (const field of EXPECTED_FIELDS) {
-                          if (!(row.data[field] || "").trim()) return true;
-                        }
-                        return row.aiUnmatched.length > 0;
-                      })
-                    : parsedRows;
-                  return rowsToShow.map((row, displayIndex) => {
+                {(filterPendientes && aiPhase === "done"
+                  ? parsedRows.filter((row) => {
+                      for (const field of EXPECTED_FIELDS) {
+                        if (!(row.data[field] || "").trim()) return true;
+                      }
+                      return row.aiUnmatched.length > 0;
+                    })
+                  : parsedRows
+                ).map((row, displayIndex) => {
                     const comuna = (row.data["Comuna"] || "").trim();
                     const region = (row.data["Región"] || "").trim();
                     const comunaInvalid = comuna && !isComunaValid(comuna, region);
@@ -1748,8 +1747,7 @@ export default function CargaMasiva() {
                       </TableCell>
                     </TableRow>
                     );
-                  });
-                })()}
+                  })}
                 </TableBody>
               </Table>
             </div>
