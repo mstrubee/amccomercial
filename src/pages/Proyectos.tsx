@@ -436,7 +436,24 @@ export default function Proyectos() {
                         <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} /> {parentNum}
                       </td>
                       <td className="px-5 py-3 font-medium text-card-foreground">
-                        <div>{first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span></div>
+                        <div className="flex items-center gap-1.5">
+                          {first.nombre} <span className="ml-1.5 text-xs text-muted-foreground font-normal">({items.length})</span>
+                          {(() => {
+                            const groupIds = new Set(items.map(i => i.id));
+                            const childEmpresaAlertas = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && a.empresa_id && !a.completada && !a.deleted);
+                            if (childEmpresaAlertas.length === 0) return null;
+                            return (
+                              <button
+                                className="inline-flex items-center gap-0.5 ml-1 text-amber-500 hover:text-amber-600 transition-colors"
+                                title={`${childEmpresaAlertas.length} alerta${childEmpresaAlertas.length !== 1 ? "s" : ""} pendiente${childEmpresaAlertas.length !== 1 ? "s" : ""} en empresas`}
+                                onClick={(e) => { e.stopPropagation(); setExpandedGroups(prev => ({ ...prev, [key]: true })); }}
+                              >
+                                <Bell className="w-3.5 h-3.5 fill-amber-500" />
+                                <span className="text-[10px] font-bold">{childEmpresaAlertas.length}</span>
+                              </button>
+                            );
+                          })()}
+                        </div>
                         {first.clasificaciones_proyecto && (
                           <div className="text-[10px] text-muted-foreground">{first.clasificaciones_proyecto.nombre}</div>
                         )}
