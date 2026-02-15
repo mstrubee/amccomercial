@@ -378,7 +378,13 @@ export default function Proyectos() {
                         <div className="flex justify-end gap-1">
                           {(() => {
                             const groupIds = new Set(items.map(i => i.id));
-                            const parentAlertas = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
+                            const parentAlertasRaw = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
+                            const seenAlertIds = new Set<string>();
+                            const parentAlertas = parentAlertasRaw.filter(a => {
+                              if (seenAlertIds.has(a.id)) return false;
+                              seenAlertIds.add(a.id);
+                              return true;
+                            });
                             const activeCount = parentAlertas.filter(a => !a.completada && !a.deleted).length;
                             return (
                               <Popover>
