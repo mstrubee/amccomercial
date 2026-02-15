@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus } from "lucide-react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
@@ -105,8 +104,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
     if (!open) return;
     // Reset scroll to top when dialog opens
     setTimeout(() => {
-      const viewport = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-      if (viewport) viewport.scrollTop = 0;
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
     }, 0);
 
     if (initialData) {
@@ -287,7 +285,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
             <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
-            <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-5 pb-4 px-6 max-w-full">
               {/* Nombre */}
               <div className="space-y-1">
@@ -595,7 +593,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
               </>)}
 
               </div>
-            </ScrollArea>
+            </div>
             <div className="flex justify-end gap-2 px-6 py-3 border-t border-border shrink-0">
               <Button type="button" variant="outline" onClick={() => handleRequestClose(false)}>Cancelar</Button>
               <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
