@@ -506,69 +506,82 @@ export default function Proyectos() {
                       </td>
                     </tr>
                     <AnimatePresence>
-                      {expanded && items.map((p, childIdx) => {
-                        const empresaId = p.proyecto_empresas?.[0]?.empresa_id || null;
-const groupChildIds = new Set(items.map(i => i.id));
-const childAlertasRaw = empresaId ? (alertas || []).filter(a => groupChildIds.has(a.proyecto_id) && a.empresa_id === empresaId) : [];
-                        const childAlertas = deduplicateAlertas(childAlertasRaw);
+                      {expanded && (() => {
+                        // Flatten: one child row per unique empresa across all items
+                        const seenEmpresas = new Set<string>();
+                        const childRows: { p: ProyectoWithEmpresas; pe: ProyectoWithEmpresas["proyecto_empresas"][0] }[] = [];
+                        for (const p of items) {
+                          for (const pe of (p.proyecto_empresas || [])) {
+                            if (!seenEmpresas.has(pe.empresa_id)) {
+                              seenEmpresas.add(pe.empresa_id);
+                              childRows.push({ p, pe });
+                            }
+                          }
+                        }
+                        const groupChildIds = new Set(items.map(i => i.id));
                         const childBg = isEven ? "bg-muted/30" : "bg-secondary/10";
-                        return (
-                          <Fragment key={p.id}>
-                            <motion.tr
-                              id={`proyecto-row-${p.id}`}
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className={`hover:bg-secondary/30 transition-colors ${childBg} ${highlightProyectoId === p.id ? "ring-2 ring-primary ring-inset" : ""}`}
-                            >
-                              <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
-                              <td colSpan={3} className="px-5 py-2 align-top">
-                                <NotasCell proyecto={p} onSave={updateNotas.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: p.proyecto_empresas?.[0]?.empresa_id || null, defaultTexto: texto })} />
-                              </td>
-                              <td colSpan={2} className="px-5 py-2 align-top">
-                                <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
-                              </td>
-                              <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas?.slice(0, 1)} /></td>
-                              <td className="px-5 py-2 text-right align-top">
-                                <div className="flex justify-end gap-1">
-                                  {(() => {
-                                    const empresaId = p.proyecto_empresas?.[0]?.empresa_id || null;
-                                    const empresaAlertas = childAlertas.filter(a => a.empresa_id === empresaId);
-                                    const activeCount = empresaAlertas.filter(a => !a.completada && !a.deleted).length;
-                                    return (
-                                      <Popover>
-                                        <PopoverTrigger asChild>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 relative" title="Alertas de empresa">
-                                            <Bell className="w-3.5 h-3.5 text-muted-foreground" />
-                                            {activeCount > 0 && (
-                                              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-[8px] text-white flex items-center justify-center font-bold">{activeCount}</span>
-                                            )}
-                                          </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-80 max-h-[400px] overflow-y-auto" align="end">
-                                          <div className="text-xs font-semibold text-foreground mb-2">Alertas — {p.proyecto_empresas?.[0]?.empresas?.nombre || "Empresa"}</div>
-                                          <AlertasFullView
-                                            alertas={empresaAlertas}
-                                            allAlertas={alertas}
-                                            onEdit={(a) => setAlertaEditTarget(a)}
-                                            onDelete={(id) => setAlertaDeleteTarget(id)}
-                                            onComplete={(a) => setAlertaCompleteTarget(a)}
-                                            onShowTree={handleShowTree}
-                                            onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })}
-                                            onCreateNew={() => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: empresaId })}
-                                          />
-                                        </PopoverContent>
-                                      </Popover>
-                                    );
-                                  })()}
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                                </div>
-                              </td>
-                            </motion.tr>
-                          </Fragment>
-                        );
-                      })}
+
+                        return childRows.map(({ p, pe }, childIdx) => {
+                          const empresaId = pe.empresa_id;
+                          const childAlertasRaw = (alertas || []).filter(a => groupChildIds.has(a.proyecto_id) && a.empresa_id === empresaId);
+                          const childAlertas = deduplicateAlertas(childAlertasRaw);
+                          return (
+                            <Fragment key={`${p.id}-${empresaId}`}>
+                              <motion.tr
+                                id={`proyecto-row-${p.id}`}
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className={`hover:bg-secondary/30 transition-colors ${childBg} ${highlightProyectoId === p.id ? "ring-2 ring-primary ring-inset" : ""}`}
+                              >
+                                <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
+                                <td colSpan={3} className="px-5 py-2 align-top">
+                                  <NotasCell proyecto={p} onSave={updateNotas.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: empresaId, defaultTexto: texto })} />
+                                </td>
+                                <td colSpan={2} className="px-5 py-2 align-top">
+                                  <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
+                                </td>
+                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} /></td>
+                                <td className="px-5 py-2 text-right align-top">
+                                  <div className="flex justify-end gap-1">
+                                    {(() => {
+                                      const empresaAlertas = childAlertas.filter(a => a.empresa_id === empresaId);
+                                      const activeCount = empresaAlertas.filter(a => !a.completada && !a.deleted).length;
+                                      return (
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 relative" title="Alertas de empresa">
+                                              <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                                              {activeCount > 0 && (
+                                                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-[8px] text-white flex items-center justify-center font-bold">{activeCount}</span>
+                                              )}
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80 max-h-[400px] overflow-y-auto" align="end">
+                                            <div className="text-xs font-semibold text-foreground mb-2">Alertas — {pe.empresas?.nombre || "Empresa"}</div>
+                                            <AlertasFullView
+                                              alertas={empresaAlertas}
+                                              allAlertas={alertas}
+                                              onEdit={(a) => setAlertaEditTarget(a)}
+                                              onDelete={(id) => setAlertaDeleteTarget(id)}
+                                              onComplete={(a) => setAlertaCompleteTarget(a)}
+                                              onShowTree={handleShowTree}
+                                              onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })}
+                                              onCreateNew={() => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: empresaId })}
+                                            />
+                                          </PopoverContent>
+                                        </Popover>
+                                      );
+                                    })()}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                  </div>
+                                </td>
+                              </motion.tr>
+                            </Fragment>
+                          );
+                        });
+                      })()}
                     </AnimatePresence>
                   </Fragment>
                 );
