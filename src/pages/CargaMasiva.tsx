@@ -1567,7 +1567,7 @@ export default function CargaMasiva() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {parsedRows.map((row) => {
+                {parsedRows.map((row, displayIndex) => {
                     const comuna = (row.data["Comuna"] || "").trim();
                     const region = (row.data["Región"] || "").trim();
                     const comunaInvalid = comuna && !isComunaValid(comuna, region);
@@ -1576,7 +1576,7 @@ export default function CargaMasiva() {
 
                     return (
                     <TableRow key={row.rowIndex} className={!row.valid ? "bg-destructive/5" : ""}>
-                      <TableCell className="font-mono text-xs">{row.rowIndex}</TableCell>
+                      <TableCell className="font-mono text-xs">{displayIndex + 1}</TableCell>
                       <TableCell className="p-1">
                         <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
                           onClick={() => removeRow(row.rowIndex)} title="Eliminar fila">
