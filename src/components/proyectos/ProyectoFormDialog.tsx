@@ -86,6 +86,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
   // Dirty tracking
   const snapshotRef = useRef<string>("");
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
 
   const buildSnapshot = () =>
@@ -102,6 +103,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
 
   useEffect(() => {
     if (!open) return;
+    // Reset scroll to top when dialog opens
+    setTimeout(() => {
+      const viewport = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+      if (viewport) viewport.scrollTop = 0;
+    }, 0);
 
     if (initialData) {
       setNombre(initialData.nombre);
@@ -281,7 +287,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
             <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
-            <ScrollArea className="flex-1 min-h-0">
+            <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
               <div className="space-y-5 pb-4 px-6 max-w-full">
               {/* Nombre */}
               <div className="space-y-1">
