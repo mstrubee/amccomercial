@@ -528,7 +528,7 @@ const childAlertasRaw = empresaId ? (alertas || []).filter(a => groupChildIds.ha
                               <td colSpan={2} className="px-5 py-2 align-top">
                                 <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                               </td>
-                              <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+                              <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={p.proyecto_empresas?.slice(0, 1)} /></td>
                               <td className="px-5 py-2 text-right align-top">
                                 <div className="flex justify-end gap-1">
                                   {(() => {
