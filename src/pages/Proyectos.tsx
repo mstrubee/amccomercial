@@ -3,10 +3,11 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
@@ -19,7 +20,7 @@ import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import { AlertasCollapsible, ParentAlertasDisplay, AlertasFullView } from "@/components/proyectos/AlertasInline";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -43,11 +44,11 @@ export default function Proyectos() {
   const updateNotaGrupo = useUpdateNotaGrupo();
 
   const [search, setSearch] = useState("");
-  const [filterEstado, setFilterEstado] = useState("Todos");
-  const [filterEmpresa, setFilterEmpresa] = useState("Todas");
-  const [filterCategoria, setFilterCategoria] = useState("Todas");
-  const [filterEstadoObra, setFilterEstadoObra] = useState("Todos");
-  const [filterClasificacion, setFilterClasificacion] = useState("Todas");
+  const [filterEstados, setFilterEstados] = useState<string[]>([]);
+  const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
+  const [filterCategorias, setFilterCategorias] = useState<string[]>([]);
+  const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
+  const [filterClasificaciones, setFilterClasificaciones] = useState<string[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -140,20 +141,24 @@ export default function Proyectos() {
     return () => window.removeEventListener("highlight-proyecto", handler);
   }, [highlightProject]);
 
+  const toggleFilter = useCallback((setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+    setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
+  }, []);
+
   const filtered = (proyectos || []).filter((p) => {
     const matchSearch =
       p.nombre.toLowerCase().includes(search.toLowerCase()) ||
       p.comuna.toLowerCase().includes(search.toLowerCase());
-    const matchEstado = filterEstado === "Todos" || p.estado_amc === filterEstado;
-    const matchEstadoObra = filterEstadoObra === "Todos" || p.estado_obra === filterEstadoObra;
+    const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
+    const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
     const matchEmpresa =
-      filterEmpresa === "Todas" ||
-      p.proyecto_empresas?.some((pe) => pe.empresa_id === filterEmpresa);
+      filterEmpresas.length === 0 ||
+      p.proyecto_empresas?.some((pe) => filterEmpresas.includes(pe.empresa_id));
     const matchCategoria =
-      filterCategoria === "Todas" ||
-      p.proyecto_empresas?.some((pe) => pe.categoria_id === filterCategoria || pe.subcategoria_id === filterCategoria);
+      filterCategorias.length === 0 ||
+      p.proyecto_empresas?.some((pe) => filterCategorias.includes(pe.categoria_id || "") || filterCategorias.includes(pe.subcategoria_id || ""));
     const matchClasificacion =
-      filterClasificacion === "Todas" || p.clasificacion_id === filterClasificacion;
+      filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion;
   });
 
@@ -244,74 +249,135 @@ export default function Proyectos() {
           <Input placeholder="Buscar por nombre o comuna..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          <Select value={filterEstado} onValueChange={setFilterEstado}>
-            <SelectTrigger className="w-[170px] h-8 text-xs">
-              <SelectValue placeholder="Estado AMC" />
-            </SelectTrigger>
-            <SelectContent>
-              {ESTADOS_AMC.map((estado) => (
-                <SelectItem key={estado} value={estado}>{estado === "Todos" ? "Todos los estados AMC" : estado}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterEstadoObra} onValueChange={setFilterEstadoObra}>
-            <SelectTrigger className="w-[190px] h-8 text-xs">
-              <SelectValue placeholder="Estado Obra" />
-            </SelectTrigger>
-            <SelectContent>
-              {ESTADOS_OBRA.map((estado) => (
-                <SelectItem key={estado} value={estado}>{estado === "Todos" ? "Todos los estados obra" : estado}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="Filtrar empresa" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas las empresas</SelectItem>
-              {empresas?.map((e) => (
-                <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterCategoria} onValueChange={setFilterCategoria}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="Filtrar categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas las categorías</SelectItem>
-              {categorias?.map((cat) => (
-                <Fragment key={cat.id}>
-                  <SelectItem value={cat.id}>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                      {cat.nombre}
-                    </span>
-                  </SelectItem>
-                  {cat.subcategorias_proyecto?.map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      <span className="flex items-center gap-1.5 pl-3">
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
-                        {sub.nombre}
-                      </span>
-                    </SelectItem>
+          {/* Estado AMC multi-select */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Estado AMC {filterEstados.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterEstados.length}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-2" align="start">
+              <ScrollArea className="max-h-60">
+                <div className="space-y-1">
+                  {ESTADOS_AMC.filter(e => e !== "Todos").map((estado) => (
+                    <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterEstados.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstados, estado)} />
+                      {estado}
+                    </label>
                   ))}
-                </Fragment>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterClasificacion} onValueChange={setFilterClasificacion}>
-            <SelectTrigger className="w-[170px] h-8 text-xs">
-              <SelectValue placeholder="Clasificación" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas las clasificaciones</SelectItem>
-              {clasificaciones?.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                </div>
+              </ScrollArea>
+              {filterEstados.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstados([])}>Limpiar</Button>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* Estado Obra multi-select */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Estado Obra {filterEstadosObra.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterEstadosObra.length}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="start">
+              <ScrollArea className="max-h-60">
+                <div className="space-y-1">
+                  {ESTADOS_OBRA.filter(e => e !== "Todos").map((estado) => (
+                    <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterEstadosObra.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstadosObra, estado)} />
+                      {estado}
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+              {filterEstadosObra.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstadosObra([])}>Limpiar</Button>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* Empresa multi-select */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Empresa {filterEmpresas.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterEmpresas.length}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="start">
+              <ScrollArea className="max-h-60">
+                <div className="space-y-1">
+                  {empresas?.map((e) => (
+                    <label key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterEmpresas.includes(e.id)} onCheckedChange={() => toggleFilter(setFilterEmpresas, e.id)} />
+                      {e.nombre}
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+              {filterEmpresas.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEmpresas([])}>Limpiar</Button>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* Categoría multi-select */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Categoría {filterCategorias.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterCategorias.length}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-2" align="start">
+              <ScrollArea className="max-h-60">
+                <div className="space-y-1">
+                  {categorias?.map((cat) => (
+                    <Fragment key={cat.id}>
+                      <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                        <Checkbox checked={filterCategorias.includes(cat.id)} onCheckedChange={() => toggleFilter(setFilterCategorias, cat.id)} />
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        {cat.nombre}
+                      </label>
+                      {cat.subcategorias_proyecto?.map((sub) => (
+                        <label key={sub.id} className="flex items-center gap-2 px-2 py-1.5 pl-6 rounded hover:bg-accent cursor-pointer text-sm">
+                          <Checkbox checked={filterCategorias.includes(sub.id)} onCheckedChange={() => toggleFilter(setFilterCategorias, sub.id)} />
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
+                          {sub.nombre}
+                        </label>
+                      ))}
+                    </Fragment>
+                  ))}
+                </div>
+              </ScrollArea>
+              {filterCategorias.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterCategorias([])}>Limpiar</Button>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* Clasificación multi-select */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Clasificación {filterClasificaciones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterClasificaciones.length}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-2" align="start">
+              <ScrollArea className="max-h-60">
+                <div className="space-y-1">
+                  {clasificaciones?.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterClasificaciones.includes(c.id)} onCheckedChange={() => toggleFilter(setFilterClasificaciones, c.id)} />
+                      {c.nombre}
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+              {filterClasificaciones.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterClasificaciones([])}>Limpiar</Button>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
       </motion.div>
 
