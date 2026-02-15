@@ -226,34 +226,19 @@ export default function Alertas() {
         </div>
       </motion.div>
 
-      {/* KPIs */}
+      {/* KPIs — clickable filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <KpiCard title="Total Alertas" value={String(stats.total)} icon={Bell} variant="default" delay={0} />
-        <KpiCard title="Activas" value={String(stats.activas)} icon={Circle} variant="info" delay={0.05} />
-        <KpiCard title="Próx. 7 días" value={String(stats.prox7)} icon={Clock} variant="warning" delay={0.1} />
-        <KpiCard title="Próx. 30 días" value={String(stats.prox30)} icon={CalendarDays} variant="success" delay={0.15} />
-        <KpiCard title="Vencidas" value={String(stats.vencidas)} icon={AlertTriangle} variant="warning" delay={0.2} />
+        <KpiCard title="Total Alertas" value={String(stats.total)} icon={Bell} variant="default" delay={0} onClick={() => setActiveTab("todas")} active={activeTab === "todas"} />
+        <KpiCard title="Activas" value={String(stats.activas)} icon={Circle} variant="info" delay={0.05} onClick={() => setActiveTab("activas")} active={activeTab === "activas"} />
+        <KpiCard title="Próx. 7 días" value={String(stats.prox7)} icon={Clock} variant="warning" delay={0.1} onClick={() => setActiveTab("7dias")} active={activeTab === "7dias"} />
+        <KpiCard title="Próx. 30 días" value={String(stats.prox30)} icon={CalendarDays} variant="success" delay={0.15} onClick={() => setActiveTab("30dias")} active={activeTab === "30dias"} />
+        <KpiCard title="Vencidas" value={String(stats.vencidas)} icon={AlertTriangle} variant="warning" delay={0.2} onClick={() => setActiveTab("vencidas")} active={activeTab === "vencidas"} />
       </div>
 
-      {/* Tabs + Search */}
+      {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="flex gap-1 bg-muted p-1 rounded-lg">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                activeTab === t.key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t.label} ({t.count})
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 items-center">
+        <div />
+        <div className="flex gap-2 items-center flex-wrap">
           <Select value={filterProyecto} onValueChange={setFilterProyecto}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todos los proyectos" />
