@@ -155,6 +155,7 @@ export default function CargaMasiva() {
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [aiProgress, setAiProgress] = useState(0);
   const [aiTotal, setAiTotal] = useState(0);
+  const [step4Collapsed, setStep4Collapsed] = useState(false);
 
   // --- SessionStorage persistence ---
   const SESSION_KEY = "carga-masiva-state";
@@ -1397,15 +1398,19 @@ export default function CargaMasiva() {
       {/* Step 4: Alertas review - collapsible per project */}
       {parsedRows.length > 0 && aiPhase === "done" && parsedRows.some((r) => r.alertasParsed && r.alertas.length > 0) && (
         <Card>
-          <CardHeader>
+          <CardHeader className="cursor-pointer select-none" onClick={() => setStep4Collapsed((v) => !v)}>
             <CardTitle className="text-base flex items-center gap-2">
+              {step4Collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               <Bell className="w-4 h-4" /> Paso 4: Confirmar Alertas por Proyecto
+              {step4Collapsed && <span className="text-xs font-normal text-muted-foreground ml-2">({totalAlertasToCreate} alertas seleccionadas)</span>}
             </CardTitle>
-            <CardDescription>
-              Revisa y confirma las alertas procesadas para cada proyecto. {totalAlertasToCreate} alertas seleccionadas para crear.
-            </CardDescription>
+            {!step4Collapsed && (
+              <CardDescription>
+                Revisa y confirma las alertas procesadas para cada proyecto. {totalAlertasToCreate} alertas seleccionadas para crear.
+              </CardDescription>
+            )}
           </CardHeader>
-          <CardContent className="space-y-2">
+          {!step4Collapsed && <CardContent className="space-y-2">
             {parsedRows.filter((r) => r.alertasParsed && r.alertas.length > 0).map((row) => {
               const pastCount = row.alertas.filter((a) => !a.esFutura).length;
               const pastCrearCount = row.alertas.filter((a) => !a.esFutura && a.crearAlerta).length;
@@ -1515,7 +1520,7 @@ export default function CargaMasiva() {
                 </Collapsible>
               );
             })}
-          </CardContent>
+          </CardContent>}
         </Card>
       )}
 
