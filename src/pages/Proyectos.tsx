@@ -818,8 +818,7 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
 
   return (
     <div className="space-y-1">
-      {proyectoEmpresas.map((pe) => {
-        if (!pe.empresas) return null;
+      {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i).map((pe) => {
         const monto = (pe as any).monto_cotizacion || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
