@@ -859,7 +859,13 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
 
 /* ── Group header empresas cell (name + category, no monto) ── */
 function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
-  const allEmpresas = items.flatMap((p) => p.proyecto_empresas || []);
+  const allEmpresasRaw = items.flatMap((p) => p.proyecto_empresas || []);
+  const seen = new Set<string>();
+  const allEmpresas = allEmpresasRaw.filter((pe) => {
+    if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
+    seen.add(pe.empresa_id);
+    return true;
+  });
   if (allEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
