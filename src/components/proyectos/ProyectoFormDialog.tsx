@@ -504,7 +504,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, isLoa
                     <Bell className="w-3 h-3" /> Alertas ({alertas.filter(a => !a.completada).length} activas)
                   </Label>
                   <div className="space-y-1.5">
-                    {alertas.map(a => {
+                    {[...alertas].sort((a, b) => new Date(b.fecha_seguimiento).getTime() - new Date(a.fecha_seguimiento).getTime()).map(a => {
                       const today = startOfDay(new Date());
                       const isOverdue = !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
                       return (
