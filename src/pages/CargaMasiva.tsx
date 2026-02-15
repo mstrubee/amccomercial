@@ -133,6 +133,7 @@ export default function CargaMasiva() {
   const queryClient = useQueryClient();
 
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [filterPendientes, setFilterPendientes] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [parsingAlertas, setParsingAlertas] = useState(false);
@@ -1548,6 +1549,19 @@ export default function CargaMasiva() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Filter for pending items */}
+            {aiPhase === "done" && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="filter-pendientes"
+                  checked={filterPendientes}
+                  onCheckedChange={(v) => setFilterPendientes(!!v)}
+                />
+                <label htmlFor="filter-pendientes" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  Mostrar solo filas con campos pendientes ("Seleccionar")
+                </label>
+              </div>
+            )}
             <div className="border rounded-md overflow-auto max-h-[500px]">
               <Table>
                 <TableHeader>
@@ -1567,7 +1581,16 @@ export default function CargaMasiva() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                {parsedRows.map((row, displayIndex) => {
+                {(() => {
+                  const rowsToShow = filterPendientes && aiPhase === "done"
+                    ? parsedRows.filter((row) => {
+                        for (const field of EXPECTED_FIELDS) {
+                          if (!(row.data[field] || "").trim()) return true;
+                        }
+                        return row.aiUnmatched.length > 0;
+                      })
+                    : parsedRows;
+                  return rowsToShow.map((row, displayIndex) => {
                     const comuna = (row.data["Comuna"] || "").trim();
                     const region = (row.data["Región"] || "").trim();
                     const comunaInvalid = comuna && !isComunaValid(comuna, region);
@@ -1725,7 +1748,8 @@ export default function CargaMasiva() {
                       </TableCell>
                     </TableRow>
                     );
-                  })}
+                  });
+                })()}
                 </TableBody>
               </Table>
             </div>
