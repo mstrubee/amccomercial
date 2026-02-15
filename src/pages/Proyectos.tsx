@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
+import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import { AlertasCollapsible, ParentAlertasDisplay, AlertasFullView } from "@/components/proyectos/AlertasInline";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -195,6 +196,25 @@ export default function Proyectos() {
     });
     return result;
   }, [filtered]);
+
+  // KPI stats
+  const kpiStats = useMemo(() => {
+    const allProyectos = proyectos || [];
+    const groupsAll: Record<string, ProyectoWithEmpresas[]> = {};
+    allProyectos.forEach(p => {
+      const k = p.nombre.trim().toLowerCase();
+      if (!groupsAll[k]) groupsAll[k] = [];
+      groupsAll[k].push(p);
+    });
+    const totalProyectos = Object.keys(groupsAll).length;
+    let adjudicados = 0;
+    Object.values(groupsAll).forEach(g => {
+      if (g.some(p => p.adjudicado)) adjudicados++;
+    });
+    const filteredGroups = groupedRows.length;
+    const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length);
+    return { totalProyectos, adjudicados, filteredGroups, hasActiveFilters };
+  }, [proyectos, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -393,6 +413,34 @@ export default function Proyectos() {
           </Popover>
         </div>
       </motion.div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KpiCard
+          title="Total Proyectos"
+          value={String(kpiStats.totalProyectos)}
+          subtitle={`${kpiStats.adjudicados} adjudicados`}
+          icon={FolderKanban}
+          variant="info"
+          delay={0.08}
+        />
+        <KpiCard
+          title="Adjudicados"
+          value={String(kpiStats.adjudicados)}
+          subtitle={`${kpiStats.totalProyectos - kpiStats.adjudicados} en seguimiento`}
+          icon={TrendingUp}
+          variant="success"
+          delay={0.1}
+        />
+        <KpiCard
+          title="Resultado Filtros"
+          value={String(kpiStats.filteredGroups)}
+          subtitle={kpiStats.hasActiveFilters ? "con filtros aplicados" : "sin filtros activos"}
+          icon={Filter}
+          variant={kpiStats.hasActiveFilters ? "warning" : "default"}
+          delay={0.12}
+        />
+      </div>
 
       {/* Table */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
