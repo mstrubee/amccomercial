@@ -996,7 +996,19 @@ export default function CargaMasiva() {
 
         let projectId: string;
 
-        if (empLinks.length === 0) {
+        // Check for existing project with same name to avoid duplicates on retry
+        const projName = safeStr(d["Nombre Proyecto"]);
+        const { data: existingProj } = await supabase
+          .from("proyectos")
+          .select("id")
+          .eq("nombre", projName)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingProj) {
+          // Project already exists (likely from a previous attempt), skip creation
+          projectId = existingProj.id;
+        } else if (empLinks.length === 0) {
           const { data: created, error } = await supabase
             .from("proyectos")
             .insert(projectPayload as any)
