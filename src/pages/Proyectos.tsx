@@ -411,6 +411,24 @@ export default function Proyectos() {
               )}
             </PopoverContent>
           </Popover>
+          {kpiStats.hasActiveFilters && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setSearch("");
+                setFilterEstados([]);
+                setFilterEmpresas([]);
+                setFilterCategorias([]);
+                setFilterEstadosObra([]);
+                setFilterClasificaciones([]);
+              }}
+            >
+              <X className="w-3 h-3" />
+              Limpiar filtros
+            </Button>
+          )}
         </div>
       </motion.div>
 
