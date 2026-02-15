@@ -1201,9 +1201,9 @@ export default function CargaMasiva() {
       const path = `${ts}_${file.name}`;
       const { error } = await supabase.storage.from("carga-masiva-muestras").upload(path, file);
       if (error) throw error;
-      const { data: urlData } = supabase.storage.from("carga-masiva-muestras").getPublicUrl(path);
       const { data: { user } } = await supabase.auth.getUser();
-      await (supabase.from("archivos_muestra" as any) as any).insert({ nombre: file.name, path, url: urlData.publicUrl, uploaded_by: user?.email || "" });
+      // Store path only - we'll generate signed URLs on demand since bucket is private
+      await (supabase.from("archivos_muestra" as any) as any).insert({ nombre: file.name, path, url: path, uploaded_by: user?.email || "" });
       refetchSamples();
       toast.success("Archivo de muestra subido correctamente");
     } catch (err: any) {
@@ -1256,9 +1256,15 @@ export default function CargaMasiva() {
                 {sampleFiles.map((sf) => (
                   <div key={sf.id} className="flex items-center gap-2 text-sm">
                     <Paperclip className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <a href={sf.url} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80 truncate max-w-[300px]">
+                    <button
+                      className="text-primary underline underline-offset-2 hover:text-primary/80 truncate max-w-[300px] text-left"
+                      onClick={async () => {
+                        const { data } = await supabase.storage.from("carga-masiva-muestras").createSignedUrl(sf.path || sf.url, 3600);
+                        if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                      }}
+                    >
                       {sf.nombre}
-                    </a>
+                    </button>
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeSampleFile(sf)}>
                       <Trash2 className="w-3 h-3 text-destructive" />
                     </Button>

@@ -132,7 +132,7 @@ ${JSON.stringify(items, null, 2)}`;
     });
   } catch (e) {
     console.error("match-dropdown error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "Ocurrió un error al procesar la solicitud" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
