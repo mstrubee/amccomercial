@@ -1,63 +1,30 @@
 
 
-# Confirmacion de carga + Persistencia de estado en Carga Masiva
+## Fix: "invalid input syntax for type date: 'null'"
 
-## 1. Confirmacion antes de cargar proyectos
+### Root Cause
 
-Agregar un dialogo de confirmacion (AlertDialog) cuando el usuario presiona "Cargar N Proyectos". El dialogo mostrara cuantos proyectos se van a cargar y pedira confirmacion explícita antes de proceder.
+The AI-powered alert parser (`parse-alertas` edge function) sometimes returns the string `"null"` instead of actual `null` for alerts without dates. Since `"null"` is a truthy string, it passes through all existing filters and gets sent to the database as a date value, causing the Postgres error.
 
-### Cambios en `src/pages/CargaMasiva.tsx`
-- Importar componentes de AlertDialog
-- Agregar estado `confirmOpen` para controlar el dialogo
-- El boton "Cargar N Proyectos" ahora abre el dialogo en vez de ejecutar directamente `handleBulkInsert`
-- El boton "Confirmar" dentro del dialogo ejecuta `handleBulkInsert`
-- Texto del dialogo: "Esta a punto de cargar N proyectos. Esta accion no se puede deshacer. Desea continuar?"
+### Changes
 
-## 2. Persistencia del estado al navegar
+**File: `src/pages/CargaMasiva.tsx`**
 
-Actualmente, todo el estado de la carga masiva vive en `useState` local, por lo que se pierde al cambiar de seccion. La solucion es guardar el estado en `sessionStorage` y restaurarlo al volver.
+1. **Sanitize AI-parsed alert dates** (around line 632): When processing alerts returned by the AI, normalize the `fecha` field so that the string `"null"`, empty strings, and `undefined` all become actual `null`:
+   ```
+   const fecha = (a.fecha && a.fecha !== "null") ? a.fecha : null;
+   ```
 
-### Cambios en `src/pages/CargaMasiva.tsx`
+2. **Guard `fecha_seguimiento` before insert** (lines 1047 and 1070): Add a safety check so that only valid date strings are sent to Supabase. If `a.fecha` is falsy or `"null"`, skip or default appropriately. This is a defense-in-depth measure since fix #1 should already catch it.
 
-**Estado a persistir:**
-- `parsedRows` (las filas procesadas con sus datos, alertas, errores)
-- `uploaded` (si ya se cargo)
-- `dropdownsMatched` (si ya se hizo el matching de dropdowns)
-- `aiPhase` (fase actual del pipeline de IA)
-- `openProjects` (proyectos expandidos en la tabla)
+3. **Guard `fecha_estado_obra`** (line 972): Add a similar safety check to ensure `"null"` string is converted to actual `null`:
+   ```
+   fecha_estado_obra: (fechaEstado && fechaEstado !== "null") ? fechaEstado : null,
+   ```
 
-**Implementacion:**
-- Usar `useEffect` para guardar en `sessionStorage` cada vez que cambie `parsedRows` o los flags de estado
-- En la inicializacion del componente, verificar si hay estado guardado en `sessionStorage` y restaurarlo
-- Limpiar `sessionStorage` cuando:
-  - Se presiona "Cancelar"
-  - La carga se completa exitosamente
-  - Se sube un archivo nuevo (reemplaza el estado anterior)
+### Technical Details
 
-**Clave de almacenamiento:** `carga-masiva-state`
-
-**Estructura guardada:**
-```text
-{
-  parsedRows: ParsedRow[],
-  uploaded: boolean,
-  dropdownsMatched: boolean,
-  aiPhase: string,
-  openProjects: Record<number, boolean>
-}
-```
-
-### Flujo del usuario tras la correccion
-
-```text
-1. Usuario sube Excel -> se procesa con IA
-2. Usuario navega a /proyectos para verificar
-3. Usuario vuelve a /carga-masiva
-4. El estado se restaura automaticamente desde sessionStorage
-5. El usuario puede continuar editando o cargar los proyectos
-```
-
-## Archivos a modificar
-
-- `src/pages/CargaMasiva.tsx` - Unico archivo afectado
+- The `parseDateValue` function already returns `null` for unrecognized strings, so `fecha_estado_obra` is likely not the culprit -- but the guard is added defensively.
+- The main fix targets the alert parsing flow where AI returns `"null"` as a string literal for dateless entries, which then survives the `.filter((a) => a.fecha)` check on line 1033.
+- No database or edge function changes required.
 
