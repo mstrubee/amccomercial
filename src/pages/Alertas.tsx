@@ -64,6 +64,7 @@ export default function Alertas() {
   const [editTarget, setEditTarget] = useState<AlertaWithRelations | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
+  const [completeMode, setCompleteMode] = useState<"complete" | "uncomplete">("complete");
   const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
@@ -288,24 +289,24 @@ export default function Alertas() {
                 <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", vencida && "bg-secondary/10")}>
                   <td className="px-5 py-3">
                     <button onClick={() => {
-                      if (a.completada) {
-                        toggleCompletada.mutate({ id: a.id, completada: false });
+                      if (a.completada || vencida) {
+                        setCompleteTarget(a);
+                        setCompleteMode("uncomplete");
                       } else {
                         setCompleteTarget(a);
+                        setCompleteMode("complete");
                       }
                     }}>
-                      {a.completada
+                      {(a.completada || vencida)
                         ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        : vencida
-                          ? <AlertTriangle className="w-5 h-5 text-amber-500" />
-                          : <Circle className="w-5 h-5 text-muted-foreground" />
+                        : <Circle className="w-5 h-5 text-muted-foreground" />
                       }
                     </button>
                   </td>
                   <td className={cn("px-5 py-3 font-medium max-w-[200px]", looksCompleted ? "line-through text-muted-foreground" : "text-card-foreground")}>
                     {(a as any).titulo && <div className="text-[11px] font-semibold text-amber-700">{(a as any).titulo}</div>}
                     {a.texto}
-                    {vencida && <span className="ml-1 text-[10px] text-muted-foreground">(vencida)</span>}
+                    {vencida && !a.completada && <span className="ml-1 text-[10px] text-muted-foreground">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}
@@ -382,13 +383,20 @@ export default function Alertas() {
       <CompleteAlertaDialog
         alerta={completeTarget}
         open={!!completeTarget}
-        onClose={() => setCompleteTarget(null)}
+        onClose={() => { setCompleteTarget(null); setCompleteMode("complete"); }}
+        mode={completeMode}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           toggleCompletada.mutate({ id: a.id, completada: true });
           setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
           setEditTarget(null);
           setDialogOpen(true);
+        }}
+        onUncomplete={(id, newDate) => {
+          toggleCompletada.mutate({ id, completada: false });
+          if (newDate) {
+            updateAlerta.mutate({ id, fecha_seguimiento: newDate, proyecto_id: completeTarget!.proyecto_id, empresa_id: completeTarget!.empresa_id, titulo: (completeTarget as any)?.titulo || "", texto: completeTarget!.texto, usuario_responsable_id: completeTarget!.usuario_responsable_id });
+          }
         }}
       />
 
