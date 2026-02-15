@@ -294,9 +294,11 @@ export default function Alertas() {
                         setCompleteTarget(a);
                       }
                     }}>
-                      {looksCompleted
+                      {a.completada
                         ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        : <Circle className="w-5 h-5 text-muted-foreground" />
+                        : vencida
+                          ? <AlertTriangle className="w-5 h-5 text-amber-500" />
+                          : <Circle className="w-5 h-5 text-muted-foreground" />
                       }
                     </button>
                   </td>
