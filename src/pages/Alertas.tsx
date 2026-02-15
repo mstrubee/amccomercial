@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
@@ -51,6 +52,9 @@ export default function Alertas() {
   const toggleCompletada = useToggleAlertaCompletada();
   const queryClient = useQueryClient();
   const [generatingTitles, setGeneratingTitles] = useState(false);
+  const [detectingDuplicates, setDetectingDuplicates] = useState(false);
+  const [duplicatesResult, setDuplicatesResult] = useState<{ duplicates: any[]; total_alertas: number } | null>(null);
+  const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
@@ -175,6 +179,31 @@ export default function Alertas() {
     }
   };
 
+  const handleDetectDuplicates = async (dryRun: boolean) => {
+    setDetectingDuplicates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("detect-duplicates", {
+        body: { dryRun },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (dryRun) {
+        setDuplicatesResult(data);
+        setShowDuplicatesDialog(true);
+      } else {
+        toast.success(`${data.duplicates_found} alertas duplicadas eliminadas`);
+        setShowDuplicatesDialog(false);
+        setDuplicatesResult(null);
+        queryClient.invalidateQueries({ queryKey: ["alertas"] });
+        queryClient.invalidateQueries({ queryKey: ["alertas-all"] });
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Error detectando duplicados");
+    } finally {
+      setDetectingDuplicates(false);
+    }
+  };
+
   const handleSubmit = (data: AlertaInput & { id?: string }) => {
     if (data.empresa_id === "none") data.empresa_id = null;
     if (data.id) {
@@ -213,6 +242,10 @@ export default function Alertas() {
           <Button variant="outline" size="sm" onClick={handleGenerateTitles} disabled={generatingTitles}>
             {generatingTitles ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
             {generatingTitles ? "Generando..." : "Generar títulos IA"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleDetectDuplicates(true)} disabled={detectingDuplicates}>
+            {detectingDuplicates ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Copy className="w-4 h-4 mr-1" />}
+            {detectingDuplicates ? "Analizando..." : "Detectar duplicados IA"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowDeleted(true)}>
             <RotateCcw className="w-4 h-4 mr-1" /> Eliminadas
@@ -429,6 +462,50 @@ export default function Alertas() {
 
       {/* Deleted alerts dialog */}
       <DeletedAlertasDialog open={showDeleted} onClose={() => setShowDeleted(false)} />
+
+      {/* Duplicates detection dialog */}
+      <Dialog open={showDuplicatesDialog} onOpenChange={(v) => { if (!v) { setShowDuplicatesDialog(false); setDuplicatesResult(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Duplicados detectados por IA</DialogTitle>
+            <DialogDescription>
+              {duplicatesResult ? `Se analizaron ${duplicatesResult.total_alertas} alertas. Se encontraron ${duplicatesResult.duplicates.length} posibles duplicados.` : "Analizando..."}
+            </DialogDescription>
+          </DialogHeader>
+          {duplicatesResult && duplicatesResult.duplicates.length > 0 ? (
+            <div className="space-y-3">
+              {duplicatesResult.duplicates.map((d, i) => (
+                <div key={i} className="border border-border rounded-lg p-3 text-sm space-y-1">
+                  <div className="flex items-start gap-2">
+                    <Trash2 className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-medium text-destructive">Eliminar:</span>{" "}
+                      <span className="text-muted-foreground">{d.texto}...</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-medium text-emerald-600">Conservar:</span>{" "}
+                      <span className="text-muted-foreground">{d.keepTexto}...</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground italic pl-6">Razón: {d.reason}</p>
+                </div>
+              ))}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setShowDuplicatesDialog(false); setDuplicatesResult(null); }}>Cancelar</Button>
+                <Button variant="destructive" onClick={() => handleDetectDuplicates(false)} disabled={detectingDuplicates}>
+                  {detectingDuplicates ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                  Eliminar {duplicatesResult.duplicates.length} duplicados
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : duplicatesResult ? (
+            <p className="text-muted-foreground text-center py-6">No se encontraron alertas duplicadas. ✅</p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
