@@ -1096,9 +1096,12 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
   const [value, setValue] = useState((proyecto as any).nota_grupo || "");
   const [saved, setSaved] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFocusedRef = useRef(false);
 
   useEffect(() => {
-    setValue((proyecto as any).nota_grupo || "");
+    if (!isFocusedRef.current) {
+      setValue((proyecto as any).nota_grupo || "");
+    }
   }, [(proyecto as any).nota_grupo]);
 
   const handleChange = (text: string) => {
@@ -1119,6 +1122,8 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
         value={value}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
+        onFocus={() => { isFocusedRef.current = true; }}
+        onBlur={() => { isFocusedRef.current = false; }}
       />
       <div className="flex items-center justify-between mt-0.5">
         {onCreateAlerta && value.trim() ? (
@@ -1231,9 +1236,12 @@ function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWit
   const [saved, setSaved] = useState(true);
   const [focused, setFocused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFocusedRef = useRef(false);
 
   useEffect(() => {
-    setValue((proyecto as any).notas || "");
+    if (!isFocusedRef.current) {
+      setValue((proyecto as any).notas || "");
+    }
   }, [(proyecto as any).notas]);
 
   const handleChange = (text: string) => {
@@ -1254,8 +1262,8 @@ function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWit
         value={value}
         onChange={(e) => handleChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={() => { setFocused(true); isFocusedRef.current = true; }}
+        onBlur={() => { setFocused(false); isFocusedRef.current = false; }}
       />
       {focused && (
         <div className="flex items-center justify-between mt-0.5">
