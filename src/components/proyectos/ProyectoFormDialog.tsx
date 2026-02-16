@@ -427,7 +427,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   categorias={categorias || []}
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
-                                  disabled={!isAdmin}
                                 />
                                 <Input
                                   type="number"
@@ -483,7 +482,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   categorias={categorias || []}
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
-                                  disabled={!isAdmin}
                                 />
                                 <Input
                                   type="number"
@@ -531,7 +529,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 categorias={categorias || []}
                                 value={getSelectValue(row)}
                                 onChange={(val) => handleCategoryChange(row.empresa_id, val)}
-                                disabled={!isAdmin}
                               />
                               <Input
                                 type="number"
