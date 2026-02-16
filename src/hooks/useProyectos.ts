@@ -193,8 +193,11 @@ export function useUpdateNotas() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["proyectos"] });
+    onSuccess: (_data, variables) => {
+      qc.setQueryData(["proyectos"], (old: ProyectoWithEmpresas[] | undefined) => {
+        if (!old) return [];
+        return old.map((p) => p.id === variables.id ? { ...p, notas: variables.notas } : p);
+      });
     },
     onError: (e) => toast.error("Error al guardar notas: " + e.message),
   });
@@ -210,8 +213,11 @@ export function useUpdateNotaGrupo() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["proyectos"] });
+    onSuccess: (_data, variables) => {
+      qc.setQueryData(["proyectos"], (old: ProyectoWithEmpresas[] | undefined) => {
+        if (!old) return [];
+        return old.map((p) => p.id === variables.id ? { ...p, nota_grupo: variables.nota_grupo } : p);
+      });
     },
     onError: (e) => toast.error("Error al guardar nota: " + e.message),
   });
