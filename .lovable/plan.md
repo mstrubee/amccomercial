@@ -1,33 +1,54 @@
 
 
-## Deduplicar alertas en la vista de Proyectos
+## Problema
 
-### Problema
-Cuando los proyectos se agrupan por nombre, el grupo contiene multiples IDs de proyecto. Las alertas cargadas masivamente se crearon con diferentes `proyecto_id` pero con el mismo contenido (titulo, texto, fecha, empresa), causando duplicados visuales tanto en la linea madre como en las filas de empresa.
+Al escribir notas, cada autoguardado (cada 800ms) dispara una invalidacion completa de la query `["proyectos"]`, lo que provoca:
 
-### Solucion
-Agregar una funcion de deduplicacion que filtre alertas con contenido identico, conservando solo una por cada combinacion unica de `titulo + texto + fecha_seguimiento + empresa_id`. Esto replica el comportamiento esperado de la Central de Alertas donde cada alerta aparece una sola vez.
+1. Se re-descarga toda la tabla de proyectos desde la base de datos
+2. El componente se re-renderiza con los datos nuevos
+3. El `useEffect` que sincroniza `proyecto.notas` sobreescribe el texto local del textarea
+4. El usuario pierde lo que estaba escribiendo o ve comportamiento erratico
+
+## Solucion
+
+Eliminar la invalidacion de queries en el autoguardado de notas, y en su lugar usar actualizacion optimista local. Solo sincronizar desde el servidor cuando el usuario no esta escribiendo.
+
+### Cambios en `src/hooks/useProyectos.ts`
+
+**`useUpdateNotas` y `useUpdateNotaGrupo`**: Reemplazar `queryClient.invalidateQueries` en `onSuccess` por una actualizacion optimista usando `queryClient.setQueryData`. Esto actualiza el cache local sin re-descargar datos, evitando el re-render destructivo.
+
+```
+onSuccess: (_data, variables) => {
+  qc.setQueryData(["proyectos"], (old) => {
+    // actualizar solo el campo notas del proyecto correspondiente
+  });
+}
+```
+
+### Cambios en `src/pages/Proyectos.tsx`
+
+**`NotasCell` y `NotaGrupoCell`**: 
+
+1. Agregar un ref `isFocusedRef` para rastrear si el textarea tiene foco
+2. Modificar el `useEffect` de sincronizacion para que NO actualice el estado local mientras el usuario esta escribiendo (cuando el textarea tiene foco)
+3. Esto previene que datos del servidor sobreescriban lo que el usuario esta tipeando
+
+```
+const isFocusedRef = useRef(false);
+
+useEffect(() => {
+  if (!isFocusedRef.current) {
+    setValue((proyecto as any).notas || "");
+  }
+}, [(proyecto as any).notas]);
+```
 
 ### Detalle tecnico
 
-**Archivo: `src/pages/Proyectos.tsx`**
+| Componente | Cambio | Razon |
+|---|---|---|
+| `useUpdateNotas` | `setQueryData` en vez de `invalidateQueries` | Evita refetch completo |
+| `useUpdateNotaGrupo` | `setQueryData` en vez de `invalidateQueries` | Evita refetch completo |
+| `NotasCell` | Guard con `isFocusedRef` en useEffect | No sobreescribir texto durante escritura |
+| `NotaGrupoCell` | Guard con `isFocusedRef` en useEffect | No sobreescribir texto durante escritura |
 
-1. Crear una funcion auxiliar `deduplicateAlertas` que:
-   - Recibe un array de alertas
-   - Genera una clave unica por cada alerta usando `titulo|texto|fecha_seguimiento|empresa_id`
-   - Conserva solo la primera alerta de cada clave (la mas antigua por `created_at`)
-   - Retorna el array deduplicado
-
-2. Aplicar la deduplicacion en dos lugares:
-   - **Linea madre** (linea ~447): despues de filtrar `parentAlertasRaw`, aplicar `deduplicateAlertas` antes de pasar a `AlertasFullView`
-   - **Filas hijas** (linea ~503): despues de filtrar `childAlertas`, aplicar la misma deduplicacion antes de pasar a `AlertasCollapsible` y al popover de empresa
-
-```text
-Antes:
-  alertas DB --> filtrar por proyecto_id + empresa_id --> mostrar (con duplicados)
-
-Despues:
-  alertas DB --> filtrar por proyecto_id + empresa_id --> deduplicar por contenido --> mostrar (sin duplicados)
-```
-
-La deduplicacion se hace solo a nivel visual, sin modificar datos en la base de datos.
