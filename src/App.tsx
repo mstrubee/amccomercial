@@ -39,7 +39,7 @@ function AppRoutes() {
   return (
     <AppLayout isAdmin={isAdmin} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
       <Routes>
-        {canAccessSection("dashboard") && <Route path="/" element={<Dashboard />} />}
+        <Route path="/" element={canAccessSection("dashboard") ? <Dashboard /> : <Navigate to={canAccessSection("empresas") ? "/empresas" : canAccessSection("proyectos") ? "/proyectos" : canAccessSection("finanzas") ? "/finanzas" : canAccessSection("alertas") ? "/alertas" : "/"} replace />} />
         {canAccessSection("empresas") && <Route path="/empresas" element={<Empresas />} />}
         {canAccessSection("proyectos") && <Route path="/proyectos" element={<Proyectos />} />}
         {canAccessSection("finanzas") && <Route path="/finanzas" element={<Finanzas />} />}
