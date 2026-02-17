@@ -331,6 +331,44 @@ export type Database = {
           },
         ]
       }
+      contactos_cliente: {
+        Row: {
+          cliente_id: string
+          contacto: string
+          created_at: string
+          email: string
+          id: string
+          orden: number
+          telefono: string
+        }
+        Insert: {
+          cliente_id: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          orden?: number
+          telefono?: string
+        }
+        Update: {
+          cliente_id?: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          orden?: number
+          telefono?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contactos_cliente_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       empresas: {
         Row: {
           created_at: string

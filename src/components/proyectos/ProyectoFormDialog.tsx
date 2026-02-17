@@ -758,10 +758,16 @@ function ContactosSection(props: ContactosSectionProps) {
       return `${current} / ${newVal}`;
     };
 
+    // Build concatenated contact info from all contactos
+    const contactos = cliente.contactos_cliente || [];
+    const allContacto = contactos.map(c => c.contacto).filter(Boolean).join(" / ");
+    const allEmail = contactos.map(c => c.email).filter(Boolean).join(" / ");
+    const allTelefono = contactos.map(c => c.telefono).filter(Boolean).join(" / ");
+
     setters[0](append(currentNombre, cliente.nombre));
-    setters[1](append(currentContacto, cliente.contacto));
-    setters[2](append(currentEmail, cliente.email));
-    setters[3](append(currentTelefono, cliente.telefono));
+    setters[1](append(currentContacto, allContacto));
+    setters[2](append(currentEmail, allEmail));
+    setters[3](append(currentTelefono, allTelefono));
   };
 
   return (
@@ -805,13 +811,13 @@ function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWi
 
   const filtered = clientes.filter((c) =>
     c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    c.contacto.toLowerCase().includes(search.toLowerCase())
+    (c.contactos_cliente || []).some(ct => ct.contacto.toLowerCase().includes(search.toLowerCase()))
   );
 
   const handleCreate = () => {
     if (!newNombre.trim() || !categoryId) return;
     createCliente.mutate(
-      { categoria_id: categoryId, nombre: newNombre.trim(), contacto: newContacto, email: newEmail, telefono: newTelefono },
+      { categoria_id: categoryId, nombre: newNombre.trim(), contactos: [{ contacto: newContacto, email: newEmail, telefono: newTelefono }] },
       {
         onSuccess: (data: any) => {
           onSelect({ ...data, categorias_cliente: {} } as any);
@@ -853,7 +859,7 @@ function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWi
                       onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
                     >
                       <div className="font-medium text-popover-foreground">{c.nombre}</div>
-                      {c.contacto && <div className="text-muted-foreground">{c.contacto}</div>}
+                      {(c.contactos_cliente || []).length > 0 && <div className="text-muted-foreground">{c.contactos_cliente.map(ct => ct.contacto).filter(Boolean).join(", ")}</div>}
                     </button>
                   ))
                 )}
