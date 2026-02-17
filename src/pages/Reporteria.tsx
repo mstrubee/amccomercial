@@ -45,9 +45,18 @@ export default function Reporteria() {
     },
   });
 
+  const { data: proyectos } = useQuery({
+    queryKey: ["proyectos-names"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("proyectos").select("id, nombre, numero");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: logs, isLoading } = useActivityLog({
     date: selectedDate,
-    userId: selectedUser || undefined,
+    userId: selectedUser === "all" ? undefined : selectedUser || undefined,
   });
 
   const { data: retentionDays } = useRetentionSetting();
@@ -59,6 +68,47 @@ export default function Reporteria() {
     profiles?.forEach((p) => { map[p.user_id] = p.display_name || p.email; });
     return map;
   }, [profiles]);
+
+  const proyectoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    proyectos?.forEach((p) => { map[p.id] = `#${p.numero} ${p.nombre}`; });
+    return map;
+  }, [proyectos]);
+
+  // Resolve project name from details (could be UUID or name)
+  const resolveProjectName = (details: string) => {
+    if (!details) return "General";
+    // If it looks like a UUID, resolve it
+    if (/^[0-9a-f]{8}-/.test(details)) {
+      return proyectoMap[details] || details;
+    }
+    return details;
+  };
+
+  // Group logs by user, then by project (details field), ordered by time ascending
+  const groupedByUser = useMemo(() => {
+    if (!logs?.length) return [];
+
+    const userGroups: Record<string, Record<string, any[]>> = {};
+    
+    logs.forEach((log: any) => {
+      const userName = profileMap[log.user_id] || log.user_id;
+      const projectKey = resolveProjectName(log.details || "");
+      
+      if (!userGroups[userName]) userGroups[userName] = {};
+      if (!userGroups[userName][projectKey]) userGroups[userName][projectKey] = [];
+      userGroups[userName][projectKey].push(log);
+    });
+
+    // Sort logs within each project group by time ascending
+    Object.values(userGroups).forEach((projects) => {
+      Object.values(projects).forEach((projectLogs) => {
+        projectLogs.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      });
+    });
+
+    return Object.entries(userGroups).sort(([a], [b]) => a.localeCompare(b));
+  }, [logs, profileMap, proyectoMap]);
 
   const handleSaveRetention = () => {
     const days = parseInt(retentionInput);
@@ -144,38 +194,47 @@ export default function Reporteria() {
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
-      ) : !logs?.length ? (
+      ) : !groupedByUser.length ? (
         <p className="text-muted-foreground text-sm py-8 text-center">No hay actividad registrada para esta fecha.</p>
       ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">Hora</TableHead>
-                <TableHead>Usuario</TableHead>
-                <TableHead className="w-24">Acción</TableHead>
-                <TableHead className="w-36">Tipo</TableHead>
-                <TableHead>Registro</TableHead>
-                <TableHead>Detalles</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((log: any) => (
-                <TableRow key={log.id}>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {format(new Date(log.created_at), "HH:mm:ss", { locale: es })}
-                  </TableCell>
-                  <TableCell className="text-sm">{profileMap[log.user_id] || log.user_id}</TableCell>
-                  <TableCell>
-                    <span className="text-xs font-medium capitalize">{actionLabels[log.action] || log.action}</span>
-                  </TableCell>
-                  <TableCell className="text-sm">{entityLabels[log.entity_type] || log.entity_type}</TableCell>
-                  <TableCell className="text-sm max-w-[200px] truncate">{log.entity_name}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.details}</TableCell>
-                </TableRow>
+        <div className="space-y-6">
+          {groupedByUser.map(([userName, projects]) => (
+            <div key={userName} className="space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">{userName}</h2>
+              {Object.entries(projects).sort(([a], [b]) => a.localeCompare(b)).map(([projectName, projectLogs]) => (
+                <div key={projectName} className="border rounded-lg overflow-hidden ml-2">
+                  <div className="bg-secondary/30 px-4 py-2 border-b">
+                    <h3 className="text-sm font-semibold text-foreground">{projectName}</h3>
+                    <p className="text-xs text-muted-foreground">{projectLogs.length} {projectLogs.length === 1 ? "acción" : "acciones"}</p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-20">Hora</TableHead>
+                        <TableHead className="w-24">Acción</TableHead>
+                        <TableHead className="w-36">Tipo</TableHead>
+                        <TableHead>Registro</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projectLogs.map((log: any) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {format(new Date(log.created_at), "HH:mm:ss", { locale: es })}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs font-medium capitalize">{actionLabels[log.action] || log.action}</span>
+                          </TableCell>
+                          <TableCell className="text-sm">{entityLabels[log.entity_type] || log.entity_type}</TableCell>
+                          <TableCell className="text-sm max-w-[300px] truncate">{log.entity_name}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ))}
         </div>
       )}
     </div>

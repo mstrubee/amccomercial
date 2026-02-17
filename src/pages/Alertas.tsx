@@ -341,12 +341,12 @@ export default function Alertas() {
               )}
               {filtered.map((a) => {
                 const vencida = isVencida(a);
-                const looksCompleted = a.completada || vencida;
+                const looksCompleted = a.completada;
                 return (
-                <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", vencida && "bg-secondary/10")}>
+                <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", vencida && "bg-destructive/5")}>
                   <td className="px-5 py-3">
                     <button onClick={() => {
-                      if (a.completada || vencida) {
+                      if (a.completada) {
                         setCompleteTarget(a);
                         setCompleteMode("uncomplete");
                       } else {
@@ -354,16 +354,18 @@ export default function Alertas() {
                         setCompleteMode("complete");
                       }
                     }}>
-                      {(a.completada || vencida)
+                      {a.completada
                         ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        : <Circle className="w-5 h-5 text-muted-foreground" />
+                        : vencida
+                          ? <AlertTriangle className="w-5 h-5 text-destructive" />
+                          : <Circle className="w-5 h-5 text-muted-foreground" />
                       }
                     </button>
                   </td>
-                  <td className={cn("px-5 py-3 font-medium max-w-[200px]", looksCompleted ? "line-through text-muted-foreground" : "text-card-foreground")}>
+                  <td className={cn("px-5 py-3 font-medium max-w-[200px]", looksCompleted ? "line-through text-muted-foreground" : vencida ? "text-destructive" : "text-card-foreground")}>
                     {(a as any).titulo && <div className="text-[11px] font-semibold text-amber-700">{(a as any).titulo}</div>}
                     {a.texto}
-                    {vencida && !a.completada && <span className="ml-1 text-[10px] text-muted-foreground">(vencida)</span>}
+                    {vencida && !a.completada && <span className="ml-1 text-[10px] font-semibold text-destructive">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}

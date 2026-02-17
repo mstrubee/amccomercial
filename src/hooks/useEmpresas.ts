@@ -66,7 +66,7 @@ export function useCreateEmpresa() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["empresas"] });
       toast.success("Empresa creada exitosamente");
-      logActivity.mutate({ action: "crear", entity_type: "empresa", entity_name: variables.nombre });
+      logActivity.mutate({ action: "crear", entity_type: "empresa", entity_name: variables.nombre, details: variables.nombre });
     },
     onError: (e) => toast.error("Error al crear empresa: " + e.message),
   });
@@ -95,7 +95,7 @@ export function useUpdateEmpresa() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["empresas"] });
       toast.success("Empresa actualizada");
-      logActivity.mutate({ action: "editar", entity_type: "empresa", entity_id: variables.id, entity_name: variables.nombre });
+      logActivity.mutate({ action: "editar", entity_type: "empresa", entity_id: variables.id, entity_name: variables.nombre, details: variables.nombre });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
   });

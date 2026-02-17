@@ -120,7 +120,7 @@ export function useCreateProyecto() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success("Proyecto creado exitosamente");
-      logActivity.mutate({ action: "crear", entity_type: "proyecto", entity_name: variables.nombre });
+      logActivity.mutate({ action: "crear", entity_type: "proyecto", entity_name: variables.nombre, details: variables.nombre });
     },
     onError: (e) => toast.error("Error al crear proyecto: " + e.message),
   });
@@ -163,7 +163,7 @@ export function useUpdateProyecto() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success("Proyecto actualizado");
-      logActivity.mutate({ action: "editar", entity_type: "proyecto", entity_id: variables.id, entity_name: variables.nombre });
+      logActivity.mutate({ action: "editar", entity_type: "proyecto", entity_id: variables.id, entity_name: variables.nombre, details: variables.nombre });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
   });
