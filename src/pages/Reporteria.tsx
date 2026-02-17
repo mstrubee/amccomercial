@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Trash2, Settings2 } from "lucide-react";
+import { Loader2, Trash2, Settings2, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -202,36 +203,41 @@ export default function Reporteria() {
             <div key={userName} className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">{userName}</h2>
               {Object.entries(projects).sort(([a], [b]) => a.localeCompare(b)).map(([projectName, projectLogs]) => (
-                <div key={projectName} className="border rounded-lg overflow-hidden ml-2">
-                  <div className="bg-secondary/30 px-4 py-2 border-b">
-                    <h3 className="text-sm font-semibold text-foreground">{projectName}</h3>
-                    <p className="text-xs text-muted-foreground">{projectLogs.length} {projectLogs.length === 1 ? "acción" : "acciones"}</p>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-20">Hora</TableHead>
-                        <TableHead className="w-24">Acción</TableHead>
-                        <TableHead className="w-36">Tipo</TableHead>
-                        <TableHead>Registro</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {projectLogs.map((log: any) => (
-                        <TableRow key={log.id}>
-                          <TableCell className="text-xs text-muted-foreground font-mono">
-                            {format(new Date(log.created_at), "HH:mm:ss", { locale: es })}
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-xs font-medium capitalize">{actionLabels[log.action] || log.action}</span>
-                          </TableCell>
-                          <TableCell className="text-sm">{entityLabels[log.entity_type] || log.entity_type}</TableCell>
-                          <TableCell className="text-sm max-w-[300px] truncate">{log.entity_name}</TableCell>
+                <Collapsible key={projectName} defaultOpen={false} className="border rounded-lg overflow-hidden ml-2">
+                  <CollapsibleTrigger className="flex items-center justify-between w-full bg-secondary/30 px-4 py-2 border-b hover:bg-secondary/50 transition-colors cursor-pointer">
+                    <div className="text-left">
+                      <h3 className="text-sm font-semibold text-foreground">{projectName}</h3>
+                      <p className="text-xs text-muted-foreground">{projectLogs.length} {projectLogs.length === 1 ? "acción" : "acciones"}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-20">Hora</TableHead>
+                          <TableHead className="w-24">Acción</TableHead>
+                          <TableHead className="w-36">Tipo</TableHead>
+                          <TableHead>Registro</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {projectLogs.map((log: any) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="text-xs text-muted-foreground font-mono">
+                              {format(new Date(log.created_at), "HH:mm:ss", { locale: es })}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-xs font-medium capitalize">{actionLabels[log.action] || log.action}</span>
+                            </TableCell>
+                            <TableCell className="text-sm">{entityLabels[log.entity_type] || log.entity_type}</TableCell>
+                            <TableCell className="text-sm max-w-[300px] truncate">{log.entity_name}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CollapsibleContent>
+                </Collapsible>
               ))}
             </div>
           ))}
