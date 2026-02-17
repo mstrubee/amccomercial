@@ -35,9 +35,15 @@ serve(async (req) => {
 
     const { items } = await req.json();
 
-    if (!items || items.length === 0) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return new Response(JSON.stringify({ results: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (items.length > 200) {
+      return new Response(JSON.stringify({ error: "Máximo 200 items por solicitud" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

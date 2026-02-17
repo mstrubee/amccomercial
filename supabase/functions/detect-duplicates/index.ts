@@ -10,12 +10,39 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Verify authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "No autorizado" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token);
+    if (!caller) {
+      return new Response(JSON.stringify({ error: "No autorizado" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only admins can run duplicate detection
+    const { data: callerRoles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", caller.id);
+    const isAdmin = callerRoles?.some((r) => r.role === "admin");
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: "Solo administradores" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabase = supabaseAdmin;
     const { dryRun = true } = await req.json().catch(() => ({}));
 
     // Fetch all non-deleted alerts
@@ -170,7 +197,7 @@ ${JSON.stringify(chunk, null, 2)}`;
     });
   } catch (e) {
     console.error("detect-duplicates error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "Ocurrió un error al procesar la solicitud" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
