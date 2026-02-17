@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown, ChevronRight, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown, ChevronRight, Settings2, Mail, Phone, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,8 @@ import {
   useClientes, useCreateCliente, useUpdateCliente, useDeleteCliente,
   CategoriaCliente, ClienteWithCategoria,
 } from "@/hooks/useClientes";
+import { useAuth } from "@/hooks/useAuth";
+import ClienteDetailDialog from "@/components/clientes/ClienteDetailDialog";
 
 export default function Clientes() {
   const { data: categorias, isLoading: loadingCats } = useCategoriasCliente();
@@ -22,6 +24,11 @@ export default function Clientes() {
   const createCliente = useCreateCliente();
   const updateCliente = useUpdateCliente();
   const deleteCliente = useDeleteCliente();
+  const { isAdmin, roles } = useAuth();
+
+  const isUsuarioTipo1 = roles.includes("usuario_tipo_1");
+  const canEdit = isAdmin || isUsuarioTipo1;
+  const canDelete = isAdmin;
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("Todas");
@@ -30,6 +37,7 @@ export default function Clientes() {
   const [editTarget, setEditTarget] = useState<ClienteWithCategoria | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ClienteWithCategoria | null>(null);
   const [showCatManager, setShowCatManager] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<ClienteWithCategoria | null>(null);
 
   if (loadingCats || loadingClientes) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
@@ -58,12 +66,16 @@ export default function Clientes() {
           <p className="text-muted-foreground mt-1">Base de datos de contactos por categoría</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => setShowCatManager(true)}>
-            <Settings2 className="w-4 h-4" /> Categorías
-          </Button>
-          <Button className="gap-2" onClick={() => { setEditTarget(null); setShowForm(true); }}>
-            <Plus className="w-4 h-4" /> Nuevo Cliente
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" className="gap-2" onClick={() => setShowCatManager(true)}>
+              <Settings2 className="w-4 h-4" /> Categorías
+            </Button>
+          )}
+          {canEdit && (
+            <Button className="gap-2" onClick={() => { setEditTarget(null); setShowForm(true); }}>
+              <Plus className="w-4 h-4" /> Nuevo Cliente
+            </Button>
+          )}
         </div>
       </motion.div>
 
@@ -109,38 +121,50 @@ export default function Clientes() {
                           <tr className="border-t border-border bg-secondary/20">
                             <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Nombre</th>
                             <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Contactos</th>
-                            <th className="text-right px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Acciones</th>
+                            {canDelete && <th className="text-right px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Acciones</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {items.map((c) => (
-                            <tr key={c.id} className="hover:bg-secondary/20 transition-colors align-top">
+                            <tr
+                              key={c.id}
+                              className="hover:bg-secondary/20 transition-colors align-top cursor-pointer"
+                              onClick={() => setDetailTarget(c)}
+                            >
                               <td className="px-5 py-2.5 font-medium text-card-foreground">{c.nombre}</td>
                               <td className="px-5 py-2.5">
                                 {(c.contactos_cliente || []).length === 0 ? (
                                   <span className="text-muted-foreground">—</span>
                                 ) : (
-                                  <div className="space-y-1">
-                                    {c.contactos_cliente.map((ct, i) => (
-                                      <div key={ct.id} className="flex items-center gap-3 text-xs text-muted-foreground">
-                                        <span className="text-card-foreground font-medium min-w-[100px]">{ct.contacto || "—"}</span>
-                                        <span>{ct.email || "—"}</span>
-                                        <span>{ct.telefono || "—"}</span>
+                                  <div className="space-y-1.5">
+                                    {c.contactos_cliente.map((ct) => (
+                                      <div key={ct.id} className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+                                        <span className="flex items-center gap-1 text-card-foreground font-medium">
+                                          <User className="w-3 h-3 text-muted-foreground" />
+                                          {ct.contacto || "—"}
+                                        </span>
+                                        <span className="flex items-center gap-1 text-muted-foreground">
+                                          <Mail className="w-3 h-3" />
+                                          {ct.email || "—"}
+                                        </span>
+                                        <span className="flex items-center gap-1 text-muted-foreground">
+                                          <Phone className="w-3 h-3" />
+                                          {ct.telefono || "—"}
+                                        </span>
                                       </div>
                                     ))}
                                   </div>
                                 )}
                               </td>
-                              <td className="px-5 py-2.5 text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditTarget(c); setShowForm(true); }}>
-                                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(c)}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                              </td>
+                              {canDelete && (
+                                <td className="px-5 py-2.5 text-right">
+                                  <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(c)}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -155,31 +179,39 @@ export default function Clientes() {
         {grouped.length === 0 && filtered.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p>No hay clientes registrados.</p>
-            <Button variant="outline" className="mt-4" onClick={() => setShowForm(true)}>Crear primer cliente</Button>
+            {canEdit && <Button variant="outline" className="mt-4" onClick={() => setShowForm(true)}>Crear primer cliente</Button>}
           </div>
         )}
       </div>
 
+      {/* Detail dialog */}
+      <ClienteDetailDialog
+        open={!!detailTarget}
+        onOpenChange={(v) => !v && setDetailTarget(null)}
+        cliente={detailTarget}
+        categorias={categorias || []}
+        canEdit={canEdit}
+        canDelete={canDelete}
+      />
+
+      {/* Create form */}
       <ClienteFormDialog
         open={showForm}
         onOpenChange={setShowForm}
-        editTarget={editTarget}
+        editTarget={null}
         categorias={categorias || []}
-        isLoading={createCliente.isPending || updateCliente.isPending}
+        isLoading={createCliente.isPending}
         onSubmit={(data) => {
-          if (editTarget) {
-            updateCliente.mutate({ id: editTarget.id, ...data }, { onSuccess: () => { setShowForm(false); setEditTarget(null); } });
-          } else {
-            createCliente.mutate(data, { onSuccess: () => setShowForm(false) });
-          }
+          createCliente.mutate(data, { onSuccess: () => setShowForm(false) });
         }}
       />
 
+      {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar cliente?</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.nombre}</strong>. Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogDescription>Se eliminará <strong>{deleteTarget?.nombre}</strong> y todos sus contactos. Esta acción no se puede deshacer.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -190,16 +222,16 @@ export default function Clientes() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <CategoriaClienteManager open={showCatManager} onOpenChange={setShowCatManager} />
+      {isAdmin && <CategoriaClienteManager open={showCatManager} onOpenChange={setShowCatManager} />}
     </div>
   );
 }
 
-/* ── Client Form Dialog with multiple contacts ── */
+/* ── Client Form Dialog (create only) ── */
 function ClienteFormDialog({ open, onOpenChange, editTarget, categorias, isLoading, onSubmit }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  editTarget: ClienteWithCategoria | null;
+  editTarget: null;
   categorias: CategoriaCliente[];
   isLoading: boolean;
   onSubmit: (data: { categoria_id: string; nombre: string; contactos: { contacto: string; email: string; telefono: string }[] }) => void;
@@ -209,16 +241,9 @@ function ClienteFormDialog({ open, onOpenChange, editTarget, categorias, isLoadi
   const [contactos, setContactos] = useState<{ contacto: string; email: string; telefono: string }[]>([{ contacto: "", email: "", telefono: "" }]);
 
   const reset = () => {
-    if (editTarget) {
-      setCategoriaId(editTarget.categoria_id);
-      setNombre(editTarget.nombre);
-      const cts = (editTarget.contactos_cliente || []).map(c => ({ contacto: c.contacto, email: c.email, telefono: c.telefono }));
-      setContactos(cts.length > 0 ? cts : [{ contacto: "", email: "", telefono: "" }]);
-    } else {
-      setCategoriaId(categorias[0]?.id || "");
-      setNombre("");
-      setContactos([{ contacto: "", email: "", telefono: "" }]);
-    }
+    setCategoriaId(categorias[0]?.id || "");
+    setNombre("");
+    setContactos([{ contacto: "", email: "", telefono: "" }]);
   };
 
   const updateContacto = (idx: number, field: string, value: string) => {
@@ -232,7 +257,7 @@ function ClienteFormDialog({ open, onOpenChange, editTarget, categorias, isLoadi
     <Dialog open={open} onOpenChange={(v) => { if (v) reset(); onOpenChange(v); }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editTarget ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
+          <DialogTitle>Nuevo Cliente</DialogTitle>
         </DialogHeader>
         <form onSubmit={(e) => {
           e.preventDefault();
@@ -272,9 +297,16 @@ function ClienteFormDialog({ open, onOpenChange, editTarget, categorias, isLoadi
                     </Button>
                   </div>
                 )}
-                <Input placeholder="Nombre contacto" value={ct.contacto} onChange={(e) => updateContacto(idx, "contacto", e.target.value)} className="h-8 text-sm" />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <Input placeholder="Nombre contacto" value={ct.contacto} onChange={(e) => updateContacto(idx, "contacto", e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <Input placeholder="Email" type="email" value={ct.email} onChange={(e) => updateContacto(idx, "email", e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <Input placeholder="Teléfono" value={ct.telefono} onChange={(e) => updateContacto(idx, "telefono", e.target.value)} className="h-8 text-sm" />
                 </div>
               </div>
