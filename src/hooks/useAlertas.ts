@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLogActivity } from "@/hooks/useActivityLog";
 
 export interface AlertaRow {
   id: string;
@@ -126,6 +127,7 @@ export interface AlertaInput {
 
 export function useCreateAlerta() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (input: AlertaInput) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -138,10 +140,11 @@ export function useCreateAlerta() {
       } as any);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta creada exitosamente");
+      logActivity.mutate({ action: "crear", entity_type: "alerta", entity_name: variables.titulo });
     },
     onError: (e) => toast.error("Error al crear alerta: " + e.message),
   });
@@ -149,6 +152,7 @@ export function useCreateAlerta() {
 
 export function useUpdateAlerta() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (input: AlertaInput & { id: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -160,10 +164,11 @@ export function useUpdateAlerta() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta actualizada");
+      logActivity.mutate({ action: "editar", entity_type: "alerta", entity_id: variables.id, entity_name: variables.titulo });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
   });
@@ -171,6 +176,7 @@ export function useUpdateAlerta() {
 
 export function useToggleAlertaCompletada() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async ({ id, completada }: { id: string; completada: boolean }) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -189,9 +195,10 @@ export function useToggleAlertaCompletada() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
+      logActivity.mutate({ action: variables.completada ? "completar" : "restaurar", entity_type: "alerta", entity_id: variables.id });
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -200,6 +207,7 @@ export function useToggleAlertaCompletada() {
 /** Soft delete */
 export function useDeleteAlerta() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (id: string) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -210,10 +218,11 @@ export function useDeleteAlerta() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta eliminada");
+      logActivity.mutate({ action: "eliminar", entity_type: "alerta", entity_id: variables });
     },
     onError: (e) => toast.error("Error al eliminar: " + e.message),
   });

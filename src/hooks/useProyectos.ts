@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { useLogActivity } from "@/hooks/useActivityLog";
 
 export type ProyectoRow = Tables<"proyectos">;
 export type ProyectoEmpresaRow = Tables<"proyecto_empresas">;
@@ -71,13 +72,12 @@ export interface ProyectoInput {
 
 export function useCreateProyecto() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (input: ProyectoInput) => {
       const { empresa_links, fecha_ingreso, clasificacion_id, ...rest } = input;
 
-      // Create one project row per selected empresa
       if (empresa_links.length === 0) {
-        // No empresas: create a single project
         const { data: proyecto, error } = await supabase
           .from("proyectos")
           .insert({ ...rest, adjudicado: false, fecha_ingreso, clasificacion_id } as any)
@@ -87,7 +87,6 @@ export function useCreateProyecto() {
         return proyecto;
       }
 
-      // One project per empresa link
       const projects = empresa_links.map((el) => ({
         ...rest,
         adjudicado: el.adjudicado,
@@ -101,7 +100,6 @@ export function useCreateProyecto() {
         .select();
       if (error) throw error;
 
-      // Link each project to its empresa
       const links = createdProjects!.map((p: any, i: number) => ({
         proyecto_id: p.id,
         empresa_id: empresa_links[i].empresa_id,
@@ -119,9 +117,10 @@ export function useCreateProyecto() {
 
       return createdProjects![0];
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success("Proyecto creado exitosamente");
+      logActivity.mutate({ action: "crear", entity_type: "proyecto", entity_name: variables.nombre });
     },
     onError: (e) => toast.error("Error al crear proyecto: " + e.message),
   });
@@ -129,6 +128,7 @@ export function useCreateProyecto() {
 
 export function useUpdateProyecto() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (input: ProyectoInput & { id: string }) => {
       const { empresa_links, id, fecha_ingreso, clasificacion_id, ...rest } = input;
@@ -160,9 +160,10 @@ export function useUpdateProyecto() {
         if (linkError) throw linkError;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success("Proyecto actualizado");
+      logActivity.mutate({ action: "editar", entity_type: "proyecto", entity_id: variables.id, entity_name: variables.nombre });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
   });

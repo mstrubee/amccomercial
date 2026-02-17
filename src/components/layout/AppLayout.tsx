@@ -47,6 +47,7 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail, can
     { path: "/carga-masiva", label: "Carga Masiva" },
     { path: "/categorias", label: "Categorías" },
     { path: "/clientes", label: "Clientes" },
+    { path: "/reporteria", label: "Reportería" },
   ];
 
   const isAdminPathActive = adminSubItems.some((i) => location.pathname === i.path);

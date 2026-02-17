@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { useLogActivity } from "@/hooks/useActivityLog";
 
 export type EmpresaRow = Tables<"empresas">;
 export type CondicionRow = Tables<"condiciones_comerciales">;
@@ -29,6 +30,7 @@ export function useEmpresas() {
 
 export function useCreateEmpresa() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (input: {
       nombre: string;
@@ -61,9 +63,10 @@ export function useCreateEmpresa() {
       if (ccError) throw ccError;
       return empresa;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["empresas"] });
       toast.success("Empresa creada exitosamente");
+      logActivity.mutate({ action: "crear", entity_type: "empresa", entity_name: variables.nombre });
     },
     onError: (e) => toast.error("Error al crear empresa: " + e.message),
   });
@@ -71,6 +74,7 @@ export function useCreateEmpresa() {
 
 export function useUpdateEmpresa() {
   const qc = useQueryClient();
+  const logActivity = useLogActivity();
   return useMutation({
     mutationFn: async (input: {
       id: string;
@@ -88,9 +92,10 @@ export function useUpdateEmpresa() {
         .eq("id", input.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["empresas"] });
       toast.success("Empresa actualizada");
+      logActivity.mutate({ action: "editar", entity_type: "empresa", entity_id: variables.id, entity_name: variables.nombre });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
   });
