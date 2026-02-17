@@ -31,7 +31,6 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail, can
 
   const allNavItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
-    { path: "/empresas", label: "Empresas", icon: Building2, key: "empresas" },
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban, key: "proyectos" },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp, key: "finanzas" },
     { path: "/alertas", label: "Alertas", icon: Bell, key: "alertas" },
@@ -43,11 +42,12 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail, can
     : allNavItems;
 
   const adminSubItems = [
-    { path: "/usuarios", label: "Usuarios" },
-    { path: "/carga-masiva", label: "Carga Masiva" },
-    { path: "/categorias", label: "Categorías" },
     { path: "/clientes", label: "Clientes" },
+    { path: "/categorias", label: "Categorías" },
     { path: "/reporteria", label: "Reportería" },
+    { path: "/usuarios", label: "Usuarios" },
+    { path: "/empresas", label: "Empresas" },
+    { path: "/carga-masiva", label: "Carga Masiva" },
   ];
 
   const isAdminPathActive = adminSubItems.some((i) => location.pathname === i.path);
