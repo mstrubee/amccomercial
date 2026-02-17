@@ -39,6 +39,20 @@ serve(async (req) => {
       });
     }
 
+    if (contactos.length > 100) {
+      return new Response(JSON.stringify({ error: "Máximo 100 contactos por solicitud" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    for (const c of contactos) {
+      if (!c || typeof c !== "object") {
+        return new Response(JSON.stringify({ error: "Formato de contacto inválido" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
