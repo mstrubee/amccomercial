@@ -144,7 +144,7 @@ export function useCreateAlerta() {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta creada exitosamente");
-      logActivity.mutate({ action: "crear", entity_type: "alerta", entity_name: variables.titulo });
+      logActivity.mutate({ action: "crear", entity_type: "alerta", entity_name: variables.titulo, details: variables.proyecto_id });
     },
     onError: (e) => toast.error("Error al crear alerta: " + e.message),
   });
@@ -168,7 +168,7 @@ export function useUpdateAlerta() {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       toast.success("Alerta actualizada");
-      logActivity.mutate({ action: "editar", entity_type: "alerta", entity_id: variables.id, entity_name: variables.titulo });
+      logActivity.mutate({ action: "editar", entity_type: "alerta", entity_id: variables.id, entity_name: variables.titulo, details: variables.proyecto_id });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
   });
