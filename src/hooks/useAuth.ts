@@ -72,6 +72,7 @@ export function useAuth() {
   };
 
   const isAdmin = roles.includes("admin");
+  const isUsuarioTipo1 = roles.includes("usuario_tipo_1");
 
   // Helper: check if a section is visible
   const canAccessSection = (sectionKey: string): boolean => {
@@ -107,7 +108,7 @@ export function useAuth() {
   };
 
   return {
-    user, session, loading, roles, isAdmin, permissions,
+    user, session, loading, roles, isAdmin, isUsuarioTipo1, permissions,
     canAccessSection, canSeeDashboardWidget, canEdit, canSeeEmpresa,
     signIn, signOut,
   };

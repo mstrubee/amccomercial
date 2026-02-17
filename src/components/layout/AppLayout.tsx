@@ -19,12 +19,13 @@ import logoAmc from "@/assets/logo-amc.png";
 interface Props {
   children: React.ReactNode;
   isAdmin: boolean;
+  isUsuarioTipo1?: boolean;
   onSignOut: () => void;
   userEmail: string;
   canAccessSection?: (key: string) => boolean;
 }
 
-export default function AppLayout({ children, isAdmin, onSignOut, userEmail, canAccessSection }: Props) {
+export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut, userEmail, canAccessSection }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const location = useLocation();
@@ -41,15 +42,22 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail, can
     ? allNavItems.filter(item => canAccessSection(item.key))
     : allNavItems;
 
-  const adminSubItems = [
-    { path: "/clientes", label: "Clientes" },
-    { path: "/categorias", label: "Categorías" },
-    { path: "/reporteria", label: "Reportería" },
-    { path: "/usuarios", label: "Usuarios" },
-    { path: "/empresas", label: "Empresas" },
-    { path: "/carga-masiva", label: "Carga Masiva" },
+  const allAdminSubItems = [
+    { path: "/clientes", label: "Clientes", allowTipo1: true },
+    { path: "/categorias", label: "Categorías", allowTipo1: false },
+    { path: "/reporteria", label: "Reportería", allowTipo1: false },
+    { path: "/usuarios", label: "Usuarios", allowTipo1: false },
+    { path: "/empresas", label: "Empresas", allowTipo1: false },
+    { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false },
   ];
 
+  const adminSubItems = isAdmin
+    ? allAdminSubItems
+    : isUsuarioTipo1
+      ? allAdminSubItems.filter(i => i.allowTipo1)
+      : [];
+
+  const showAdminSection = adminSubItems.length > 0;
   const isAdminPathActive = adminSubItems.some((i) => location.pathname === i.path);
 
   return (
@@ -98,7 +106,7 @@ export default function AppLayout({ children, isAdmin, onSignOut, userEmail, can
           })}
 
           {/* Admin dropdown */}
-          {isAdmin && (
+          {showAdminSection && (
             <div>
               <button
                 onClick={() => setAdminOpen(!adminOpen)}

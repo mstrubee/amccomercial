@@ -23,7 +23,7 @@ import { Loader2 } from "lucide-react";
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { user, loading, isAdmin, signIn, signOut, canAccessSection } = useAuth();
+  const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
 
   if (loading) {
     return (
@@ -38,7 +38,7 @@ function AppRoutes() {
   }
 
   return (
-    <AppLayout isAdmin={isAdmin} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
+    <AppLayout isAdmin={isAdmin} isUsuarioTipo1={isUsuarioTipo1} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
       <Routes>
         <Route path="/" element={canAccessSection("dashboard") ? <Dashboard /> : <Navigate to={canAccessSection("proyectos") ? "/proyectos" : canAccessSection("empresas") ? "/empresas" : canAccessSection("finanzas") ? "/finanzas" : canAccessSection("alertas") ? "/alertas" : "/"} replace />} />
         {canAccessSection("empresas") && <Route path="/empresas" element={<Empresas />} />}
@@ -48,7 +48,7 @@ function AppRoutes() {
         {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
         {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
-        {isAdmin && <Route path="/clientes" element={<Clientes />} />}
+        {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
         {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
         <Route path="*" element={<NotFound />} />
       </Routes>
