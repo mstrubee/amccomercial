@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,14 +36,15 @@ export default function Clientes() {
   }
 
   const filtered = (clientes || []).filter((c) => {
-    const matchSearch = c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      c.contacto.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase());
+    const contactoMatch = (c.contactos_cliente || []).some(ct =>
+      ct.contacto.toLowerCase().includes(search.toLowerCase()) ||
+      ct.email.toLowerCase().includes(search.toLowerCase())
+    );
+    const matchSearch = c.nombre.toLowerCase().includes(search.toLowerCase()) || contactoMatch;
     const matchCat = filterCat === "Todas" || c.categoria_id === filterCat;
     return matchSearch && matchCat;
   });
 
-  // Group by category
   const grouped = (categorias || []).map((cat) => ({
     cat,
     items: filtered.filter((c) => c.categoria_id === cat.id),
@@ -107,19 +108,29 @@ export default function Clientes() {
                         <thead>
                           <tr className="border-t border-border bg-secondary/20">
                             <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Nombre</th>
-                            <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Contacto</th>
-                            <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Email</th>
-                            <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Teléfono</th>
+                            <th className="text-left px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Contactos</th>
                             <th className="text-right px-5 py-2 text-xs font-medium text-muted-foreground uppercase">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {items.map((c) => (
-                            <tr key={c.id} className="hover:bg-secondary/20 transition-colors">
+                            <tr key={c.id} className="hover:bg-secondary/20 transition-colors align-top">
                               <td className="px-5 py-2.5 font-medium text-card-foreground">{c.nombre}</td>
-                              <td className="px-5 py-2.5 text-muted-foreground">{c.contacto || "—"}</td>
-                              <td className="px-5 py-2.5 text-muted-foreground">{c.email || "—"}</td>
-                              <td className="px-5 py-2.5 text-muted-foreground">{c.telefono || "—"}</td>
+                              <td className="px-5 py-2.5">
+                                {(c.contactos_cliente || []).length === 0 ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {c.contactos_cliente.map((ct, i) => (
+                                      <div key={ct.id} className="flex items-center gap-3 text-xs text-muted-foreground">
+                                        <span className="text-card-foreground font-medium min-w-[100px]">{ct.contacto || "—"}</span>
+                                        <span>{ct.email || "—"}</span>
+                                        <span>{ct.telefono || "—"}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
                               <td className="px-5 py-2.5 text-right">
                                 <div className="flex justify-end gap-1">
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditTarget(c); setShowForm(true); }}>
@@ -149,7 +160,6 @@ export default function Clientes() {
         )}
       </div>
 
-      {/* Client form */}
       <ClienteFormDialog
         open={showForm}
         onOpenChange={setShowForm}
@@ -165,7 +175,6 @@ export default function Clientes() {
         }}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -181,58 +190,61 @@ export default function Clientes() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Category manager */}
       <CategoriaClienteManager open={showCatManager} onOpenChange={setShowCatManager} />
     </div>
   );
 }
 
-/* ── Client Form Dialog ── */
+/* ── Client Form Dialog with multiple contacts ── */
 function ClienteFormDialog({ open, onOpenChange, editTarget, categorias, isLoading, onSubmit }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editTarget: ClienteWithCategoria | null;
   categorias: CategoriaCliente[];
   isLoading: boolean;
-  onSubmit: (data: { categoria_id: string; nombre: string; contacto: string; email: string; telefono: string }) => void;
+  onSubmit: (data: { categoria_id: string; nombre: string; contactos: { contacto: string; email: string; telefono: string }[] }) => void;
 }) {
   const [categoriaId, setCategoriaId] = useState("");
   const [nombre, setNombre] = useState("");
-  const [contacto, setContacto] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefono, setTelefono] = useState("");
+  const [contactos, setContactos] = useState<{ contacto: string; email: string; telefono: string }[]>([{ contacto: "", email: "", telefono: "" }]);
 
   const reset = () => {
     if (editTarget) {
       setCategoriaId(editTarget.categoria_id);
       setNombre(editTarget.nombre);
-      setContacto(editTarget.contacto);
-      setEmail(editTarget.email);
-      setTelefono(editTarget.telefono);
+      const cts = (editTarget.contactos_cliente || []).map(c => ({ contacto: c.contacto, email: c.email, telefono: c.telefono }));
+      setContactos(cts.length > 0 ? cts : [{ contacto: "", email: "", telefono: "" }]);
     } else {
       setCategoriaId(categorias[0]?.id || "");
-      setNombre(""); setContacto(""); setEmail(""); setTelefono("");
+      setNombre("");
+      setContactos([{ contacto: "", email: "", telefono: "" }]);
     }
   };
 
-  // biome-ignore lint: reset form state when dialog opens or editTarget changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useState(() => { reset(); });
+  const updateContacto = (idx: number, field: string, value: string) => {
+    setContactos(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+  };
+
+  const addContacto = () => setContactos(prev => [...prev, { contacto: "", email: "", telefono: "" }]);
+  const removeContacto = (idx: number) => setContactos(prev => prev.filter((_, i) => i !== idx));
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (v) reset(); onOpenChange(v); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editTarget ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); if (!nombre.trim() || !categoriaId) return; onSubmit({ categoria_id: categoriaId, nombre: nombre.trim(), contacto, email, telefono }); }} className="space-y-4">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (!nombre.trim() || !categoriaId) return;
+          const validContactos = contactos.filter(c => c.contacto || c.email || c.telefono);
+          onSubmit({ categoria_id: categoriaId, nombre: nombre.trim(), contactos: validContactos });
+        }} className="space-y-4">
           <div className="space-y-1">
             <Label>Categoría *</Label>
             <select
               className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              required
+              value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} required
             >
               <option value="">Seleccionar...</option>
               {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -242,18 +254,33 @@ function ClienteFormDialog({ open, onOpenChange, editTarget, categorias, isLoadi
             <Label>Nombre *</Label>
             <Input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
           </div>
-          <div className="space-y-1">
-            <Label>Contacto</Label>
-            <Input value={contacto} onChange={(e) => setContacto(e.target.value)} />
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Contactos</Label>
+              <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addContacto}>
+                <Plus className="w-3 h-3" /> Agregar contacto
+              </Button>
+            </div>
+            {contactos.map((ct, idx) => (
+              <div key={idx} className="relative rounded-lg border border-border p-3 space-y-2">
+                {contactos.length > 1 && (
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground font-medium">Contacto {idx + 1}</span>
+                    <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive hover:text-destructive" onClick={() => removeContacto(idx)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+                <Input placeholder="Nombre contacto" value={ct.contacto} onChange={(e) => updateContacto(idx, "contacto", e.target.value)} className="h-8 text-sm" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Email" type="email" value={ct.email} onChange={(e) => updateContacto(idx, "email", e.target.value)} className="h-8 text-sm" />
+                  <Input placeholder="Teléfono" value={ct.telefono} onChange={(e) => updateContacto(idx, "telefono", e.target.value)} className="h-8 text-sm" />
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="space-y-1">
-            <Label>Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Teléfono</Label>
-            <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar"}</Button>
