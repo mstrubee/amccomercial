@@ -22,7 +22,7 @@ import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import CategoriasManagerDialog from "./CategoriasManagerDialog";
 import { REGIONES_CHILE } from "@/data/chile-geo";
-import { useClientes, useCategoriasCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
+import { useClientes, useCategoriasCliente, useCreateCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
 
 interface Props {
   open: boolean;
@@ -768,16 +768,16 @@ function ContactosSection(props: ContactosSectionProps) {
     <div className="space-y-4">
       {sections.map(({ title, values, setters }) => {
         const availableClientes = getClientesForCategory(title);
+        const catForTitle = categoriasCliente?.find((c) => c.nombre === CONTACTO_CAT_MAP[title]);
         return (
           <div key={title} className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
-              {availableClientes.length > 0 && (
-                <ClientePicker
-                  clientes={availableClientes}
-                  onSelect={(c) => applyCliente(c, setters)}
-                />
-              )}
+              <ClientePicker
+                clientes={availableClientes}
+                onSelect={(c) => applyCliente(c, setters)}
+                categoryId={catForTitle?.id}
+              />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input placeholder="Nombre" value={values[0]} onChange={(e) => setters[0](e.target.value)} />
@@ -792,15 +792,36 @@ function ContactosSection(props: ContactosSectionProps) {
   );
 }
 
-/* ── Client Picker Popover ── */
-function ClientePicker({ clientes, onSelect }: { clientes: ClienteWithCategoria[]; onSelect: (c: ClienteWithCategoria) => void }) {
+/* ── Client Picker Popover with create new ── */
+function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWithCategoria[]; onSelect: (c: ClienteWithCategoria) => void; categoryId?: string }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [newNombre, setNewNombre] = useState("");
+  const [newContacto, setNewContacto] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newTelefono, setNewTelefono] = useState("");
+  const createCliente = useCreateCliente();
 
   const filtered = clientes.filter((c) =>
     c.nombre.toLowerCase().includes(search.toLowerCase()) ||
     c.contacto.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleCreate = () => {
+    if (!newNombre.trim() || !categoryId) return;
+    createCliente.mutate(
+      { categoria_id: categoryId, nombre: newNombre.trim(), contacto: newContacto, email: newEmail, telefono: newTelefono },
+      {
+        onSuccess: (data: any) => {
+          onSelect({ ...data, categorias_cliente: {} } as any);
+          setShowCreate(false);
+          setNewNombre(""); setNewContacto(""); setNewEmail(""); setNewTelefono("");
+          setOpen(false);
+        },
+      }
+    );
+  };
 
   return (
     <div className="relative">
@@ -808,8 +829,8 @@ function ClientePicker({ clientes, onSelect }: { clientes: ClienteWithCategoria[
         <UserPlus className="w-3 h-3" /> Agregar cliente
       </Button>
       {open && (
-        <div className="absolute right-0 top-7 z-50 w-64 rounded-md border border-border bg-popover shadow-md">
-          <div className="p-2">
+        <div className="absolute right-0 top-7 z-50 w-72 rounded-md border border-border bg-popover shadow-md">
+          <div className="p-2 space-y-1">
             <Input
               placeholder="Buscar cliente..."
               value={search}
@@ -818,23 +839,45 @@ function ClientePicker({ clientes, onSelect }: { clientes: ClienteWithCategoria[
               autoFocus
             />
           </div>
-          <div className="max-h-[150px] overflow-y-auto">
-            {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
-            ) : (
-              filtered.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors"
-                  onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
-                >
-                  <div className="font-medium text-popover-foreground">{c.nombre}</div>
-                  {c.contacto && <div className="text-muted-foreground">{c.contacto}</div>}
-                </button>
-              ))
-            )}
-          </div>
+          {!showCreate ? (
+            <>
+              <div className="max-h-[150px] overflow-y-auto">
+                {filtered.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+                ) : (
+                  filtered.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+                      onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
+                    >
+                      <div className="font-medium text-popover-foreground">{c.nombre}</div>
+                      {c.contacto && <div className="text-muted-foreground">{c.contacto}</div>}
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="border-t p-2">
+                <Button type="button" variant="ghost" size="sm" className="w-full h-7 text-xs gap-1" onClick={() => setShowCreate(true)}>
+                  <UserPlus className="w-3 h-3" /> Crear nuevo cliente
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="p-2 space-y-2">
+              <Input placeholder="Nombre *" value={newNombre} onChange={(e) => setNewNombre(e.target.value)} className="h-7 text-xs" />
+              <Input placeholder="Contacto" value={newContacto} onChange={(e) => setNewContacto(e.target.value)} className="h-7 text-xs" />
+              <Input placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="h-7 text-xs" />
+              <Input placeholder="Teléfono" value={newTelefono} onChange={(e) => setNewTelefono(e.target.value)} className="h-7 text-xs" />
+              <div className="flex gap-1">
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowCreate(false)}>Cancelar</Button>
+                <Button type="button" size="sm" className="h-7 text-xs flex-1" onClick={handleCreate} disabled={!newNombre.trim() || createCliente.isPending}>
+                  {createCliente.isPending ? "..." : "Crear"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
