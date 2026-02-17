@@ -97,7 +97,7 @@ export default function Clientes() {
 
       <div className="space-y-3">
         {grouped.map(({ cat, items }) => {
-          const isExpanded = expanded[cat.id] ?? true;
+          const isExpanded = expanded[cat.id] ?? false;
           return (
             <motion.div key={cat.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
               <button
