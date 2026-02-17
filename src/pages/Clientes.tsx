@@ -82,7 +82,27 @@ export default function Clientes() {
       <div className="flex gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nombre, contacto o email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input
+            placeholder="Buscar por nombre, contacto o email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && search.trim()) {
+                const matchingCatIds: Record<string, boolean> = {};
+                (clientes || []).forEach((c) => {
+                  const contactoMatch = (c.contactos_cliente || []).some(ct =>
+                    ct.contacto.toLowerCase().includes(search.toLowerCase()) ||
+                    ct.email.toLowerCase().includes(search.toLowerCase())
+                  );
+                  if (c.nombre.toLowerCase().includes(search.toLowerCase()) || contactoMatch) {
+                    matchingCatIds[c.categoria_id] = true;
+                  }
+                });
+                setExpanded(matchingCatIds);
+              }
+            }}
+            className="pl-9"
+          />
         </div>
         <Select value={filterCat} onValueChange={setFilterCat}>
           <SelectTrigger className="w-[200px] h-10">
