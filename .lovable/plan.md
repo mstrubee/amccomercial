@@ -1,54 +1,120 @@
 
 
-## Problema
+# Sistema de Reporteria de Actividad de Usuarios
 
-Al escribir notas, cada autoguardado (cada 800ms) dispara una invalidacion completa de la query `["proyectos"]`, lo que provoca:
+## Objetivo
+Crear un sistema que registre automaticamente las acciones realizadas por cada usuario (crear, editar, eliminar registros) y permita al admin consultar el historial de actividad por usuario y por dia. El admin podra configurar cuantos dias se conserva el historial.
 
-1. Se re-descarga toda la tabla de proyectos desde la base de datos
-2. El componente se re-renderiza con los datos nuevos
-3. El `useEffect` que sincroniza `proyecto.notas` sobreescribe el texto local del textarea
-4. El usuario pierde lo que estaba escribiendo o ve comportamiento erratico
+## Componentes del Sistema
 
-## Solucion
+### 1. Nueva tabla `activity_log`
+Almacenara cada accion realizada por los usuarios:
+- `id` (uuid, PK)
+- `user_id` (uuid, referencia al usuario)
+- `action` (text: "crear", "editar", "eliminar", "completar")
+- `entity_type` (text: "proyecto", "empresa", "alerta", "condicion", etc.)
+- `entity_id` (uuid, ID del registro afectado)
+- `entity_name` (text, nombre/titulo del registro para referencia rapida)
+- `details` (text, detalles adicionales opcionales)
+- `created_at` (timestamptz)
 
-Eliminar la invalidacion de queries en el autoguardado de notas, y en su lugar usar actualizacion optimista local. Solo sincronizar desde el servidor cuando el usuario no esta escribiendo.
+Politicas RLS:
+- Solo admins pueden leer los registros
+- Todos los usuarios autenticados pueden insertar (para que se registren sus propias acciones)
 
-### Cambios en `src/hooks/useProyectos.ts`
+### 2. Tabla `app_settings` para configuracion
+Almacenara la configuracion del tiempo de retencion:
+- `id` (uuid, PK)
+- `key` (text, unique) - ej: "activity_log_retention_days"
+- `value` (text) - ej: "90"
+- `updated_at` (timestamptz)
 
-**`useUpdateNotas` y `useUpdateNotaGrupo`**: Reemplazar `queryClient.invalidateQueries` en `onSuccess` por una actualizacion optimista usando `queryClient.setQueryData`. Esto actualiza el cache local sin re-descargar datos, evitando el re-render destructivo.
+Politicas RLS: solo admins pueden leer y escribir.
 
+### 3. Hook `useActivityLog`
+Un hook reutilizable que expone una funcion `logActivity(action, entityType, entityId, entityName, details?)`. Se integrara en los hooks existentes (`useProyectos`, `useEmpresas`, `useAlertas`, etc.) para registrar automaticamente las acciones de crear, editar y eliminar.
+
+### 4. Nueva pagina `Reporteria` (solo admin)
+Accesible desde el menu de Administracion, mostrara:
+- Selector de fecha (dia o rango)
+- Selector de usuario (filtro)
+- Tabla con las acciones registradas: hora, usuario, accion, tipo de entidad, nombre del registro
+- Configuracion del tiempo de retencion del historial (en dias)
+
+### 5. Edge Function `cleanup-activity-log`
+Funcion programable que eliminara registros mas antiguos que el periodo de retencion configurado. Se podra invocar manualmente desde la UI del admin o se ejecutara al cargar la pagina de reporteria.
+
+### 6. Integracion en el menu lateral
+Agregar "Reporteria" como sub-item dentro del dropdown de Administracion.
+
+---
+
+## Detalles Tecnicos
+
+### Migracion SQL
+```sql
+-- Tabla de log de actividad
+CREATE TABLE public.activity_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  action text NOT NULL,
+  entity_type text NOT NULL,
+  entity_id uuid,
+  entity_name text DEFAULT '',
+  details text DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
+
+-- Solo admins pueden leer
+CREATE POLICY "Admins can read activity_log"
+  ON public.activity_log FOR SELECT
+  USING (has_role(auth.uid(), 'admin'));
+
+-- Usuarios autenticados pueden insertar sus propias acciones
+CREATE POLICY "Users can insert own activity"
+  ON public.activity_log FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Solo admins pueden eliminar (para limpieza)
+CREATE POLICY "Admins can delete activity_log"
+  ON public.activity_log FOR DELETE
+  USING (has_role(auth.uid(), 'admin'));
+
+-- Tabla de configuracion
+CREATE TABLE public.app_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  key text UNIQUE NOT NULL,
+  value text NOT NULL DEFAULT '',
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage app_settings"
+  ON public.app_settings FOR ALL
+  USING (has_role(auth.uid(), 'admin'))
+  WITH CHECK (has_role(auth.uid(), 'admin'));
+
+-- Valor por defecto de retencion
+INSERT INTO public.app_settings (key, value) VALUES ('activity_log_retention_days', '90');
 ```
-onSuccess: (_data, variables) => {
-  qc.setQueryData(["proyectos"], (old) => {
-    // actualizar solo el campo notas del proyecto correspondiente
-  });
-}
-```
 
-### Cambios en `src/pages/Proyectos.tsx`
+### Hooks a modificar
+Se agregaran llamadas a `logActivity()` en las mutaciones `onSuccess` de:
+- `useProyectos` (crear, editar proyecto)
+- `useEmpresas` (crear, editar empresa)
+- `useAlertas` (crear, editar, completar, eliminar alerta)
 
-**`NotasCell` y `NotaGrupoCell`**: 
+### Archivos nuevos
+- `src/hooks/useActivityLog.ts` - Hook para registrar y consultar actividad
+- `src/pages/Reporteria.tsx` - Pagina de reporteria para admin
 
-1. Agregar un ref `isFocusedRef` para rastrear si el textarea tiene foco
-2. Modificar el `useEffect` de sincronizacion para que NO actualice el estado local mientras el usuario esta escribiendo (cuando el textarea tiene foco)
-3. Esto previene que datos del servidor sobreescriban lo que el usuario esta tipeando
-
-```
-const isFocusedRef = useRef(false);
-
-useEffect(() => {
-  if (!isFocusedRef.current) {
-    setValue((proyecto as any).notas || "");
-  }
-}, [(proyecto as any).notas]);
-```
-
-### Detalle tecnico
-
-| Componente | Cambio | Razon |
-|---|---|---|
-| `useUpdateNotas` | `setQueryData` en vez de `invalidateQueries` | Evita refetch completo |
-| `useUpdateNotaGrupo` | `setQueryData` en vez de `invalidateQueries` | Evita refetch completo |
-| `NotasCell` | Guard con `isFocusedRef` en useEffect | No sobreescribir texto durante escritura |
-| `NotaGrupoCell` | Guard con `isFocusedRef` en useEffect | No sobreescribir texto durante escritura |
+### Archivos a modificar
+- `src/App.tsx` - Agregar ruta `/reporteria`
+- `src/components/layout/AppLayout.tsx` - Agregar "Reporteria" al menu admin
+- `src/hooks/useProyectos.ts` - Integrar logging
+- `src/hooks/useEmpresas.ts` - Integrar logging
+- `src/hooks/useAlertas.ts` - Integrar logging
 
