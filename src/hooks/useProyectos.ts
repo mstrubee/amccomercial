@@ -139,16 +139,30 @@ export function useUpdateProyecto() {
         .eq("id", id);
       if (error) throw error;
 
-      const { error: delError } = await supabase
+      // Get current links to find which to remove
+      const { data: currentLinks } = await supabase
         .from("proyecto_empresas")
-        .delete()
+        .select("empresa_id")
         .eq("proyecto_id", id);
-      if (delError) throw delError;
+
+      const newEmpresaIds = new Set(empresa_links.map((el) => el.empresa_id));
+      const toRemove = (currentLinks || [])
+        .filter((cl) => !newEmpresaIds.has(cl.empresa_id))
+        .map((cl) => cl.empresa_id);
+
+      if (toRemove.length > 0) {
+        const { error: delError } = await supabase
+          .from("proyecto_empresas")
+          .delete()
+          .eq("proyecto_id", id)
+          .in("empresa_id", toRemove);
+        if (delError) throw delError;
+      }
 
       if (empresa_links.length > 0) {
         const { error: linkError } = await supabase
           .from("proyecto_empresas")
-          .insert(empresa_links.map((el) => ({
+          .upsert(empresa_links.map((el) => ({
             proyecto_id: id,
             empresa_id: el.empresa_id,
             monto_cotizacion: el.monto_cotizacion || 0,
@@ -156,7 +170,7 @@ export function useUpdateProyecto() {
             categoria_id: el.categoria_id || null,
             subcategoria_id: el.subcategoria_id || null,
             fecha_categoria: el.fecha_categoria || null,
-          })));
+          })), { onConflict: "proyecto_id,empresa_id" });
         if (linkError) throw linkError;
       }
     },
