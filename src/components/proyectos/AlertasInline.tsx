@@ -93,9 +93,9 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
       )}
 
       <div className="flex gap-1 mt-0.5 items-center flex-wrap">
-        {!alerta.completada && onComplete && (
-          <button className="text-muted-foreground hover:text-emerald-600 p-0.5" onClick={(e) => { e.stopPropagation(); onComplete(alerta); }} title="Completar">
-            <Circle className="w-3 h-3" />
+        {onComplete && (
+          <button className={cn("p-0.5", alerta.completada ? "text-emerald-600 hover:text-amber-600" : "text-muted-foreground hover:text-emerald-600")} onClick={(e) => { e.stopPropagation(); onComplete(alerta); }} title={alerta.completada ? "Reactivar" : "Completar"}>
+            {alerta.completada ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
           </button>
         )}
         {onEdit && (
