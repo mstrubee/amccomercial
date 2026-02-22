@@ -1,63 +1,71 @@
 
 
-## Plan: Datos de "Ganado" al clasificar un proyecto
+## Plan: Botones personalizados en categorias y subcategorias
 
 ### Resumen
 
-Cuando un usuario selecciona la subcategoria "Ganado" para una empresa en un proyecto, el sistema abrira un dialogo para ingresar **Presupuesto** (numero), **OP** (texto) y **Fecha** (por defecto hoy). Estos datos se almacenan en `proyecto_empresas` y son editables/eliminables posteriormente.
+Agregar la posibilidad de configurar un "boton" visual en cada categoria y subcategoria desde la seccion Categorias. Este boton se mostrara en las lineas hijas de la tabla de Proyectos, en una nueva columna dedicada.
 
 ---
 
 ### 1. Migracion de base de datos
 
-Agregar 3 columnas a la tabla `proyecto_empresas`:
+Agregar 3 columnas nullable a **ambas** tablas:
 
-```text
-ganado_presupuesto  | numeric  | nullable | default null
-ganado_op           | text     | nullable | default null
-ganado_fecha        | date     | nullable | default null
-```
+**`categorias_proyecto`:**
+- `boton_label` (text, nullable, default null)
+- `boton_bg_color` (text, nullable, default null)
+- `boton_text_color` (text, nullable, default null)
 
-No se requieren nuevas politicas RLS ya que las existentes cubren las operaciones sobre `proyecto_empresas`.
+**`subcategorias_proyecto`:**
+- `boton_label` (text, nullable, default null)
+- `boton_bg_color` (text, nullable, default null)
+- `boton_text_color` (text, nullable, default null)
 
----
-
-### 2. Cambios en tipos y hooks
-
-**`src/hooks/useProyectos.ts`**:
-- Agregar `ganado_presupuesto`, `ganado_op`, `ganado_fecha` al tipo `EmpresaLink`
-- Incluir estos campos en los `insert`/`upsert` de `proyecto_empresas` en `useCreateProyecto` y `useUpdateProyecto`
+No se requieren nuevas politicas RLS (las existentes ya cubren lectura/escritura).
 
 ---
 
-### 3. Dialog "Datos de Ganado" en ProyectoFormDialog
+### 2. Hooks de categorias (`src/hooks/useCategorias.ts`)
 
-**`src/components/proyectos/ProyectoFormDialog.tsx`**:
-
-- Agregar `ganado_presupuesto`, `ganado_op`, `ganado_fecha` al tipo `EmpresaRow`
-- En `handleCategoryChange`: cuando la nueva subcategoria es "Ganado" (`5ede8de9-...`), abrir un dialog interno para capturar los datos antes de confirmar el cambio
-- El dialog contiene:
-  - Input numerico "Presupuesto" (en UF, con conversion CLP)
-  - Input texto "OP"
-  - Input date "Fecha" (por defecto: hoy)
-  - Botones Cancelar (revierte la seleccion) y Confirmar
-- Si el usuario cancela, la categoria vuelve al valor anterior
-- Cuando la categoria deja de ser "Ganado", los campos se limpian automaticamente
-
-**Visualizacion inline**: Cuando una empresa ya tiene datos de Ganado, mostrar los valores debajo del selector de categoria (Presupuesto, OP, Fecha) con posibilidad de editar (abre el mismo dialog) o limpiar los datos.
+- Agregar los 3 campos de boton a los tipos `useUpdateCategoria` y `useUpdateSubcategoria`
+- Incluirlos en las mutaciones de update
 
 ---
 
-### 4. Propagacion al submit
+### 3. Formulario de edicion en CategoriasManagerDialog
 
-En `handleSubmit`, incluir `ganado_presupuesto`, `ganado_op`, `ganado_fecha` en el objeto `empresa_links` que se envia al hook de creacion/actualizacion.
+**En el formulario de edicion de categoria** (cuando `editingCat` esta activo):
+- Agregar seccion "Boton personalizado" con:
+  - Input para el nombre/label del boton
+  - Selector de color de fondo
+  - Selector de color de texto
+  - Preview del boton con los estilos aplicados
+  - Boton para eliminar la configuracion del boton (poner los 3 campos en null)
+- Si no hay boton configurado, mostrar un enlace "Agregar Boton" que expande los campos
+
+**Idem para el formulario de edicion de subcategoria.**
+
+Los campos de boton se envian junto con el resto de datos al guardar.
+
+---
+
+### 4. Nueva columna en la tabla de Proyectos
+
+**`src/pages/Proyectos.tsx`:**
+- Agregar una columna con header vacio (o "Accion") en el `<thead>` de la tabla, antes de la columna "Acciones"
+- En las **lineas hijas** (child rows, donde se renderiza cada empresa): mostrar el boton configurado si la subcategoria o categoria de esa empresa tiene un boton definido
+  - Prioridad: si la subcategoria tiene boton, usar ese; si no, usar el de la categoria padre
+  - Si ninguno tiene boton, la celda queda vacia
+- El boton se renderiza con los estilos personalizados (`backgroundColor`, `color`) y el label configurado
+- En las filas agrupadas (header de grupo) y filas individuales no se muestra boton (celda vacia)
 
 ---
 
 ### Seccion tecnica
 
-- La constante `GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74"` se usara para detectar cuando se selecciona "Ganado"
-- Los datos se persisten en `proyecto_empresas` junto con los demas campos comerciales
-- El dialog es un componente interno del `ProyectoFormDialog` (no un componente separado) para simplicidad
-- Los campos se inicializan desde `initialData.proyecto_empresas` al abrir el formulario en modo edicion
+- La logica de resolucion del boton en child rows usa los datos de `categorias_proyecto` y `subcategorias_proyecto` que ya vienen cargados via `useCategorias()`
+- Se cruza `pe.subcategoria_id` y `pe.categoria_id` contra el listado de categorias para encontrar la configuracion de boton
+- El boton es puramente visual por ahora (no tiene accion al hacer click), pero queda preparado para agregar funcionalidad futura
+- Los campos `boton_*` son nullable: cuando son null significa "sin boton configurado"
 
