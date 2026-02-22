@@ -94,6 +94,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
           )}
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {/* Proyecto */}
           <div className="space-y-2">
             <Label>Proyecto *</Label>
             <Popover>
@@ -124,6 +125,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
             </Popover>
           </div>
 
+          {/* Empresa */}
           <div className="space-y-2">
             <Label>Empresa (opcional)</Label>
             <Select value={empresaId} onValueChange={setEmpresaId}>
@@ -137,32 +139,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Texto de la alerta * (máx. 100 caracteres)</Label>
-            <Textarea
-              value={texto}
-              onChange={(e) => setTexto(e.target.value.slice(0, 100))}
-              maxLength={100}
-              placeholder="Descripción breve de la alerta..."
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground text-right">{texto.length}/100</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Usuario Responsable</Label>
-            <Select value={responsableId} onValueChange={setResponsableId}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar responsable" /></SelectTrigger>
-              <SelectContent>
-                {profiles.map((p) => (
-                  <SelectItem key={p.user_id} value={p.user_id}>
-                    {p.display_name || p.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
+          {/* Clasificación */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Clasificación</Label>
@@ -190,6 +167,35 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
             </div>
           </div>
 
+          {/* Texto de Alerta */}
+          <div className="space-y-2">
+            <Label>Texto de la alerta * (máx. 100 caracteres)</Label>
+            <Textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value.slice(0, 100))}
+              maxLength={100}
+              placeholder="Descripción breve de la alerta..."
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground text-right">{texto.length}/100</p>
+          </div>
+
+          {/* Usuario Responsable */}
+          <div className="space-y-2">
+            <Label>Usuario Responsable</Label>
+            <Select value={responsableId} onValueChange={setResponsableId}>
+              <SelectTrigger><SelectValue placeholder="Seleccionar responsable" /></SelectTrigger>
+              <SelectContent>
+                {profiles.map((p) => (
+                  <SelectItem key={p.user_id} value={p.user_id}>
+                    {p.display_name || p.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Fecha de Seguimiento */}
           <div className="space-y-2">
             <Label>Fecha de Seguimiento *</Label>
             <Input
