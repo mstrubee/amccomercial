@@ -1,40 +1,30 @@
 
 
-## Resumen
+## Fix: Categoría Comercial no reconocida al completar alerta
 
-El cambio anterior aplicó checkboxes de seleccion multiple en el lugar equivocado. Lo que se necesita es:
+### Problema
 
-1. **Formulario de creacion/edicion de alertas** -- Volver a seleccion unica de clasificacion (un solo Select, no checkboxes).
-2. **Filtro de clasificaciones en la Central de Alertas** -- Cambiar de Select unico a checkboxes multi-seleccion.
+Al completar una alerta y elegir "Completar y crear nueva", el diálogo no muestra la categoría comercial actual ni sugiere la siguiente. Esto ocurre porque el diálogo busca la categoría exclusivamente en la tabla `proyecto_empresas`, pero la categoría puede estar almacenada directamente en la alerta (campos `categoria_proyecto_id` / `subcategoria_proyecto_id`) y no haberse sincronizado a `proyecto_empresas`.
 
----
+### Solución
 
-## Cambios
+Modificar `CompleteAlertaDialog.tsx` para que use **ambas fuentes de datos** al determinar la categoría actual:
 
-### 1. Revertir AlertaFormDialog a seleccion unica
+1. Primero intentar con los campos propios de la alerta (`categoria_proyecto_id`, `subcategoria_proyecto_id`)
+2. Si no existen, usar como fallback el registro de `proyecto_empresas`
 
-En `src/components/alertas/AlertaFormDialog.tsx`:
+Esto garantiza que siempre se muestre la categoría actual correcta y que el motor de sugerencias (`getNextCategoriaComercial`) funcione para proponer el siguiente paso.
 
-- Eliminar el estado `selectedClasifs` (Set) y las funciones `toggleClasif` / `buildClasificaciones` / `encodeKey`.
-- Restaurar dos estados simples: `clasificacionId` y `subclasificacionId`.
-- Restaurar el UI con un Select para clasificacion y otro Select condicional para sub-clasificacion (como estaba antes del cambio).
-- Al enviar, construir el array `clasificaciones` con un solo elemento basado en la seleccion unica.
+### Cambios técnicos
 
-### 2. Filtro multi-seleccion en Alertas.tsx
+**Archivo: `src/components/alertas/CompleteAlertaDialog.tsx`**
 
-En `src/pages/Alertas.tsx`:
+- Modificar los `useMemo` de `currentCatInfo` y `suggested` para que prioricen los campos de la alerta (`alerta.categoria_proyecto_id`, `alerta.subcategoria_proyecto_id`) sobre los de `proyecto_empresas`.
+- En el cálculo de `suggested`, usar la categoría efectiva (de la alerta o de proyecto_empresas) como punto de partida para `getNextCategoriaComercial`.
+- Ajustar la condición `showCategorySection` para que no dependa exclusivamente de que `proyectoEmpresa` tenga datos, sino que también considere los campos de la alerta.
+- Asegurar que la query a `proyecto_empresas` siga activa como fallback pero no sea bloqueante si la alerta ya tiene la categoría.
 
-- Cambiar `filterClasificacion` de `string` a `Set<string>` para almacenar multiples selecciones.
-- Reemplazar el `<Select>` de clasificaciones por un `<Popover>` con checkboxes (similar al patron usado en otros filtros del proyecto, como los de empresa o categoria en Proyectos).
-- Cada clasificacion aparece como checkbox, con sub-clasificaciones indentadas debajo.
-- Actualizar la logica de filtrado en `useMemo` para verificar si la alerta tiene alguna clasificacion que coincida con cualquiera de las seleccionadas.
-- Mostrar un indicador del numero de clasificaciones seleccionadas en el boton del Popover.
-- Actualizar `saveFiltersAndNavigate` y la restauracion de filtros para serializar/deserializar el Set correctamente.
+**Archivo: `src/pages/Alertas.tsx`** (y `AlertaWidget.tsx`)
 
----
+- Al invocar `onCompleteAndCreate`, pasar también los campos de categoría comercial de la alerta completada como `createDefaults` para que el formulario de la nueva alerta herede la categoría avanzada.
 
-## Detalles Tecnicos
-
-- El hook `useAlertas.ts` y la tabla `alerta_clasificaciones` no requieren cambios -- siguen soportando multiples clasificaciones por alerta a nivel de datos, pero el formulario solo permite seleccionar una a la vez.
-- El filtro usara la misma codificacion `c:id` / `s:id` para las keys del Set de filtros multiples.
-- El patron de Popover con checkboxes seguira el mismo estilo usado en los filtros de proyectos (contenedor con scroll, max-h-[400px]).
