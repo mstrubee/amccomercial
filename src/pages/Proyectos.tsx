@@ -1082,12 +1082,16 @@ export default function Proyectos() {
         alerta={alertaCompleteTarget}
         open={!!alertaCompleteTarget}
         onClose={() => setAlertaCompleteTarget(null)}
+        mode={alertaCompleteTarget?.completada ? "uncomplete" : "complete"}
         categorias={categorias}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
           await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
           qc.invalidateQueries({ queryKey: ["proyectos"] });
         }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
+        onUncomplete={(id, newDate) => {
+          toggleCompletada.mutate({ id, completada: false });
+        }}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
           const next = clasificacionesAlerta
