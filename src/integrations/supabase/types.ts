@@ -95,6 +95,7 @@ export type Database = {
       }
       alertas: {
         Row: {
+          categoria_proyecto_id: string | null
           clasificacion_alerta_id: string | null
           completada: boolean
           completed_at: string | null
@@ -109,6 +110,7 @@ export type Database = {
           id: string
           parent_alerta_id: string | null
           proyecto_id: string
+          subcategoria_proyecto_id: string | null
           subclasificacion_alerta_id: string | null
           texto: string
           titulo: string
@@ -117,6 +119,7 @@ export type Database = {
           usuario_responsable_id: string
         }
         Insert: {
+          categoria_proyecto_id?: string | null
           clasificacion_alerta_id?: string | null
           completada?: boolean
           completed_at?: string | null
@@ -131,6 +134,7 @@ export type Database = {
           id?: string
           parent_alerta_id?: string | null
           proyecto_id: string
+          subcategoria_proyecto_id?: string | null
           subclasificacion_alerta_id?: string | null
           texto: string
           titulo?: string
@@ -139,6 +143,7 @@ export type Database = {
           usuario_responsable_id: string
         }
         Update: {
+          categoria_proyecto_id?: string | null
           clasificacion_alerta_id?: string | null
           completada?: boolean
           completed_at?: string | null
@@ -153,6 +158,7 @@ export type Database = {
           id?: string
           parent_alerta_id?: string | null
           proyecto_id?: string
+          subcategoria_proyecto_id?: string | null
           subclasificacion_alerta_id?: string | null
           texto?: string
           titulo?: string
@@ -161,6 +167,13 @@ export type Database = {
           usuario_responsable_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "alertas_categoria_proyecto_id_fkey"
+            columns: ["categoria_proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_proyecto"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "alertas_clasificacion_alerta_id_fkey"
             columns: ["clasificacion_alerta_id"]
@@ -187,6 +200,13 @@ export type Database = {
             columns: ["proyecto_id"]
             isOneToOne: false
             referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_subcategoria_proyecto_id_fkey"
+            columns: ["subcategoria_proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_proyecto"
             referencedColumns: ["id"]
           },
           {
