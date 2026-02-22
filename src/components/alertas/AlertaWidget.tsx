@@ -40,6 +40,7 @@ export default function AlertaWidget() {
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
+  const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -76,6 +77,10 @@ export default function AlertaWidget() {
 
   const handleSubmit = (data: AlertaInput & { id?: string }) => {
     if (data.empresa_id === "none") data.empresa_id = null;
+    if (pendingCompleteId) {
+      toggleCompletada.mutate({ id: pendingCompleteId, completada: true });
+      setPendingCompleteId(null);
+    }
     createAlerta.mutate(data);
   };
 
@@ -180,7 +185,7 @@ export default function AlertaWidget() {
         onClose={() => setCompleteTarget(null)}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
-          toggleCompletada.mutate({ id: a.id, completada: true });
+          setPendingCompleteId(a.id);
           setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
           setCreateDialogOpen(true);
         }}
@@ -188,7 +193,7 @@ export default function AlertaWidget() {
 
       <AlertaFormDialog
         open={createDialogOpen}
-        onClose={() => { setCreateDialogOpen(false); setCreateDefaults({}); }}
+        onClose={() => { setCreateDialogOpen(false); setCreateDefaults({}); setPendingCompleteId(null); }}
         onSubmit={handleSubmit}
         editTarget={null}
         proyectos={proyectosList}

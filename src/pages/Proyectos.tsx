@@ -89,6 +89,7 @@ export default function Proyectos() {
   const [alertaEditTarget, setAlertaEditTarget] = useState<AlertaWithRelations | null>(null);
   const [alertaDeleteTarget, setAlertaDeleteTarget] = useState<string | null>(null);
   const [alertaCompleteTarget, setAlertaCompleteTarget] = useState<AlertaWithRelations | null>(null);
+  const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
 
@@ -1007,8 +1008,12 @@ export default function Proyectos() {
       {alertaCreateContext && !alertaEditTarget && (
         <AlertaFormDialog
           open={!!alertaCreateContext}
-          onClose={() => setAlertaCreateContext(null)}
+          onClose={() => { setAlertaCreateContext(null); setPendingCompleteId(null); }}
           onSubmit={(data) => {
+            if (pendingCompleteId) {
+              toggleCompletada.mutate({ id: pendingCompleteId, completada: true });
+              setPendingCompleteId(null);
+            }
             createAlerta.mutate(data);
             setAlertaCreateContext(null);
           }}
@@ -1068,7 +1073,7 @@ export default function Proyectos() {
         onClose={() => setAlertaCompleteTarget(null)}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
-          toggleCompletada.mutate({ id: a.id, completada: true });
+          setPendingCompleteId(a.id);
           setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id });
         }}
       />
