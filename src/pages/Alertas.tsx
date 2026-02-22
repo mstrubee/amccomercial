@@ -87,6 +87,7 @@ export default function Alertas() {
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [completeMode, setCompleteMode] = useState<"complete" | "uncomplete">("complete");
   const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
+  const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -233,6 +234,10 @@ export default function Alertas() {
 
   const handleSubmit = (data: AlertaInput & { id?: string }) => {
     if (data.empresa_id === "none") data.empresa_id = null;
+    if (pendingCompleteId) {
+      toggleCompletada.mutate({ id: pendingCompleteId, completada: true });
+      setPendingCompleteId(null);
+    }
     if (data.id) {
       updateAlerta.mutate(data as AlertaInput & { id: string });
     } else {
@@ -489,7 +494,7 @@ export default function Alertas() {
       {/* Form Dialog */}
       <AlertaFormDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); }}
+        onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); setPendingCompleteId(null); }}
         onSubmit={handleSubmit}
         editTarget={editTarget}
         proyectos={proyectosList}
@@ -525,7 +530,7 @@ export default function Alertas() {
         mode={completeMode}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
-          toggleCompletada.mutate({ id: a.id, completada: true });
+          setPendingCompleteId(a.id);
           setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
           setEditTarget(null);
           setDialogOpen(true);
