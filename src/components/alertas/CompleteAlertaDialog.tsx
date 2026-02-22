@@ -58,14 +58,22 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
   // Compute next suggested category
   const suggested = useMemo(() => {
     if (!categorias || !proyectoEmpresa) return null;
+    if (!proyectoEmpresa.categoria_id) {
+      // No category yet → suggest the first one
+      if (categorias.length === 0) return null;
+      const first = categorias[0];
+      const subs = first.subcategorias_proyecto || [];
+      return { categoriaId: first.id, subcategoriaId: subs.length > 0 ? subs[0].id : "" };
+    }
     return getNextCategoriaComercial(proyectoEmpresa.categoria_id, proyectoEmpresa.subcategoria_id, categorias);
   }, [categorias, proyectoEmpresa]);
 
   // Current category info
   const currentCatInfo = useMemo(() => {
-    if (!categorias || !proyectoEmpresa?.categoria_id) return null;
+    if (!categorias || !proyectoEmpresa) return null;
+    if (!proyectoEmpresa.categoria_id) return { cat: null, sub: null };
     const cat = categorias.find(c => c.id === proyectoEmpresa.categoria_id);
-    if (!cat) return null;
+    if (!cat) return { cat: null, sub: null };
     const sub = proyectoEmpresa.subcategoria_id
       ? cat.subcategorias_proyecto.find(s => s.id === proyectoEmpresa.subcategoria_id)
       : null;
@@ -96,7 +104,7 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
   const today = startOfDay(new Date());
   const isOverdue = isBefore(parseLocalDate(alerta.fecha_seguimiento), today);
   const needsDate = mode === "uncomplete" && isOverdue;
-  const showCategorySection = mode === "complete" && !!proyectoId && !!empresaId && !!currentCatInfo && !!categorias;
+  const showCategorySection = mode === "complete" && !!proyectoId && !!empresaId && !!currentCatInfo && !!categorias && categorias.length > 0;
 
   const handleClose = () => {
     setNewDate(undefined);
@@ -236,13 +244,17 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
             {/* Current */}
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Actual:</span>
-              <span
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                style={{ backgroundColor: currentCatInfo!.sub?.color || currentCatInfo!.cat.color, color: "#fff" }}
-              >
-                {currentCatInfo!.cat.nombre}
-                {currentCatInfo!.sub && ` › ${currentCatInfo!.sub.nombre}`}
-              </span>
+              {currentCatInfo!.cat ? (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+                  style={{ backgroundColor: currentCatInfo!.sub?.color || currentCatInfo!.cat.color, color: "#fff" }}
+                >
+                  {currentCatInfo!.cat.nombre}
+                  {currentCatInfo!.sub && ` › ${currentCatInfo!.sub.nombre}`}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground italic">Sin categoría asignada</span>
+              )}
             </div>
 
             {/* Suggested next */}
