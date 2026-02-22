@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -64,6 +64,7 @@ export default function Proyectos() {
   const [filterCategorias, setFilterCategorias] = useState<string[]>([]);
   const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
   const [filterClasificaciones, setFilterClasificaciones] = useState<string[]>([]);
+  const [filterBotones, setFilterBotones] = useState<string[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -178,7 +179,13 @@ export default function Proyectos() {
       p.proyecto_empresas?.some((pe) => filterCategorias.includes(pe.categoria_id || "") || filterCategorias.includes(pe.subcategoria_id || ""));
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion;
+    const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
+      const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
+      const cat = categorias?.find(c => c.id === pe.categoria_id);
+      const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
+      return label && filterBotones.includes(label);
+    });
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
   });
 
   // Group projects by name
@@ -216,14 +223,21 @@ export default function Proyectos() {
     const totalProyectos = Object.keys(groupsAll).length;
     let adjudicados = 0;
     let ganados = 0;
+    let obrasEjecucion = 0;
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
+      if (g.some(p => p.proyecto_empresas?.some(pe => {
+        const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
+        const cat = categorias?.find(c => c.id === pe.categoria_id);
+        const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
+        return label === "Obras/Ejecución";
+      }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
-    const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length);
-    return { totalProyectos, adjudicados, ganados, filteredGroups, hasActiveFilters };
-  }, [proyectos, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones]);
+    const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
+    return { totalProyectos, adjudicados, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
+  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -410,6 +424,40 @@ export default function Proyectos() {
               )}
             </PopoverContent>
           </Popover>
+          {/* Botón filter */}
+          {(() => {
+            const allLabels = new Set<string>();
+            categorias?.forEach(cat => {
+              if ((cat as any).boton_label) allLabels.add((cat as any).boton_label);
+              cat.subcategorias_proyecto?.forEach(sub => {
+                if ((sub as any).boton_label) allLabels.add((sub as any).boton_label);
+              });
+            });
+            if (allLabels.size === 0) return null;
+            return (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                    <MousePointerClick className="w-3 h-3" />
+                    Botón {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-2" align="start">
+                  <div className="max-h-[400px] overflow-y-auto space-y-1">
+                    {Array.from(allLabels).map((label) => (
+                      <label key={label} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                        <Checkbox checked={filterBotones.includes(label)} onCheckedChange={() => toggleFilter(setFilterBotones, label)} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  {filterBotones.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterBotones([])}>Limpiar</Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
           {kpiStats.hasActiveFilters && (
             <Button
               variant="outline"
@@ -422,6 +470,7 @@ export default function Proyectos() {
                 setFilterCategorias([]);
                 setFilterEstadosObra([]);
                 setFilterClasificaciones([]);
+                setFilterBotones([]);
               }}
             >
               <X className="w-3 h-3" />
@@ -432,7 +481,7 @@ export default function Proyectos() {
       </motion.div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
         <KpiCard
           title="Total Proyectos"
           value={String(kpiStats.totalProyectos)}
@@ -466,10 +515,34 @@ export default function Proyectos() {
               setFilterEmpresas([]);
               setFilterEstadosObra([]);
               setFilterClasificaciones([]);
+              setFilterBotones([]);
               setSearch("");
             }
           }}
           active={filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID}
+        />
+        <KpiCard
+          title="Obras/Ejecución"
+          value={String(kpiStats.obrasEjecucion)}
+          subtitle="Con botón Obras/Ejecución"
+          icon={Hammer}
+          variant="warning"
+          delay={0.14}
+          onClick={() => {
+            const isActive = filterBotones.length === 1 && filterBotones[0] === "Obras/Ejecución";
+            if (isActive) {
+              setFilterBotones([]);
+            } else {
+              setFilterBotones(["Obras/Ejecución"]);
+              setFilterEstados([]);
+              setFilterEmpresas([]);
+              setFilterCategorias([]);
+              setFilterEstadosObra([]);
+              setFilterClasificaciones([]);
+              setSearch("");
+            }
+          }}
+          active={filterBotones.length === 1 && filterBotones[0] === "Obras/Ejecución"}
         />
         <KpiCard
           title="Resultado Filtros"
@@ -477,7 +550,7 @@ export default function Proyectos() {
           subtitle={kpiStats.hasActiveFilters ? "con filtros aplicados" : "sin filtros activos"}
           icon={Filter}
           variant={kpiStats.hasActiveFilters ? "warning" : "default"}
-          delay={0.14}
+          delay={0.16}
         />
       </div>
 
