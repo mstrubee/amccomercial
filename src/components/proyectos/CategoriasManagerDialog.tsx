@@ -23,6 +23,48 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+/* ── Button config sub-form ── */
+function BotonConfig({
+  label, bgColor, textColor, onLabelChange, onBgChange, onTextChange, onClear,
+}: {
+  label: string;
+  bgColor: string;
+  textColor: string;
+  onLabelChange: (v: string) => void;
+  onBgChange: (v: string) => void;
+  onTextChange: (v: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="space-y-2 border border-border rounded p-2 bg-background/50">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">Botón personalizado</span>
+        <button type="button" className="text-[10px] text-destructive hover:underline" onClick={onClear}>Quitar botón</button>
+      </div>
+      <div className="flex gap-2 items-end">
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs">Label</Label>
+          <Input value={label} onChange={(e) => onLabelChange(e.target.value)} className="h-7 text-xs" placeholder="Texto del botón..." />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Fondo</Label>
+          <input type="color" value={bgColor} onChange={(e) => onBgChange(e.target.value)} className="w-8 h-7 rounded border border-input cursor-pointer" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Texto</Label>
+          <input type="color" value={textColor} onChange={(e) => onTextChange(e.target.value)} className="w-8 h-7 rounded border border-input cursor-pointer" />
+        </div>
+      </div>
+      {label.trim() && (
+        <div className="pt-1">
+          <span className="text-[10px] text-muted-foreground mr-2">Preview:</span>
+          <span className="inline-block px-3 py-1 rounded text-xs font-medium" style={{ backgroundColor: bgColor, color: textColor }}>{label}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
   const { data: categorias } = useCategorias();
   const createCat = useCreateCategoria();
@@ -46,6 +88,10 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
   const [editCatColor, setEditCatColor] = useState("");
   const [editCatAdj, setEditCatAdj] = useState(false);
   const [editCatFecha, setEditCatFecha] = useState(false);
+  const [editCatBotonLabel, setEditCatBotonLabel] = useState("");
+  const [editCatBotonBg, setEditCatBotonBg] = useState("#3b82f6");
+  const [editCatBotonText, setEditCatBotonText] = useState("#ffffff");
+  const [editCatBotonActive, setEditCatBotonActive] = useState(false);
 
   // New subcategory form
   const [newSubCatId, setNewSubCatId] = useState<string | null>(null);
@@ -57,6 +103,10 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
   const [editSubName, setEditSubName] = useState("");
   const [editSubColor, setEditSubColor] = useState("");
   const [editSubAdj, setEditSubAdj] = useState(false);
+  const [editSubBotonLabel, setEditSubBotonLabel] = useState("");
+  const [editSubBotonBg, setEditSubBotonBg] = useState("#3b82f6");
+  const [editSubBotonText, setEditSubBotonText] = useState("#ffffff");
+  const [editSubBotonActive, setEditSubBotonActive] = useState(false);
 
   const handleCreateCat = () => {
     if (!newCatName.trim()) return;
@@ -73,11 +123,21 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
     setEditCatColor(cat.color);
     setEditCatAdj(cat.es_adjudicado);
     setEditCatFecha((cat as any).permite_fecha || false);
+    const hasBoton = !!(cat as any).boton_label;
+    setEditCatBotonActive(hasBoton);
+    setEditCatBotonLabel((cat as any).boton_label || "");
+    setEditCatBotonBg((cat as any).boton_bg_color || "#3b82f6");
+    setEditCatBotonText((cat as any).boton_text_color || "#ffffff");
   };
 
   const handleUpdateCat = () => {
     if (!editingCat || !editCatName.trim()) return;
-    updateCat.mutate({ id: editingCat.id, nombre: editCatName.trim(), color: editCatColor, es_adjudicado: editCatAdj, permite_fecha: editCatFecha });
+    updateCat.mutate({
+      id: editingCat.id, nombre: editCatName.trim(), color: editCatColor, es_adjudicado: editCatAdj, permite_fecha: editCatFecha,
+      boton_label: editCatBotonActive && editCatBotonLabel.trim() ? editCatBotonLabel.trim() : null,
+      boton_bg_color: editCatBotonActive && editCatBotonLabel.trim() ? editCatBotonBg : null,
+      boton_text_color: editCatBotonActive && editCatBotonLabel.trim() ? editCatBotonText : null,
+    });
     setEditingCat(null);
   };
 
@@ -97,11 +157,21 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
     setEditSubName(sub.nombre);
     setEditSubColor(sub.color);
     setEditSubAdj(sub.es_adjudicado);
+    const hasBoton = !!(sub as any).boton_label;
+    setEditSubBotonActive(hasBoton);
+    setEditSubBotonLabel((sub as any).boton_label || "");
+    setEditSubBotonBg((sub as any).boton_bg_color || "#3b82f6");
+    setEditSubBotonText((sub as any).boton_text_color || "#ffffff");
   };
 
   const handleUpdateSub = () => {
     if (!editingSub || !editSubName.trim()) return;
-    updateSub.mutate({ id: editingSub.id, nombre: editSubName.trim(), color: editSubColor, es_adjudicado: editSubAdj });
+    updateSub.mutate({
+      id: editingSub.id, nombre: editSubName.trim(), color: editSubColor, es_adjudicado: editSubAdj,
+      boton_label: editSubBotonActive && editSubBotonLabel.trim() ? editSubBotonLabel.trim() : null,
+      boton_bg_color: editSubBotonActive && editSubBotonLabel.trim() ? editSubBotonBg : null,
+      boton_text_color: editSubBotonActive && editSubBotonLabel.trim() ? editSubBotonText : null,
+    });
     setEditingSub(null);
   };
 
@@ -136,6 +206,18 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                       <Checkbox checked={editCatFecha} onCheckedChange={(v) => setEditCatFecha(!!v)} />
                       <span className="text-xs text-muted-foreground">Permite fecha y alerta</span>
                     </div>
+                    {/* Button config */}
+                    {editCatBotonActive ? (
+                      <BotonConfig
+                        label={editCatBotonLabel} bgColor={editCatBotonBg} textColor={editCatBotonText}
+                        onLabelChange={setEditCatBotonLabel} onBgChange={setEditCatBotonBg} onTextChange={setEditCatBotonText}
+                        onClear={() => { setEditCatBotonActive(false); setEditCatBotonLabel(""); }}
+                      />
+                    ) : (
+                      <button type="button" className="text-xs text-primary hover:underline flex items-center gap-1" onClick={() => setEditCatBotonActive(true)}>
+                        <Plus className="w-3 h-3" /> Agregar Botón
+                      </button>
+                    )}
                     <div className="flex gap-2">
                       <Button size="sm" onClick={handleUpdateCat}>Guardar</Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingCat(null)}>Cancelar</Button>
@@ -153,6 +235,11 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                     <span className="text-sm font-medium text-card-foreground flex-1">{cat.nombre}</span>
                     {cat.es_adjudicado && <span className="text-[10px] font-semibold text-success uppercase">Adj.</span>}
                     {(cat as any).permite_fecha && <span className="text-[10px] font-semibold text-amber-500 uppercase">📅</span>}
+                    {(cat as any).boton_label && (
+                      <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium" style={{ backgroundColor: (cat as any).boton_bg_color || "#3b82f6", color: (cat as any).boton_text_color || "#fff" }}>
+                        {(cat as any).boton_label}
+                      </span>
+                    )}
                     {cat.subcategorias_proyecto.length > 0 && (
                       <span className="text-[10px] text-muted-foreground">{cat.subcategorias_proyecto.length} sub</span>
                     )}
@@ -186,6 +273,18 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                               <Checkbox checked={editSubAdj} onCheckedChange={(v) => setEditSubAdj(!!v)} />
                               <span className="text-xs text-muted-foreground">Marca como adjudicado</span>
                             </div>
+                            {/* Button config for subcategory */}
+                            {editSubBotonActive ? (
+                              <BotonConfig
+                                label={editSubBotonLabel} bgColor={editSubBotonBg} textColor={editSubBotonText}
+                                onLabelChange={setEditSubBotonLabel} onBgChange={setEditSubBotonBg} onTextChange={setEditSubBotonText}
+                                onClear={() => { setEditSubBotonActive(false); setEditSubBotonLabel(""); }}
+                              />
+                            ) : (
+                              <button type="button" className="text-xs text-primary hover:underline flex items-center gap-1" onClick={() => setEditSubBotonActive(true)}>
+                                <Plus className="w-3 h-3" /> Agregar Botón
+                              </button>
+                            )}
                             <div className="flex gap-2">
                               <Button size="sm" onClick={handleUpdateSub}>Guardar</Button>
                               <Button size="sm" variant="ghost" onClick={() => setEditingSub(null)}>Cancelar</Button>
@@ -196,6 +295,11 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                             <div className="w-3 h-3 rounded-full border border-border flex-shrink-0" style={{ backgroundColor: sub.color }} />
                             <span className="text-xs text-card-foreground flex-1">{sub.nombre}</span>
                             {sub.es_adjudicado && <span className="text-[9px] font-semibold text-success uppercase">Adj.</span>}
+                            {(sub as any).boton_label && (
+                              <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium" style={{ backgroundColor: (sub as any).boton_bg_color || "#3b82f6", color: (sub as any).boton_text_color || "#fff" }}>
+                                {(sub as any).boton_label}
+                              </span>
+                            )}
                             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => startEditSub(sub)}>
                               <Pencil className="w-2.5 h-2.5" />
                             </Button>

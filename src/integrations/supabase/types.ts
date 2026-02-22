@@ -244,6 +244,9 @@ export type Database = {
       }
       categorias_proyecto: {
         Row: {
+          boton_bg_color: string | null
+          boton_label: string | null
+          boton_text_color: string | null
           color: string
           created_at: string
           es_adjudicado: boolean
@@ -253,6 +256,9 @@ export type Database = {
           permite_fecha: boolean
         }
         Insert: {
+          boton_bg_color?: string | null
+          boton_label?: string | null
+          boton_text_color?: string | null
           color?: string
           created_at?: string
           es_adjudicado?: boolean
@@ -262,6 +268,9 @@ export type Database = {
           permite_fecha?: boolean
         }
         Update: {
+          boton_bg_color?: string | null
+          boton_label?: string | null
+          boton_text_color?: string | null
           color?: string
           created_at?: string
           es_adjudicado?: boolean
@@ -763,6 +772,9 @@ export type Database = {
       }
       subcategorias_proyecto: {
         Row: {
+          boton_bg_color: string | null
+          boton_label: string | null
+          boton_text_color: string | null
           categoria_id: string
           color: string
           created_at: string
@@ -772,6 +784,9 @@ export type Database = {
           orden: number
         }
         Insert: {
+          boton_bg_color?: string | null
+          boton_label?: string | null
+          boton_text_color?: string | null
           categoria_id: string
           color?: string
           created_at?: string
@@ -781,6 +796,9 @@ export type Database = {
           orden?: number
         }
         Update: {
+          boton_bg_color?: string | null
+          boton_label?: string | null
+          boton_text_color?: string | null
           categoria_id?: string
           color?: string
           created_at?: string
