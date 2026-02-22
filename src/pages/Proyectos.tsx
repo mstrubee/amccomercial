@@ -495,6 +495,7 @@ export default function Proyectos() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas / Cotización</th>
+                <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider"></th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -544,6 +545,7 @@ export default function Proyectos() {
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} />
                       </td>
+                      <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-1">
                           {(() => {
@@ -608,7 +610,7 @@ export default function Proyectos() {
                     </tr>
                     {/* Parent note row */}
                     <tr className={evenBg}>
-                      <td className="px-5 pb-2 pt-0" colSpan={9}>
+                       <td className="px-5 pb-2 pt-0" colSpan={10}>
                         <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null, defaultTexto: texto })} />
                       </td>
                     </tr>
@@ -649,6 +651,21 @@ export default function Proyectos() {
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                                 </td>
                                 <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} /></td>
+                                <td className="px-5 py-2 align-top text-center">
+                                  {(() => {
+                                    const sub = (pe as any).subcategorias_proyecto;
+                                    const cat = (pe as any).categorias_proyecto;
+                                    const botonLabel = sub?.boton_label || cat?.boton_label;
+                                    const botonBg = sub?.boton_bg_color || cat?.boton_bg_color;
+                                    const botonText = sub?.boton_text_color || cat?.boton_text_color;
+                                    if (!botonLabel) return null;
+                                    return (
+                                      <span className="inline-block px-3 py-1 rounded text-xs font-medium whitespace-nowrap" style={{ backgroundColor: botonBg || "#3b82f6", color: botonText || "#fff" }}>
+                                        {botonLabel}
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
                                 <td className="px-5 py-2 text-right align-top">
                                   <div className="flex justify-end gap-1">
                                     {(() => {
@@ -992,6 +1009,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
         <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+        <td className="px-5 py-3"></td>
         <td className="px-5 py-3 text-right">
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => onTemplate(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
@@ -1001,7 +1019,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         </td>
       </tr>
       <tr className={evenBg}>
-        <td className="px-5 pb-2 pt-0" colSpan={9}>
+        <td className="px-5 pb-2 pt-0" colSpan={10}>
           <NotasCell proyecto={p} onSave={updateNotas} />
         </td>
       </tr>

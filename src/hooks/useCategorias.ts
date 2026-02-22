@@ -53,7 +53,7 @@ export function useCreateCategoria() {
 export function useUpdateCategoria() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; nombre: string; color: string; es_adjudicado: boolean; permite_fecha?: boolean }) => {
+    mutationFn: async (input: { id: string; nombre: string; color: string; es_adjudicado: boolean; permite_fecha?: boolean; boton_label?: string | null; boton_bg_color?: string | null; boton_text_color?: string | null }) => {
       const { id, ...rest } = input;
       const { error } = await supabase
         .from("categorias_proyecto")
@@ -107,11 +107,11 @@ export function useCreateSubcategoria() {
 export function useUpdateSubcategoria() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; nombre: string; color: string; es_adjudicado: boolean }) => {
+    mutationFn: async (input: { id: string; nombre: string; color: string; es_adjudicado: boolean; boton_label?: string | null; boton_bg_color?: string | null; boton_text_color?: string | null }) => {
       const { id, ...rest } = input;
       const { error } = await supabase
         .from("subcategorias_proyecto")
-        .update(rest)
+        .update(rest as any)
         .eq("id", id);
       if (error) throw error;
     },
