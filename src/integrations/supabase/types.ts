@@ -580,6 +580,9 @@ export type Database = {
           categoria_id: string | null
           empresa_id: string
           fecha_categoria: string | null
+          ganado_fecha: string | null
+          ganado_op: string | null
+          ganado_presupuesto: number | null
           id: string
           monto_cotizacion: number | null
           proyecto_id: string
@@ -590,6 +593,9 @@ export type Database = {
           categoria_id?: string | null
           empresa_id: string
           fecha_categoria?: string | null
+          ganado_fecha?: string | null
+          ganado_op?: string | null
+          ganado_presupuesto?: number | null
           id?: string
           monto_cotizacion?: number | null
           proyecto_id: string
@@ -600,6 +606,9 @@ export type Database = {
           categoria_id?: string | null
           empresa_id?: string
           fecha_categoria?: string | null
+          ganado_fecha?: string | null
+          ganado_op?: string | null
+          ganado_presupuesto?: number | null
           id?: string
           monto_cotizacion?: number | null
           proyecto_id?: string
