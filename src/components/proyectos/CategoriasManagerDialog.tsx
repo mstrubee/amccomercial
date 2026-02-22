@@ -336,7 +336,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                     ) : (
                       <button
                         className="flex items-center gap-1 px-3 py-2 ml-6 text-xs text-muted-foreground hover:text-card-foreground"
-                        onClick={() => setNewSubCatId(cat.id)}
+                        onClick={() => { setNewSubCatId(cat.id); setNewSubColor(cat.color); }}
                       >
                         <Plus className="w-3 h-3" /> Agregar subcategoría
                       </button>
