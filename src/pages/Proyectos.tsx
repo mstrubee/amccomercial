@@ -231,7 +231,7 @@ export default function Proyectos() {
         const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
         const cat = categorias?.find(c => c.id === pe.categoria_id);
         const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
-        return label === "Obras/Ejecución";
+        return !!label;
       }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
@@ -522,18 +522,27 @@ export default function Proyectos() {
           active={filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID}
         />
         <KpiCard
-          title="Obras/Ejecución"
+          title="Seguimiento"
           value={String(kpiStats.obrasEjecucion)}
-          subtitle="Obras/Ejecución"
+          subtitle="Con botón de seguimiento"
           icon={Hammer}
           variant="warning"
           delay={0.14}
           onClick={() => {
-            const isActive = filterBotones.length === 1 && filterBotones[0] === "Obras/Ejecución";
+            // Collect all button labels from categorias
+            const allLabels: string[] = [];
+            categorias?.forEach(cat => {
+              if ((cat as any).boton_label) allLabels.push((cat as any).boton_label);
+              cat.subcategorias_proyecto?.forEach(sub => {
+                if ((sub as any).boton_label) allLabels.push((sub as any).boton_label);
+              });
+            });
+            const uniqueLabels = [...new Set(allLabels)];
+            const isActive = filterBotones.length > 0 && filterBotones.length === uniqueLabels.length;
             if (isActive) {
               setFilterBotones([]);
             } else {
-              setFilterBotones(["Obras/Ejecución"]);
+              setFilterBotones(uniqueLabels);
               setFilterEstados([]);
               setFilterEmpresas([]);
               setFilterCategorias([]);
@@ -542,7 +551,7 @@ export default function Proyectos() {
               setSearch("");
             }
           }}
-          active={filterBotones.length === 1 && filterBotones[0] === "Obras/Ejecución"}
+          active={filterBotones.length > 0}
         />
         <KpiCard
           title="Resultado Filtros"
