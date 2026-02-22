@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Save, X, Mail, Phone, User } from "lucide-react";
+import { Plus, Trash2, Save, X, Mail, Phone, User, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ClienteWithCategoria, CategoriaCliente, useUpdateCliente } from "@/hooks/useClientes";
+import { useProyectos } from "@/hooks/useProyectos";
 
 interface ContactoForm {
   id?: string;
@@ -29,6 +31,8 @@ interface Props {
 
 export default function ClienteDetailDialog({ open, onOpenChange, cliente, categorias, canEdit, canDelete }: Props) {
   const updateCliente = useUpdateCliente();
+  const navigate = useNavigate();
+  const { data: proyectos } = useProyectos();
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
@@ -109,6 +113,13 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
     setConfirmDiscard(false);
     onOpenChange(false);
   };
+
+  const linkedProyectos = useMemo(() => {
+    if (!cliente || !proyectos) return [];
+    return proyectos.filter(p =>
+      (p.proyecto_clientes || []).some(pc => pc.cliente_id === cliente.id)
+    );
+  }, [cliente, proyectos]);
 
   if (!cliente) return null;
   const catNombre = categorias.find(c => c.id === categoriaId)?.nombre || "";
@@ -223,7 +234,38 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
               </AnimatePresence>
             </div>
 
-            {/* Action buttons */}
+            {/* Proyectos Vinculados */}
+            {!editing && (
+              <div className="space-y-3">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <FolderOpen className="w-3.5 h-3.5" /> Proyectos Vinculados
+                </Label>
+                {linkedProyectos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Sin proyectos vinculados</p>
+                ) : (
+                  <div className="space-y-2">
+                    {linkedProyectos.map(p => {
+                      const cat = p.proyecto_empresas?.[0]?.categorias_proyecto?.nombre;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            onOpenChange(false);
+                            navigate(`/proyectos?highlight=${p.id}`);
+                          }}
+                        >
+                          <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
+                          {cat && <p className="text-xs text-muted-foreground">Categoría: {cat}</p>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {editing && (
               <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <Button variant="outline" className="gap-1" onClick={() => { resetForm(); }}>
