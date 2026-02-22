@@ -138,31 +138,6 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
           </div>
 
           <div className="space-y-2">
-            <Label>Título</Label>
-            <div className="flex gap-2">
-              <Input
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value.slice(0, 100))}
-                placeholder="Escribir título o seleccionar..."
-                className="flex-1"
-                maxLength={100}
-              />
-              {titulosOpciones && titulosOpciones.length > 0 && (
-                <Select value="" onValueChange={(v) => setTitulo(v)}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Predefinidos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {titulosOpciones.map((t) => (
-                      <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
             <Label>Texto de la alerta * (máx. 100 caracteres)</Label>
             <Textarea
               value={texto}
