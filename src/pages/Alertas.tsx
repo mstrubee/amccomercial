@@ -394,6 +394,10 @@ export default function Alertas() {
                 {clasificaciones && clasificaciones.length > 0 ? (
                   clasificaciones.map((c) => {
                     const cKey = `c:${c.id}`;
+                    // Subs that have at least one alert assigned
+                    const subsWithAlertas = c.subclasificaciones.filter(s =>
+                      alertas?.some(a => a.alerta_clasificaciones?.some(ac => ac.subclasificacion_id === s.id))
+                    );
                     return (
                       <div key={c.id}>
                         <div className="flex items-center gap-2">
@@ -403,8 +407,15 @@ export default function Alertas() {
                             onCheckedChange={() => {
                               setFilterClasificacion(prev => {
                                 const next = new Set(prev);
-                                if (next.has(cKey)) next.delete(cKey);
-                                else next.add(cKey);
+                                if (next.has(cKey)) {
+                                  // Uncheck parent and all its subs
+                                  next.delete(cKey);
+                                  c.subclasificaciones.forEach(s => next.delete(`s:${s.id}`));
+                                } else {
+                                  // Check parent + auto-check subs that have alerts
+                                  next.add(cKey);
+                                  subsWithAlertas.forEach(s => next.add(`s:${s.id}`));
+                                }
                                 return next;
                               });
                             }}
