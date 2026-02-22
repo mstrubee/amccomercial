@@ -524,7 +524,7 @@ export default function Proyectos() {
         <KpiCard
           title="Obras/Ejecución"
           value={String(kpiStats.obrasEjecucion)}
-          subtitle="Con botón Obras/Ejecución"
+          subtitle="Obras/Ejecución"
           icon={Hammer}
           variant="warning"
           delay={0.14}
