@@ -49,6 +49,7 @@ export type Database = {
       }
       alertas: {
         Row: {
+          clasificacion_alerta_id: string | null
           completada: boolean
           completed_at: string | null
           completed_by: string | null
@@ -62,6 +63,7 @@ export type Database = {
           id: string
           parent_alerta_id: string | null
           proyecto_id: string
+          subclasificacion_alerta_id: string | null
           texto: string
           titulo: string
           updated_at: string
@@ -69,6 +71,7 @@ export type Database = {
           usuario_responsable_id: string
         }
         Insert: {
+          clasificacion_alerta_id?: string | null
           completada?: boolean
           completed_at?: string | null
           completed_by?: string | null
@@ -82,6 +85,7 @@ export type Database = {
           id?: string
           parent_alerta_id?: string | null
           proyecto_id: string
+          subclasificacion_alerta_id?: string | null
           texto: string
           titulo?: string
           updated_at?: string
@@ -89,6 +93,7 @@ export type Database = {
           usuario_responsable_id: string
         }
         Update: {
+          clasificacion_alerta_id?: string | null
           completada?: boolean
           completed_at?: string | null
           completed_by?: string | null
@@ -102,6 +107,7 @@ export type Database = {
           id?: string
           parent_alerta_id?: string | null
           proyecto_id?: string
+          subclasificacion_alerta_id?: string | null
           texto?: string
           titulo?: string
           updated_at?: string
@@ -109,6 +115,13 @@ export type Database = {
           usuario_responsable_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "alertas_clasificacion_alerta_id_fkey"
+            columns: ["clasificacion_alerta_id"]
+            isOneToOne: false
+            referencedRelation: "clasificaciones_alerta"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "alertas_empresa_id_fkey"
             columns: ["empresa_id"]
@@ -128,6 +141,13 @@ export type Database = {
             columns: ["proyecto_id"]
             isOneToOne: false
             referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_subclasificacion_alerta_id_fkey"
+            columns: ["subclasificacion_alerta_id"]
+            isOneToOne: false
+            referencedRelation: "subclasificaciones_alerta"
             referencedColumns: ["id"]
           },
         ]
@@ -278,6 +298,27 @@ export type Database = {
           nombre?: string
           orden?: number
           permite_fecha?: boolean
+        }
+        Relationships: []
+      }
+      clasificaciones_alerta: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
         }
         Relationships: []
       }
@@ -813,6 +854,38 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "categorias_proyecto"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subclasificaciones_alerta: {
+        Row: {
+          clasificacion_id: string
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          clasificacion_id: string
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          clasificacion_id?: string
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subclasificaciones_alerta_clasificacion_id_fkey"
+            columns: ["clasificacion_id"]
+            isOneToOne: false
+            referencedRelation: "clasificaciones_alerta"
             referencedColumns: ["id"]
           },
         ]
