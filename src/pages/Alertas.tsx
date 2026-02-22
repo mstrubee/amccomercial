@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
@@ -101,7 +102,7 @@ export default function Alertas() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [showClasificaciones, setShowClasificaciones] = useState(false);
   const [filterProyecto, setFilterProyecto] = useState<string>("all");
-  const [filterClasificacion, setFilterClasificacion] = useState<string>("all");
+  const [filterClasificacion, setFilterClasificacion] = useState<Set<string>>(new Set());
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
@@ -116,7 +117,9 @@ export default function Alertas() {
           if (f.search) setSearch(f.search);
           if (f.activeTab) setActiveTab(f.activeTab);
           if (f.filterProyecto) setFilterProyecto(f.filterProyecto);
-          if (f.filterClasificacion) setFilterClasificacion(f.filterClasificacion);
+          if (f.filterClasificacion) {
+            try { setFilterClasificacion(new Set(JSON.parse(f.filterClasificacion))); } catch {}
+          }
           if (f.sortDir) setSortDir(f.sortDir);
           if (f.fechaDesde) setFechaDesde(new Date(f.fechaDesde));
           if (f.fechaHasta) setFechaHasta(new Date(f.fechaHasta));
@@ -128,7 +131,7 @@ export default function Alertas() {
 
   const saveFiltersAndNavigate = (proyectoId: string, empresaId?: string | null) => {
     sessionStorage.setItem("alertas-filters", JSON.stringify({
-      search, activeTab, filterProyecto, filterClasificacion, sortDir,
+      search, activeTab, filterProyecto, filterClasificacion: JSON.stringify([...filterClasificacion]), sortDir,
       fechaDesde: fechaDesde?.toISOString(),
       fechaHasta: fechaHasta?.toISOString(),
     }));
@@ -183,14 +186,14 @@ export default function Alertas() {
       list = list.filter((a) => a.proyecto_id === filterProyecto);
     }
 
-    if (filterClasificacion !== "all") {
-      if (filterClasificacion.startsWith("s:")) {
-        const subId = filterClasificacion.slice(2);
-        list = list.filter((a) => a.alerta_clasificaciones?.some(ac => ac.subclasificacion_id === subId));
-      } else {
-        const clasifId = filterClasificacion.startsWith("c:") ? filterClasificacion.slice(2) : filterClasificacion;
-        list = list.filter((a) => a.alerta_clasificaciones?.some(ac => ac.clasificacion_id === clasifId));
-      }
+    if (filterClasificacion.size > 0) {
+      list = list.filter((a) => {
+        if (!a.alerta_clasificaciones || a.alerta_clasificaciones.length === 0) return false;
+        return a.alerta_clasificaciones.some(ac => {
+          return filterClasificacion.has(`c:${ac.clasificacion_id}`) ||
+            (ac.subclasificacion_id && filterClasificacion.has(`s:${ac.subclasificacion_id}`));
+        });
+      });
     }
 
     if (fechaDesde) {
@@ -377,24 +380,77 @@ export default function Alertas() {
               </Command>
             </PopoverContent>
           </Popover>
-          <Select value={filterClasificacion} onValueChange={setFilterClasificacion}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Todas las clasificaciones" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las clasificaciones</SelectItem>
-              {clasificaciones?.map((c) => (
-                <React.Fragment key={c.id}>
-                  <SelectItem value={`c:${c.id}`}>{c.nombre}</SelectItem>
-                  {c.subclasificaciones.map((s) => (
-                    <SelectItem key={s.id} value={`s:${s.id}`}>
-                      <span className="pl-3 text-muted-foreground">↳ {s.nombre}</span>
-                    </SelectItem>
-                  ))}
-                </React.Fragment>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-56 justify-between font-normal h-9 text-sm">
+                {filterClasificacion.size > 0
+                  ? `Clasificaciones (${filterClasificacion.size})`
+                  : "Todas las clasificaciones"}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-0" align="start">
+              <div className="p-3 max-h-[400px] overflow-y-auto space-y-2">
+                {clasificaciones && clasificaciones.length > 0 ? (
+                  clasificaciones.map((c) => {
+                    const cKey = `c:${c.id}`;
+                    return (
+                      <div key={c.id}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`fc-${c.id}`}
+                            checked={filterClasificacion.has(cKey)}
+                            onCheckedChange={() => {
+                              setFilterClasificacion(prev => {
+                                const next = new Set(prev);
+                                if (next.has(cKey)) next.delete(cKey);
+                                else next.add(cKey);
+                                return next;
+                              });
+                            }}
+                          />
+                          <label htmlFor={`fc-${c.id}`} className="text-sm font-medium cursor-pointer">{c.nombre}</label>
+                        </div>
+                        {c.subclasificaciones.length > 0 && (
+                          <div className="ml-6 mt-1 space-y-1">
+                            {c.subclasificaciones.map((s) => {
+                              const sKey = `s:${s.id}`;
+                              return (
+                                <div key={s.id} className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`fs-${s.id}`}
+                                    checked={filterClasificacion.has(sKey)}
+                                    onCheckedChange={() => {
+                                      setFilterClasificacion(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(sKey)) next.delete(sKey);
+                                        else next.add(sKey);
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                  <label htmlFor={`fs-${s.id}`} className="text-xs text-muted-foreground cursor-pointer">↳ {s.nombre}</label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-muted-foreground">No hay clasificaciones</p>
+                )}
+              </div>
+              {filterClasificacion.size > 0 && (
+                <div className="border-t p-2">
+                  <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setFilterClasificacion(new Set())}>
+                    Limpiar filtros
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1">
