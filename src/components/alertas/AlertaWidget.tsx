@@ -4,12 +4,13 @@ import { Bell, ChevronDown, ChevronUp, Circle, ExternalLink } from "lucide-react
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAlertas, useToggleAlertaCompletada, useCreateAlerta, AlertaWithRelations, AlertaInput } from "@/hooks/useAlertas";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
+import { useCategorias } from "@/hooks/useCategorias";
 import { getNextClasificacion } from "@/lib/clasificacion-utils";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isBefore, startOfDay, addDays, isToday, format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
@@ -30,6 +31,8 @@ export default function AlertaWidget() {
   const { data: empresas } = useEmpresas();
   const { data: proyectosRaw } = useProyectos();
   const { user } = useAuth();
+  const { data: categoriasComerciales } = useCategorias();
+  const widgetQc = useQueryClient();
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
@@ -186,6 +189,11 @@ export default function AlertaWidget() {
         alerta={completeTarget}
         open={!!completeTarget}
         onClose={() => setCompleteTarget(null)}
+        categorias={categoriasComerciales}
+        onAdvanceCategoria={async (pId, eId, catId, subId) => {
+          await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
+          widgetQc.invalidateQueries({ queryKey: ["proyectos"] });
+        }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
