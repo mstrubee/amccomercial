@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus } from "lucide-react";
+import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2 } from "lucide-react";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -40,6 +40,8 @@ interface Props {
 
 const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
 
+const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
+
 interface EmpresaRow {
   empresa_id: string;
   selected: boolean;
@@ -47,6 +49,9 @@ interface EmpresaRow {
   categoria_id: string | null;
   subcategoria_id: string | null;
   fecha_categoria: string | null;
+  ganado_presupuesto: number | null;
+  ganado_op: string | null;
+  ganado_fecha: string | null;
 }
 
 export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCreateAlertaFromCategoria, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
@@ -67,6 +72,15 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const [empresaRows, setEmpresaRows] = useState<EmpresaRow[]>([]);
   const [crearAlertaEmpresaIds, setCrearAlertaEmpresaIds] = useState<Set<string>>(new Set());
   const [showCategoriasManager, setShowCategoriasManager] = useState(false);
+
+  // Ganado dialog state
+  const [ganadoDialogOpen, setGanadoDialogOpen] = useState(false);
+  const [ganadoDialogEmpresaId, setGanadoDialogEmpresaId] = useState<string | null>(null);
+  const [ganadoPrevSubId, setGanadoPrevSubId] = useState<string | null>(null);
+  const [ganadoPrevCatId, setGanadoPrevCatId] = useState<string | null>(null);
+  const [ganadoPresupuesto, setGanadoPresupuesto] = useState<string>("");
+  const [ganadoOp, setGanadoOp] = useState("");
+  const [ganadoFecha, setGanadoFecha] = useState(new Date().toISOString().split("T")[0]);
 
   // Contactos
   const [arqNombre, setArqNombre] = useState("");
@@ -126,7 +140,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       // Build empresa rows from existing links (or from all group items for parent edit)
       if (empresas) {
         // Collect all empresa links across group items (parent edit) or just from this project
-        const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null; fecha_categoria: string | null }[] = [];
+        const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null; fecha_categoria: string | null; ganado_presupuesto: number | null; ganado_op: string | null; ganado_fecha: string | null }[] = [];
         const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
         for (const item of sourceItems) {
           for (const pe of (item.proyecto_empresas || [])) {
@@ -137,6 +151,9 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                 categoria_id: (pe as any).categoria_id || null,
                 subcategoria_id: (pe as any).subcategoria_id || null,
                 fecha_categoria: (pe as any).fecha_categoria || null,
+                ganado_presupuesto: (pe as any).ganado_presupuesto || null,
+                ganado_op: (pe as any).ganado_op || null,
+                ganado_fecha: (pe as any).ganado_fecha || null,
               });
             }
           }
@@ -150,6 +167,9 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
             categoria_id: link?.categoria_id || null,
             subcategoria_id: link?.subcategoria_id || null,
             fecha_categoria: link?.fecha_categoria || null,
+            ganado_presupuesto: (link as any)?.ganado_presupuesto || null,
+            ganado_op: (link as any)?.ganado_op || null,
+            ganado_fecha: (link as any)?.ganado_fecha || null,
           };
         });
         setEmpresaRows(rows);
@@ -185,6 +205,9 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
           categoria_id: null,
           subcategoria_id: null,
           fecha_categoria: null,
+          ganado_presupuesto: null,
+          ganado_op: null,
+          ganado_fecha: null,
         })));
       }
       setArqNombre(""); setArqContacto(""); setArqMail(""); setArqTelefono("");
@@ -249,7 +272,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
 
   const handleCategoryChange = (empresa_id: string, value: string) => {
     if (!value || value === "none") {
-      updateEmpresaRow(empresa_id, { categoria_id: null, subcategoria_id: null, fecha_categoria: null });
+      updateEmpresaRow(empresa_id, { categoria_id: null, subcategoria_id: null, fecha_categoria: null, ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
       return;
     }
     let newCatId: string | null = null;
@@ -264,7 +287,68 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     const permiteFecha = categoryPermiteFecha(newCatId, newSubId);
     const row = empresaRows.find(r => r.empresa_id === empresa_id);
     const fecha = permiteFecha && !row?.fecha_categoria ? new Date().toISOString().split("T")[0] : row?.fecha_categoria || null;
+
+    // If selecting "Ganado", open dialog to capture extra data
+    if (newSubId === GANADO_SUBCATEGORIA_ID) {
+      setGanadoDialogEmpresaId(empresa_id);
+      setGanadoPrevCatId(row?.categoria_id || null);
+      setGanadoPrevSubId(row?.subcategoria_id || null);
+      setGanadoPresupuesto(row?.ganado_presupuesto ? String(row.ganado_presupuesto) : "");
+      setGanadoOp(row?.ganado_op || "");
+      setGanadoFecha(row?.ganado_fecha || new Date().toISOString().split("T")[0]);
+      // Apply the category change optimistically
+      updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null });
+      setGanadoDialogOpen(true);
+      return;
+    }
+
+    // If changing away from Ganado, clear ganado fields
+    if (row?.subcategoria_id === GANADO_SUBCATEGORIA_ID && newSubId !== GANADO_SUBCATEGORIA_ID) {
+      updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null, ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
+      return;
+    }
+
     updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null });
+  };
+
+  const handleGanadoConfirm = () => {
+    if (!ganadoDialogEmpresaId) return;
+    updateEmpresaRow(ganadoDialogEmpresaId, {
+      ganado_presupuesto: ganadoPresupuesto ? parseFloat(ganadoPresupuesto) : null,
+      ganado_op: ganadoOp || null,
+      ganado_fecha: ganadoFecha || null,
+    });
+    setGanadoDialogOpen(false);
+    setGanadoDialogEmpresaId(null);
+  };
+
+  const handleGanadoCancel = () => {
+    // Revert category change
+    if (ganadoDialogEmpresaId) {
+      updateEmpresaRow(ganadoDialogEmpresaId, {
+        categoria_id: ganadoPrevCatId,
+        subcategoria_id: ganadoPrevSubId,
+        fecha_categoria: null,
+      });
+    }
+    setGanadoDialogOpen(false);
+    setGanadoDialogEmpresaId(null);
+  };
+
+  const openGanadoEdit = (empresa_id: string) => {
+    const row = empresaRows.find(r => r.empresa_id === empresa_id);
+    if (!row) return;
+    setGanadoDialogEmpresaId(empresa_id);
+    setGanadoPrevCatId(row.categoria_id);
+    setGanadoPrevSubId(row.subcategoria_id);
+    setGanadoPresupuesto(row.ganado_presupuesto ? String(row.ganado_presupuesto) : "");
+    setGanadoOp(row.ganado_op || "");
+    setGanadoFecha(row.ganado_fecha || new Date().toISOString().split("T")[0]);
+    setGanadoDialogOpen(true);
+  };
+
+  const clearGanadoData = (empresa_id: string) => {
+    updateEmpresaRow(empresa_id, { ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
   };
 
   const getSelectValue = (row: EmpresaRow): string => {
@@ -286,6 +370,9 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
         categoria_id: r.categoria_id,
         subcategoria_id: r.subcategoria_id,
         fecha_categoria: r.fecha_categoria,
+        ganado_presupuesto: r.ganado_presupuesto,
+        ganado_op: r.ganado_op,
+        ganado_fecha: r.ganado_fecha,
       }));
 
     snapshotRef.current = "";
@@ -454,6 +541,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   </label>
                                 </div>
                               )}
+                              {row.subcategoria_id === GANADO_SUBCATEGORIA_ID && (row.ganado_presupuesto || row.ganado_op || row.ganado_fecha) && (
+                                <div className="mt-1.5 pl-6 flex items-center gap-2 flex-wrap">
+                                  <Trophy className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {row.ganado_presupuesto != null && `Ppto: ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+                                    {row.ganado_op && `OP: ${row.ganado_op} `}
+                                    {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
+                                  </span>
+                                  <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
+                                  <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                              )}
                               </>
                             )}
                           </div>
@@ -509,6 +608,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   </label>
                                 </div>
                               )}
+                              {row.subcategoria_id === GANADO_SUBCATEGORIA_ID && (row.ganado_presupuesto || row.ganado_op || row.ganado_fecha) && (
+                                <div className="mt-1.5 pl-6 flex items-center gap-2 flex-wrap">
+                                  <Trophy className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {row.ganado_presupuesto != null && `Ppto: ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+                                    {row.ganado_op && `OP: ${row.ganado_op} `}
+                                    {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
+                                  </span>
+                                  <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
+                                  <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                              )}
                               </>
                             )}
                           </div>
@@ -554,6 +665,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
                                   <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5"><Bell className="w-2.5 h-2.5" /> Crear alerta de seguimiento</span>
                                 </label>
+                              </div>
+                             )}
+                            {row.subcategoria_id === GANADO_SUBCATEGORIA_ID && (row.ganado_presupuesto || row.ganado_op || row.ganado_fecha) && (
+                              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                                <Trophy className="w-3 h-3 text-emerald-600" />
+                                <span className="text-[10px] text-muted-foreground">
+                                  {row.ganado_presupuesto != null && `Ppto: ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+                                  {row.ganado_op && `OP: ${row.ganado_op} `}
+                                  {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
+                                </span>
+                                <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
+                                <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
                               </div>
                             )}
                           </div>
@@ -708,6 +831,45 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Ganado data dialog */}
+      <Dialog open={ganadoDialogOpen} onOpenChange={(open) => { if (!open) handleGanadoCancel(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Trophy className="w-4 h-4 text-emerald-600" /> Datos de Ganado</DialogTitle>
+            <DialogDescription>Ingresa los datos del proyecto ganado.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label>Presupuesto (UF)</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder="Presupuesto en UF"
+                value={ganadoPresupuesto}
+                onChange={(e) => setGanadoPresupuesto(e.target.value)}
+                onFocus={(e) => { if (e.target.value === "0") setGanadoPresupuesto(""); }}
+              />
+              {ganadoPresupuesto && parseFloat(ganadoPresupuesto) > 0 && (
+                <p className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(parseFloat(ganadoPresupuesto)))}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>OP</Label>
+              <Input placeholder="Número de OP" value={ganadoOp} onChange={(e) => setGanadoOp(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Fecha</Label>
+              <Input type="date" value={ganadoFecha} onChange={(e) => setGanadoFecha(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleGanadoCancel}>Cancelar</Button>
+            <Button type="button" onClick={handleGanadoConfirm}>Confirmar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CategoriasManagerDialog open={showCategoriasManager} onOpenChange={setShowCategoriasManager} />
     </>

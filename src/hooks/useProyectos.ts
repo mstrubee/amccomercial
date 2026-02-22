@@ -25,6 +25,9 @@ export interface EmpresaLink {
   categoria_id: string | null;
   subcategoria_id: string | null;
   fecha_categoria: string | null;
+  ganado_presupuesto: number | null;
+  ganado_op: string | null;
+  ganado_fecha: string | null;
 }
 
 export function useProyectos() {
@@ -110,6 +113,9 @@ export function useCreateProyecto() {
         categoria_id: empresa_links[i].categoria_id || null,
         subcategoria_id: empresa_links[i].subcategoria_id || null,
         fecha_categoria: empresa_links[i].fecha_categoria || null,
+        ganado_presupuesto: empresa_links[i].ganado_presupuesto || null,
+        ganado_op: empresa_links[i].ganado_op || null,
+        ganado_fecha: empresa_links[i].ganado_fecha || null,
       }));
 
       const { error: linkError } = await supabase
@@ -172,6 +178,9 @@ export function useUpdateProyecto() {
             categoria_id: el.categoria_id || null,
             subcategoria_id: el.subcategoria_id || null,
             fecha_categoria: el.fecha_categoria || null,
+            ganado_presupuesto: el.ganado_presupuesto || null,
+            ganado_op: el.ganado_op || null,
+            ganado_fecha: el.ganado_fecha || null,
           })), { onConflict: "proyecto_id,empresa_id" });
         if (linkError) throw linkError;
       }
