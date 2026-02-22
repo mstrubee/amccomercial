@@ -115,3 +115,31 @@ export function useDeleteSubclasificacion() {
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
+
+export function useReorderClasificaciones() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { id: string; orden: number }[]) => {
+      for (const item of items) {
+        const { error } = await supabase.from("clasificaciones_alerta").update({ orden: item.orden } as any).eq("id", item.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); },
+    onError: (e) => toast.error("Error al reordenar: " + e.message),
+  });
+}
+
+export function useReorderSubclasificaciones() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { id: string; orden: number }[]) => {
+      for (const item of items) {
+        const { error } = await supabase.from("subclasificaciones_alerta").update({ orden: item.orden } as any).eq("id", item.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); },
+    onError: (e) => toast.error("Error al reordenar: " + e.message),
+  });
+}
