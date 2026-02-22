@@ -522,7 +522,7 @@ export default function Proyectos() {
           active={filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID}
         />
         <KpiCard
-          title="Seguimiento"
+          title="Obras / Ejecución"
           value={String(kpiStats.obrasEjecucion)}
           subtitle="Con botón de seguimiento"
           icon={Hammer}
