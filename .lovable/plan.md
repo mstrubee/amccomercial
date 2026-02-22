@@ -1,56 +1,110 @@
 
-# Promover y degradar categorias / subcategorias
+# Mejorar el dialogo de completar alerta
 
-## Objetivo
-Permitir que una categoria se convierta en subcategoria de otra categoria, y que una subcategoria se promueva a categoria independiente. Todo desde la interfaz del administrador de categorias.
+## Resumen
+Al marcar una alerta como completada, el dialogo emergente mostrara:
+1. Un resumen de la alerta que se esta completando (memoria visual) en la zona superior
+2. La categoria comercial actual de la empresa en ese proyecto
+3. Una sugerencia para avanzar a la siguiente categoria comercial, que el usuario puede aprobar o editar
 
-## Operaciones
+## Secuencia de categorias comerciales actuales
 
-### 1. Subcategoria -> Categoria (Promover)
-- Se elimina la subcategoria de la tabla `subcategorias_proyecto`
-- Se crea una nueva fila en `categorias_proyecto` con el mismo nombre, color, es_adjudicado, y boton_* 
-- Se asigna el orden siguiente (max + 1) entre las categorias existentes
+```text
+Pendiente (orden 1)
+  1. Ofrecer para cotizar
+  2. Sin cotizar, en EV
 
-### 2. Categoria -> Subcategoria (Degradar)
-- El usuario debe seleccionar bajo cual categoria madre quedara
-- Se elimina la categoria de `categorias_proyecto`
-- Se crea una nueva fila en `subcategorias_proyecto` con categoria_id apuntando a la madre elegida
-- Se asigna el orden siguiente (max + 1) dentro de las subcategorias de esa madre
-- Si la categoria tiene subcategorias propias, se impide la operacion (no se puede degradar una categoria que tenga hijas)
+Contactado (orden 2)
+  1. Ofrecido para cotizar
+  2. Planos Solicitados
+  4. Planos Existentes
+  5. Planos Recibidos
 
-## Cambios en la interfaz (CategoriasManagerDialog.tsx)
+Cotizacion (orden 3)
+  1. Presupuesto Solicitado
+  2. Cotizado Empresa
+  3. Enviado a Cliente
 
-### Botones nuevos
-- En cada **subcategoria** (vista no-edicion): agregar un boton con icono de flecha arriba (ArrowUp) para "Promover a categoria"
-- En cada **categoria** (vista no-edicion): agregar un boton con icono de flecha abajo (ArrowDown) para "Convertir en subcategoria". Solo visible si la categoria NO tiene subcategorias
+Negociacion (orden 5)
+  (sin subcategorias)
 
-### Flujo "Degradar categoria"
-- Al hacer clic en ArrowDown, se muestra un pequeno selector (dropdown o popover) con las demas categorias disponibles como destino
-- Al seleccionar una, se ejecuta la operacion
+Cerrado (orden 6)
+  1. Ganado
+  2. Perdido
+  3. Descartado
+  4. Atiende Directo
+```
 
-## Cambios en hooks (useCategorias.ts)
+## Cambios necesarios
 
-### usePromoteToCategoria
-Nueva mutacion que:
-1. Lee los datos de la subcategoria
-2. Calcula max orden de categorias + 1
-3. Inserta en `categorias_proyecto`
-4. Elimina de `subcategorias_proyecto`
+### 1. Nueva funcion utilitaria: `getNextCategoriaComercial`
+**Archivo:** `src/lib/clasificacion-utils.ts`
 
-### useDemoteToSubcategoria
-Nueva mutacion que:
-1. Verifica que la categoria no tenga subcategorias
-2. Lee los datos de la categoria
-3. Calcula max orden de subcategorias del destino + 1
-4. Inserta en `subcategorias_proyecto` con el `categoria_id` destino
-5. Elimina de `categorias_proyecto`
+Funcion analoga a `getNextClasificacion` pero para categorias comerciales (`categorias_proyecto` / `subcategorias_proyecto`). Recibe la categoria y subcategoria actuales mas la lista completa de categorias con sus subs, y retorna el siguiente paso logico.
+
+### 2. CompleteAlertaDialog.tsx - Rediseno del modo "complete"
+
+**Zona superior - Resumen de la alerta:**
+- Cuadro destacado (fondo suave) mostrando titulo, texto, proyecto, empresa y fecha de la alerta que se completa. Sirve como recordatorio visual.
+
+**Zona media - Categoria comercial de la empresa:**
+- Solo se muestra si la alerta tiene `proyecto_id` y `empresa_id`.
+- Se consulta la tabla `proyecto_empresas` para obtener la `categoria_id` y `subcategoria_id` actual de esa empresa en ese proyecto.
+- Se muestra la categoria actual con su color.
+- Se sugiere la siguiente categoria con un selector (Select) pre-seleccionado en el "paso siguiente". El usuario puede cambiar a cualquier otra categoria/subcategoria o dejarlo sin cambio.
+- Un checkbox o toggle "Avanzar categoria" (activado por defecto) para que el usuario pueda desactivar el avance si no desea cambiar la categoria.
+
+**Zona inferior - Botones (sin cambio):**
+- "Solo completar" y "Completar y crear nueva" siguen funcionando igual, pero ahora si el avance de categoria esta activo, tambien actualizan la `proyecto_empresas`.
+
+### 3. Props adicionales en CompleteAlertaDialog
+
+Nuevas props necesarias:
+- `categorias`: lista de `CategoriaWithSubs[]` (del hook `useCategorias`)
+- `onAdvanceCategoria`: callback opcional `(proyectoId: string, empresaId: string, categoriaId: string, subcategoriaId: string | null) => void` para actualizar la categoria comercial
+
+### 4. Alertas.tsx - Pasar datos de categorias
+
+- Importar `useCategorias` y pasar la data como prop al `CompleteAlertaDialog`.
+- Crear un handler `handleAdvanceCategoria` que haga el update a `proyecto_empresas` con la nueva `categoria_id` / `subcategoria_id`.
+- Invalidar queries de `proyecto-empresas-categorias` y `proyectos` tras el update.
+
+### 5. Proyectos.tsx y AlertaWidget.tsx
+
+Mismo patron: pasar `categorias` y `onAdvanceCategoria` al `CompleteAlertaDialog` desde estos componentes.
 
 ## Detalle tecnico
 
-- Las operaciones son de dos pasos (insert + delete). Si el insert falla, no se elimina nada. Si el delete falla, queda duplicado pero no se pierde dato.
-- Los campos `permite_fecha` solo existen en `categorias_proyecto`, por lo que al degradar se pierde ese campo. Al promover, se inicializa como `false`.
-- Los proyectos que referencien la categoria/subcategoria original quedaran apuntando a un ID que ya no existe. Esto se manejara con la logica existente (el campo queda null o se limpia).
+### Funcion `getNextCategoriaComercial`
+```text
+Input:  categoriaId, subcategoriaId, categorias[]
+Output: { categoriaId, subcategoriaId }
+
+Logica identica a getNextClasificacion:
+1. Buscar la categoria actual en la lista ordenada
+2. Si hay subcategoria actual, buscar la siguiente sub del mismo padre
+3. Si es la ultima sub, pasar a la primera sub de la siguiente categoria
+4. Si no hay sub, pasar a la siguiente categoria
+```
+
+### Update de proyecto_empresas
+```text
+supabase
+  .from("proyecto_empresas")
+  .update({ categoria_id, subcategoria_id })
+  .eq("proyecto_id", proyectoId)
+  .eq("empresa_id", empresaId)
+```
+
+### UI del selector de categoria sugerida
+El selector mostrara todas las categorias y subcategorias disponibles (como el selector de clasificacion de alertas, con subcategorias indentadas). Estara pre-seleccionado en el "paso siguiente" calculado. El usuario puede:
+- Dejarlo como esta (avanza automaticamente)
+- Cambiarlo a otra categoria
+- Desactivar el avance (checkbox)
 
 ## Archivos a modificar
-1. **src/hooks/useCategorias.ts** - Agregar `usePromoteToCategoria` y `useDemoteToSubcategoria`
-2. **src/components/proyectos/CategoriasManagerDialog.tsx** - Agregar botones de promover/degradar y el selector de categoria destino para la degradacion
+1. `src/lib/clasificacion-utils.ts` - Agregar `getNextCategoriaComercial`
+2. `src/components/alertas/CompleteAlertaDialog.tsx` - Redisenar con resumen, categoria comercial y selector
+3. `src/pages/Alertas.tsx` - Pasar categorias y handler de avance
+4. `src/pages/Proyectos.tsx` - Pasar categorias y handler de avance
+5. `src/components/alertas/AlertaWidget.tsx` - Pasar categorias y handler de avance
