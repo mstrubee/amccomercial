@@ -147,8 +147,9 @@ export default function AlertaWidget() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const params = new URLSearchParams({ highlight: a.proyecto_id });
+                                if (a.empresa_id) params.set("highlight_empresa", a.empresa_id);
                                 if (location.pathname === "/proyectos") {
-                                  window.dispatchEvent(new CustomEvent("highlight-proyecto", { detail: a.proyecto_id }));
+                                  window.dispatchEvent(new CustomEvent("highlight-proyecto", { detail: { proyectoId: a.proyecto_id, empresaId: a.empresa_id } }));
                                 } else {
                                   navigate(`/proyectos?${params.toString()}`);
                                 }
