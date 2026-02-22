@@ -1,42 +1,77 @@
 
-# Revertir alerta al cancelar creacion de seguimiento
+# Auto-clasificar la nueva alerta como el paso siguiente
 
-## Problema actual
-Cuando el usuario elige "Completar y crear nueva", la alerta se marca como completada inmediatamente. Si luego cancela la creacion de la nueva alerta, la original queda completada sin seguimiento, lo cual no es el comportamiento deseado.
+## Objetivo
+Cuando se completa una alerta y se elige "Completar y crear nueva", la nueva alerta debe pre-seleccionar automaticamente la siguiente clasificacion/sub-clasificacion en la secuencia logica. El usuario podra editarla antes de confirmar.
 
-## Solucion
-Diferir la marcacion como completada: en lugar de completar la alerta al hacer clic en "Completar y crear nueva", solo abrir el formulario de creacion. La alerta original se marcara como completada unicamente cuando el usuario confirme la creacion de la nueva alerta.
+## Secuencia actual de clasificaciones
+
+```text
+Proyectos (orden 1)
+  1. Ofrecer para cotizar
+  2. Ofrecido para Cotizar
+  3. Chequear Estado Obra
+  4. Pedir Planos
+  5. Planos Pedidos
+  6. Cotizar / Solicitar Presupuesto
+  7. Seguimiento Presupuesto Empresa
+  8. Seguimiento Presupuesto Cliente  <-- ultima
+
+Obras / Ejecucion (orden 2)
+  (sin sub-clasificaciones aun)
+
+Finanzas (orden 3)
+  (sin sub-clasificaciones aun)
+```
+
+## Logica del "paso siguiente"
+
+1. Si la alerta tiene sub-clasificacion y hay una sub-clasificacion siguiente (mismo padre, orden mayor), se selecciona esa.
+2. Si la alerta tiene sub-clasificacion y es la ultima de su grupo, se pasa a la primera sub-clasificacion de la siguiente clasificacion. Si la siguiente clasificacion no tiene subs, se selecciona solo la clasificacion.
+3. Si la alerta tiene clasificacion pero sin sub-clasificacion, se pasa a la primera sub de la siguiente clasificacion, o a la clasificacion siguiente si no tiene subs.
+4. Si la alerta no tiene clasificacion, no se pre-selecciona nada.
+
+Ejemplo concreto: "Seguimiento Presupuesto Cliente" (ultima sub de Proyectos) pasa a "Obras / Ejecucion" (clasificacion, sin sub).
 
 ## Cambios necesarios
 
-### 1. Alertas.tsx (pagina principal)
-- En `onCompleteAndCreate`: NO llamar `toggleCompletada.mutate()`. Solo guardar el contexto (proyecto, empresa, parent) y abrir el dialog de creacion.
-- Agregar un estado `pendingCompleteId` para recordar que alerta debe completarse.
-- En el `onSubmit` del `AlertaFormDialog`: primero completar la alerta pendiente, luego crear la nueva.
-- En el `onClose` del `AlertaFormDialog`: si hay un `pendingCompleteId` y se cierra sin crear, limpiar el estado sin completar nada.
+### 1. AlertaFormDialog.tsx
+- Agregar props opcionales `defaultClasificacionId` y `defaultSubclasificacionId`.
+- En el `useEffect` de inicializacion (cuando no es edicion), usar estos valores como defaults para los campos de clasificacion y sub-clasificacion.
 
-### 2. Proyectos.tsx
-- Mismo patron: diferir `toggleCompletada` hasta que se confirme la creacion en el formulario.
-- Agregar `pendingCompleteId` y completar solo al hacer submit.
+### 2. Funcion utilitaria `getNextClasificacion`
+- Crear una funcion (dentro de `AlertaFormDialog.tsx` o como utilidad) que reciba la clasificacion/sub-clasificacion actual y la lista completa de clasificaciones, y retorne `{ clasificacionId, subclasificacionId }` del paso siguiente.
 
-### 3. AlertaWidget.tsx
-- Mismo patron: diferir la completacion hasta el submit del formulario de creacion.
-- Al cancelar/cerrar el dialog de creacion, no completar la alerta.
+### 3. Alertas.tsx
+- En `onCompleteAndCreate`: incluir `clasificacionId` y `subclasificacionId` de la alerta completada en `createDefaults`.
+- Calcular el paso siguiente usando `getNextClasificacion` antes de pasarlo al `AlertaFormDialog`.
+- Pasar los nuevos props `defaultClasificacionId` y `defaultSubclasificacionId`.
 
-### Detalle tecnico
+### 4. Proyectos.tsx
+- Mismo cambio: en `onCompleteAndCreate`, incluir la clasificacion de la alerta en `alertaCreateContext`.
+- Pasar los defaults calculados al `AlertaFormDialog`.
 
-En cada uno de los 3 archivos, el cambio sigue esta logica:
+### 5. AlertaWidget.tsx
+- Mismo patron: incluir la clasificacion en `createDefaults` y pasar los defaults de siguiente paso al formulario.
+
+## Detalle tecnico
+
+La funcion `getNextClasificacion` trabajara asi:
 
 ```text
-ANTES:
-  onCompleteAndCreate -> completar alerta + abrir form
-  form.onClose -> cerrar form
-  form.onSubmit -> crear nueva alerta
+Input:  clasificacionId, subclasificacionId, clasificaciones[]
+Output: { clasificacionId, subclasificacionId }
 
-DESPUES:
-  onCompleteAndCreate -> guardar id pendiente + abrir form (sin completar)
-  form.onClose -> limpiar pendiente (alerta NO se completa)
-  form.onSubmit -> completar alerta pendiente + crear nueva alerta
+1. Encontrar la clasificacion actual en la lista ordenada
+2. Si hay subclasificacion actual:
+   a. Buscar la siguiente sub (orden mayor, mismo padre)
+   b. Si existe -> retornar misma clasificacion + siguiente sub
+   c. Si no existe -> buscar siguiente clasificacion en la lista global
+      - Si tiene subs -> retornar primera sub de esa clasificacion
+      - Si no tiene subs -> retornar solo la clasificacion
+3. Si no hay subclasificacion:
+   - Buscar siguiente clasificacion en la lista global (mismo patron)
+4. Si no hay clasificacion -> retornar vacio (sin default)
 ```
 
-No se requieren cambios en la base de datos ni en `CompleteAlertaDialog.tsx`.
+Los 3 archivos padres pasaran la clasificacion de la alerta completada al `createDefaults`, y calcularan el "next" antes de pasarlo como prop al formulario. El calculo se hace en cada archivo usando la data de `useClasificacionesAlerta()` que ya se importa o se puede importar.
