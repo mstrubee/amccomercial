@@ -203,45 +203,76 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
 
           {/* Categoría Comercial — only when proyecto + empresa selected */}
           {showCategoriaComercial && (
-            <>
-              <div className="space-y-2">
-                <Label>Categoría Comercial</Label>
-                <Select value={categoriaProyectoId} onValueChange={(v) => { setCategoriaProyectoId(v === "none" ? "" : v); setSubcategoriaProyectoId(""); }}>
-                  <SelectTrigger><SelectValue placeholder="Sin categoría" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin categoría</SelectItem>
-                    {categoriasProyecto?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
+            <div className="space-y-2">
+              <Label>Categoría Comercial</Label>
+              <Select
+                value={subcategoriaProyectoId || categoriaProyectoId || "none"}
+                onValueChange={(v) => {
+                  if (v === "none") {
+                    setCategoriaProyectoId("");
+                    setSubcategoriaProyectoId("");
+                    return;
+                  }
+                  // Check if it's a subcategoria
+                  const sub = categoriasProyecto?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === v);
+                  if (sub) {
+                    setCategoriaProyectoId(sub.categoria_id);
+                    setSubcategoriaProyectoId(sub.id);
+                  } else {
+                    setCategoriaProyectoId(v);
+                    setSubcategoriaProyectoId("");
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin categoría">
+                    {(() => {
+                      if (subcategoriaProyectoId) {
+                        const parent = categoriasProyecto?.find(c => c.id === categoriaProyectoId);
+                        const sub = parent?.subcategorias_proyecto.find(s => s.id === subcategoriaProyectoId);
+                        return sub ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }} />
+                            {parent?.nombre} → {sub.nombre}
+                          </span>
+                        ) : "Sin categoría";
+                      }
+                      if (categoriaProyectoId) {
+                        const cat = categoriasProyecto?.find(c => c.id === categoriaProyectoId);
+                        return cat ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                            {cat.nombre}
+                          </span>
+                        ) : "Sin categoría";
+                      }
+                      return "Sin categoría";
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin categoría</SelectItem>
+                  {categoriasProyecto?.map((c) => (
+                    <div key={c.id}>
+                      <SelectItem value={c.id}>
                         <span className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
-                          {c.nombre}
+                          <span className="font-medium">{c.nombre}</span>
                         </span>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedCatProy && selectedCatProy.subcategorias_proyecto.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Sub-categoría Comercial</Label>
-                  <Select value={subcategoriaProyectoId} onValueChange={(v) => setSubcategoriaProyectoId(v === "none" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Sin sub-categoría" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sin sub-categoría</SelectItem>
-                      {selectedCatProy.subcategorias_proyecto.map((s) => (
+                      {c.subcategorias_proyecto.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
-                          <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-2 pl-4">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
                             {s.nombre}
                           </span>
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </>
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
           {/* Clasificación — Single Select */}
