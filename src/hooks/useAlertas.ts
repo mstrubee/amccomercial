@@ -22,6 +22,8 @@ export interface AlertaRow {
   deleted: boolean;
   deleted_by: string | null;
   deleted_at: string | null;
+  clasificacion_alerta_id: string | null;
+  subclasificacion_alerta_id: string | null;
 }
 
 export interface AlertaWithRelations extends AlertaRow {
@@ -123,6 +125,8 @@ export interface AlertaInput {
   usuario_responsable_id: string;
   fecha_seguimiento: string;
   parent_alerta_id?: string | null;
+  clasificacion_alerta_id?: string | null;
+  subclasificacion_alerta_id?: string | null;
 }
 
 export function useCreateAlerta() {
@@ -137,6 +141,8 @@ export function useCreateAlerta() {
         ...rest,
         created_by: user.id,
         ...(parent_alerta_id ? { parent_alerta_id } : {}),
+        clasificacion_alerta_id: input.clasificacion_alerta_id || null,
+        subclasificacion_alerta_id: input.subclasificacion_alerta_id || null,
       } as any);
       if (error) throw error;
     },
@@ -160,7 +166,12 @@ export function useUpdateAlerta() {
       const { id, parent_alerta_id, ...rest } = input;
       const { error } = await supabase
         .from("alertas")
-        .update({ ...rest, updated_by: user.id } as any)
+        .update({
+          ...rest,
+          updated_by: user.id,
+          clasificacion_alerta_id: input.clasificacion_alerta_id || null,
+          subclasificacion_alerta_id: input.subclasificacion_alerta_id || null,
+        } as any)
         .eq("id", id);
       if (error) throw error;
     },

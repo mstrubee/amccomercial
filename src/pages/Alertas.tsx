@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,6 +29,8 @@ import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
 import DeletedAlertasDialog from "@/components/alertas/DeletedAlertasDialog";
+import ClasificacionesAlertaDialog from "@/components/alertas/ClasificacionesAlertaDialog";
+import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -45,7 +47,8 @@ export default function Alertas() {
   const { data: alertas, isLoading } = useAlertas();
   const { data: empresas } = useEmpresas();
   const { data: proyectosRaw } = useProyectos();
-  const { user } = useAuth();
+  const { data: clasificaciones } = useClasificacionesAlerta();
+  const { user, isAdmin } = useAuth();
   const createAlerta = useCreateAlerta();
   const updateAlerta = useUpdateAlerta();
   const deleteAlerta = useDeleteAlerta();
@@ -75,7 +78,9 @@ export default function Alertas() {
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [showClasificaciones, setShowClasificaciones] = useState(false);
   const [filterProyecto, setFilterProyecto] = useState<string>("all");
+  const [filterClasificacion, setFilterClasificacion] = useState<string>("all");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
@@ -126,6 +131,10 @@ export default function Alertas() {
       list = list.filter((a) => a.proyecto_id === filterProyecto);
     }
 
+    if (filterClasificacion !== "all") {
+      list = list.filter((a) => (a as any).clasificacion_alerta_id === filterClasificacion);
+    }
+
     if (fechaDesde) {
       const desde = startOfDay(fechaDesde);
       list = list.filter((a) => parseLocalDate(a.fecha_seguimiento) >= desde);
@@ -151,7 +160,7 @@ export default function Alertas() {
     });
 
     return list;
-  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, sortDir, fechaDesde, fechaHasta]);
+  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, filterClasificacion, sortDir, fechaDesde, fechaHasta]);
 
   const handleGenerateTitles = async () => {
     setGeneratingTitles(true);
@@ -247,11 +256,16 @@ export default function Alertas() {
             {detectingDuplicates ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Copy className="w-4 h-4 mr-1" />}
             {detectingDuplicates ? "Analizando..." : "Detectar duplicados IA"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowDeleted(true)}>
-            <RotateCcw className="w-4 h-4 mr-1" /> Eliminadas
-          </Button>
           <Button variant="outline" size="sm" onClick={() => { setTreeRootId(null); setShowTree(true); }}>
             <GitBranch className="w-4 h-4 mr-1" /> Árbol
+          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setShowClasificaciones(true)}>
+              <Tags className="w-4 h-4 mr-1" /> Clasificación
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setShowDeleted(true)}>
+            <RotateCcw className="w-4 h-4 mr-1" /> Eliminadas
           </Button>
           <Button onClick={() => { setEditTarget(null); setCreateDefaults({}); setDialogOpen(true); }}>
             <Plus className="w-4 h-4 mr-2" /> Nueva Alerta
@@ -279,6 +293,17 @@ export default function Alertas() {
               <SelectItem value="all">Todos los proyectos</SelectItem>
               {proyectosList.map((p) => (
                 <SelectItem key={p.id} value={p.id}>#{p.numero} {p.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterClasificacion} onValueChange={setFilterClasificacion}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todas las clasificaciones" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las clasificaciones</SelectItem>
+              {clasificaciones?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -330,6 +355,7 @@ export default function Alertas() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerta</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresa</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Clasificación</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsable</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Seguimiento</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
@@ -337,7 +363,7 @@ export default function Alertas() {
             </thead>
             <tbody className="divide-y divide-border">
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
               )}
               {filtered.map((a) => {
                 const vencida = isVencida(a);
@@ -371,6 +397,16 @@ export default function Alertas() {
                     {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{a.empresas?.nombre || "—"}</td>
+                  <td className="px-5 py-3 text-muted-foreground text-xs">
+                    {(() => {
+                      const cId = (a as any).clasificacion_alerta_id;
+                      const sId = (a as any).subclasificacion_alerta_id;
+                      const clasif = clasificaciones?.find(c => c.id === cId);
+                      const sub = clasif?.subclasificaciones.find(s => s.id === sId);
+                      if (!clasif) return "—";
+                      return sub ? `${clasif.nombre} / ${sub.nombre}` : clasif.nombre;
+                    })()}
+                  </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
                   </td>
@@ -458,6 +494,9 @@ export default function Alertas() {
           }
         }}
       />
+
+      {/* Clasificaciones dialog */}
+      <ClasificacionesAlertaDialog open={showClasificaciones} onClose={() => setShowClasificaciones(false)} />
 
       {/* Tree dialog */}
       <AlertaTreeDialog open={showTree} onClose={() => setShowTree(false)} rootAlertaId={treeRootId} />

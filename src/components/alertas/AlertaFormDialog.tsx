@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertaInput, AlertaWithRelations } from "@/hooks/useAlertas";
 import { useTitulosAlerta } from "@/hooks/useTitulosAlerta";
+import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { Tables } from "@/integrations/supabase/types";
 
 interface Props {
@@ -32,8 +33,13 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
   const [texto, setTexto] = useState("");
   const [responsableId, setResponsableId] = useState(currentUserId);
   const [fechaSeguimiento, setFechaSeguimiento] = useState("");
+  const [clasificacionId, setClasificacionId] = useState<string>("");
+  const [subclasificacionId, setSubclasificacionId] = useState<string>("");
 
   const { data: titulosOpciones } = useTitulosAlerta();
+  const { data: clasificaciones } = useClasificacionesAlerta();
+
+  const selectedClasif = clasificaciones?.find(c => c.id === clasificacionId);
 
   useEffect(() => {
     if (editTarget) {
@@ -43,6 +49,8 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setTexto(editTarget.texto);
       setResponsableId(editTarget.usuario_responsable_id);
       setFechaSeguimiento(editTarget.fecha_seguimiento);
+      setClasificacionId((editTarget as any).clasificacion_alerta_id || "");
+      setSubclasificacionId((editTarget as any).subclasificacion_alerta_id || "");
     } else {
       setProyectoId(defaultProyectoId || "");
       setEmpresaId(defaultEmpresaId || "");
@@ -50,6 +58,8 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setTexto(defaultTexto || "");
       setResponsableId(currentUserId);
       setFechaSeguimiento("");
+      setClasificacionId("");
+      setSubclasificacionId("");
     }
   }, [editTarget, open, currentUserId]);
 
@@ -63,6 +73,8 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       texto: texto.trim(),
       usuario_responsable_id: responsableId,
       fecha_seguimiento: fechaSeguimiento,
+      clasificacion_alerta_id: clasificacionId && clasificacionId !== "none" ? clasificacionId : null,
+      subclasificacion_alerta_id: subclasificacionId && subclasificacionId !== "none" ? subclasificacionId : null,
       ...(!editTarget && parentAlertaId ? { parent_alerta_id: parentAlertaId } : {}),
     });
     onClose();
@@ -154,6 +166,33 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Clasificación</Label>
+              <Select value={clasificacionId} onValueChange={(v) => { setClasificacionId(v); setSubclasificacionId(""); }}>
+                <SelectTrigger><SelectValue placeholder="Sin clasificación" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin clasificación</SelectItem>
+                  {clasificaciones?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sub-clasificación</Label>
+              <Select value={subclasificacionId} onValueChange={setSubclasificacionId} disabled={!selectedClasif || selectedClasif.subclasificaciones.length === 0}>
+                <SelectTrigger><SelectValue placeholder="Sin sub-clasificación" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin sub-clasificación</SelectItem>
+                  {selectedClasif?.subclasificaciones.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
