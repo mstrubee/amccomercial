@@ -197,8 +197,9 @@ export default function AlertaWidget() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
-          const next = clasificacionesAlerta
-            ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificacionesAlerta)
+          const lastAc = a.alerta_clasificaciones?.length ? a.alerta_clasificaciones[a.alerta_clasificaciones.length - 1] : null;
+          const next = clasificacionesAlerta && lastAc
+            ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificacionesAlerta)
             : { clasificacionId: "", subclasificacionId: "" };
           setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId });
           setCreateDialogOpen(true);

@@ -186,10 +186,10 @@ export default function Alertas() {
     if (filterClasificacion !== "all") {
       if (filterClasificacion.startsWith("s:")) {
         const subId = filterClasificacion.slice(2);
-        list = list.filter((a) => (a as any).subclasificacion_alerta_id === subId);
+        list = list.filter((a) => a.alerta_clasificaciones?.some(ac => ac.subclasificacion_id === subId));
       } else {
         const clasifId = filterClasificacion.startsWith("c:") ? filterClasificacion.slice(2) : filterClasificacion;
-        list = list.filter((a) => (a as any).clasificacion_alerta_id === clasifId);
+        list = list.filter((a) => a.alerta_clasificaciones?.some(ac => ac.clasificacion_id === clasifId));
       }
     }
 
@@ -512,12 +512,14 @@ export default function Alertas() {
                   </td>
                   <td className="px-5 py-3 text-muted-foreground text-xs">
                     {(() => {
-                      const cId = (a as any).clasificacion_alerta_id;
-                      const sId = (a as any).subclasificacion_alerta_id;
-                      const clasif = clasificaciones?.find(c => c.id === cId);
-                      const sub = clasif?.subclasificaciones.find(s => s.id === sId);
-                      if (!clasif) return "—";
-                      return sub ? `${clasif.nombre} / ${sub.nombre}` : clasif.nombre;
+                      const acs = a.alerta_clasificaciones || [];
+                      if (acs.length === 0) return "—";
+                      return acs.map(ac => {
+                        const clasif = clasificaciones?.find(c => c.id === ac.clasificacion_id);
+                        if (!clasif) return null;
+                        const sub = ac.subclasificacion_id ? clasif.subclasificaciones.find(s => s.id === ac.subclasificacion_id) : null;
+                        return sub ? `${clasif.nombre} / ${sub.nombre}` : clasif.nombre;
+                      }).filter(Boolean).join(", ") || "—";
                     })()}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
@@ -604,8 +606,9 @@ export default function Alertas() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
-          const next = clasificaciones
-            ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificaciones)
+          const lastAc = a.alerta_clasificaciones?.length ? a.alerta_clasificaciones[a.alerta_clasificaciones.length - 1] : null;
+          const next = clasificaciones && lastAc
+            ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificaciones)
             : { clasificacionId: "", subclasificacionId: "" };
           setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId });
           setEditTarget(null);
