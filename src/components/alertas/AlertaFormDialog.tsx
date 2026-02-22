@@ -279,7 +279,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
 
           {/* Clasificación — Single Select */}
           <div className="space-y-2">
-            <Label>Clasificación</Label>
+            <Label>Clasificación Alerta</Label>
             <Select value={clasificacionId} onValueChange={(v) => { setClasificacionId(v === "none" ? "" : v); setSubclasificacionId(""); }}>
               <SelectTrigger><SelectValue placeholder="Sin clasificación" /></SelectTrigger>
               <SelectContent>
