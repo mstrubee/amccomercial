@@ -125,8 +125,19 @@ export function useReorderClasificaciones() {
         if (error) throw error;
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); },
-    onError: (e) => toast.error("Error al reordenar: " + e.message),
+    onMutate: async (items) => {
+      await qc.cancelQueries({ queryKey: QK });
+      const prev = qc.getQueryData<ClasificacionAlerta[]>(QK);
+      if (prev) {
+        const orderMap = new Map(items.map(i => [i.id, i.orden]));
+        const updated = [...prev].map(c => ({ ...c, orden: orderMap.get(c.id) ?? c.orden }));
+        updated.sort((a, b) => a.orden - b.orden);
+        qc.setQueryData(QK, updated);
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(QK, ctx.prev); toast.error("Error al reordenar"); },
+    onSettled: () => qc.invalidateQueries({ queryKey: QK }),
   });
 }
 
@@ -139,7 +150,22 @@ export function useReorderSubclasificaciones() {
         if (error) throw error;
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); },
-    onError: (e) => toast.error("Error al reordenar: " + e.message),
+    onMutate: async (items) => {
+      await qc.cancelQueries({ queryKey: QK });
+      const prev = qc.getQueryData<ClasificacionAlerta[]>(QK);
+      if (prev) {
+        const orderMap = new Map(items.map(i => [i.id, i.orden]));
+        const updated = prev.map(c => ({
+          ...c,
+          subclasificaciones: [...c.subclasificaciones]
+            .map(s => ({ ...s, orden: orderMap.get(s.id) ?? s.orden }))
+            .sort((a, b) => a.orden - b.orden),
+        }));
+        qc.setQueryData(QK, updated);
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(QK, ctx.prev); toast.error("Error al reordenar"); },
+    onSettled: () => qc.invalidateQueries({ queryKey: QK }),
   });
 }
