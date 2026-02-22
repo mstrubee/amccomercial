@@ -1,55 +1,42 @@
 
 
-## Feature 1: Mostrar proyectos vinculados en el detalle del cliente
+## Plan: Poblar proyecto_clientes con los contactos actuales de cada proyecto
 
-### Cambios en `src/components/clientes/ClienteDetailDialog.tsx`
+### Situacion actual
 
-- Importar `useProyectos` desde `@/hooks/useProyectos` y `useNavigate` desde `react-router-dom`
-- Usar `useProyectos()` para obtener todos los proyectos
-- Con un `useMemo`, filtrar los proyectos donde `proyecto_clientes` contenga el `cliente.id`
-- Agregar una seccion "Proyectos Vinculados" despues de los contactos (antes de los botones de accion)
-- Cada proyecto se muestra como una tarjeta clickeable con:
-  - Nombre del proyecto
-  - Categoria comercial (obtenida de `proyecto_empresas[0].categorias_proyecto.nombre` si existe)
-  - Al hacer clic, navega a `/proyectos?highlight={proyecto.id}` y cierra el dialog
+- La tabla `proyecto_clientes` tiene **0 registros**
+- Los proyectos tienen contactos en campos de texto: `arq_nombre`, `const_nombre`, `ito_nombre`, `duenos_nombre`
+- La tabla `clientes` ya tiene registros que coinciden con la mayoria de esos nombres
+- Hay un pequeno grupo de nombres que no coinciden exactamente (variantes como "ANF" vs "ANF arquitectos", "EMU arq" vs "EMU arquitectos", etc.)
 
-### UI
+### Que se hara
 
-```
-Proyectos Vinculados
-+------------------------------------+
-| Proyecto ABC                       |
-| Categoria: En Estudio              |
-+------------------------------------+
-| Proyecto XYZ                       |
-| Categoria: Adjudicado              |
-+------------------------------------+
-```
+Una migracion SQL que:
 
-Si no hay proyectos vinculados, mostrar "Sin proyectos vinculados".
+1. **Crea 7 clientes faltantes** para nombres sin coincidencia exacta:
+   - Archiplan, Interplan, JT Schmidt (categoria Arquitectura)
+   - AICE, Varios, CF (categoria Constructora)
+   - Soledad Hansen (categoria Duenos)
 
----
+2. **Inserta relaciones en `proyecto_clientes`** cruzando los 4 campos de contacto de cada proyecto contra la tabla de clientes:
+   - Coincidencias exactas (case-insensitive, con trim)
+   - Coincidencias fuzzy para variantes conocidas:
+     - "ANF" / "anf" -> ANF arquitectos
+     - "EMU" / "EMU arq" -> EMU arquitectos
+     - "Estudio Base / Estudio Base" -> Estudio Base
+     - "LKDM / LKDM / LKDM" -> LKDM
+     - "Raimundo Anguita" -> Raimungo Anguita
+     - "ROSENDE y ASOCIADOS..." -> ROSENDE & ASOCIADOS...
 
-## Feature 2: Buscar proyectos por cliente en la barra de busqueda
+3. Usa `ON CONFLICT DO NOTHING` para evitar duplicados
 
-### Cambios en `src/pages/Proyectos.tsx`
+### Resultado esperado
 
-En la logica de `matchSearch` (linea 163-166), extender para buscar tambien en los nombres de clientes vinculados via `proyecto_clientes`:
+- ~656 relaciones insertadas (309 arq + 235 const + 36 ito + 76 duenos, menos duplicados donde un mismo cliente aparece en multiples roles del mismo proyecto)
+- La columna "Contactos" en la tabla de proyectos mostrara los clientes correctamente vinculados
+- El detalle de cada cliente mostrara los proyectos vinculados
 
-```typescript
-const matchSearch =
-  p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-  p.comuna.toLowerCase().includes(search.toLowerCase()) ||
-  (p.proyecto_clientes || []).some(pc =>
-    pc.clientes?.nombre?.toLowerCase().includes(search.toLowerCase())
-  );
-```
+### Sin cambios de codigo
 
-Actualizar el placeholder del input de busqueda para indicar que se puede buscar por cliente (ej: "Buscar por nombre, comuna o cliente...").
-
----
-
-### Sin cambios en base de datos
-
-Ambas features usan datos ya disponibles via la relacion `proyecto_clientes` que fue agregada en la migracion anterior.
+Solo se requiere una migracion de datos SQL; no hay cambios en componentes ni hooks.
 
