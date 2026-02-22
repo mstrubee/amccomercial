@@ -583,7 +583,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} filterBotones={filterBotones} />;
                 }
 
                 // Grouped header
@@ -1061,7 +1061,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, updateNotas }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, updateNotas, filterBotones }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1070,6 +1070,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
   onDelete: (p: ProyectoWithEmpresas) => void;
   onTemplate: (p: ProyectoWithEmpresas) => void;
   updateNotas: (data: { id: string; notas: string }) => void;
+  filterBotones: string[];
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
   return (
@@ -1083,7 +1084,17 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
         <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
-        <td className="px-5 py-3"></td>
+        <td className="px-5 py-3">
+          {filterBotones.length > 0 && (
+            <div className="flex flex-col items-center gap-1">
+              {filterBotones.map((label) => (
+                <span key={label} className="inline-block px-3 py-1 rounded text-xs font-medium whitespace-nowrap bg-primary text-primary-foreground">
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+        </td>
         <td className="px-5 py-3 text-right">
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => onTemplate(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
