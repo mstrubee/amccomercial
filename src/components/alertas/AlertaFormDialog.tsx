@@ -294,7 +294,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
           {/* Sub-clasificación — conditional */}
           {selectedClasif && selectedClasif.subclasificaciones.length > 0 && (
             <div className="space-y-2">
-              <Label>Sub-clasificación</Label>
+              <Label>Sub-Clasificación Alerta</Label>
               <Select value={subclasificacionId} onValueChange={(v) => setSubclasificacionId(v === "none" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Sin sub-clasificación" /></SelectTrigger>
                 <SelectContent>
