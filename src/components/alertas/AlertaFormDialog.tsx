@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AlertaInput, AlertaWithRelations } from "@/hooks/useAlertas";
 import { useTitulosAlerta } from "@/hooks/useTitulosAlerta";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
@@ -92,16 +96,32 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>Proyecto *</Label>
-            <Select value={proyectoId} onValueChange={setProyectoId}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar proyecto" /></SelectTrigger>
-              <SelectContent>
-                {proyectos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    #{p.numero} — {p.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  {proyectoId
+                    ? `#${proyectos.find(p => p.id === proyectoId)?.numero} — ${proyectos.find(p => p.id === proyectoId)?.nombre}`
+                    : "Seleccionar proyecto"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar proyecto..." />
+                  <CommandList>
+                    <CommandEmpty>Sin resultados.</CommandEmpty>
+                    <CommandGroup>
+                      {proyectos.map((p) => (
+                        <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => setProyectoId(p.id)}>
+                          <Check className={cn("mr-2 h-4 w-4", proyectoId === p.id ? "opacity-100" : "opacity-0")} />
+                          #{p.numero} — {p.nombre}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-2">
