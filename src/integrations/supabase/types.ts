@@ -180,6 +180,47 @@ export type Database = {
         }
         Relationships: []
       }
+      captadores: {
+        Row: {
+          categoria_id: string
+          contacto: string
+          created_at: string
+          email: string
+          id: string
+          nombre: string
+          telefono: string
+          updated_at: string
+        }
+        Insert: {
+          categoria_id: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          nombre: string
+          telefono?: string
+          updated_at?: string
+        }
+        Update: {
+          categoria_id?: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          nombre?: string
+          telefono?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captadores_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_cliente"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias_cliente: {
         Row: {
           created_at: string
@@ -331,6 +372,44 @@ export type Database = {
           },
         ]
       }
+      contactos_captador: {
+        Row: {
+          captador_id: string
+          contacto: string
+          created_at: string
+          email: string
+          id: string
+          orden: number
+          telefono: string
+        }
+        Insert: {
+          captador_id: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          orden?: number
+          telefono?: string
+        }
+        Update: {
+          captador_id?: string
+          contacto?: string
+          created_at?: string
+          email?: string
+          id?: string
+          orden?: number
+          telefono?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contactos_captador_captador_id_fkey"
+            columns: ["captador_id"]
+            isOneToOne: false
+            referencedRelation: "captadores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contactos_cliente: {
         Row: {
           cliente_id: string
@@ -422,6 +501,78 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      proyecto_captadores: {
+        Row: {
+          captador_id: string
+          created_at: string
+          id: string
+          proyecto_id: string
+        }
+        Insert: {
+          captador_id: string
+          created_at?: string
+          id?: string
+          proyecto_id: string
+        }
+        Update: {
+          captador_id?: string
+          created_at?: string
+          id?: string
+          proyecto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proyecto_captadores_captador_id_fkey"
+            columns: ["captador_id"]
+            isOneToOne: false
+            referencedRelation: "captadores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proyecto_captadores_proyecto_id_fkey"
+            columns: ["proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proyecto_clientes: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          id: string
+          proyecto_id: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          id?: string
+          proyecto_id: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          id?: string
+          proyecto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proyecto_clientes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proyecto_clientes_proyecto_id_fkey"
+            columns: ["proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       proyecto_empresas: {
         Row: {
