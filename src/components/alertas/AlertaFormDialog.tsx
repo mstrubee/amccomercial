@@ -31,9 +31,11 @@ interface Props {
   parentAlertaId?: string | null;
   defaultClasificacionId?: string;
   defaultSubclasificacionId?: string;
+  defaultCategoriaProyectoId?: string;
+  defaultSubcategoriaProyectoId?: string;
 }
 
-export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto, parentAlertaId, defaultClasificacionId, defaultSubclasificacionId }: Props) {
+export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto, parentAlertaId, defaultClasificacionId, defaultSubclasificacionId, defaultCategoriaProyectoId, defaultSubcategoriaProyectoId }: Props) {
   const [proyectoId, setProyectoId] = useState("");
   const [empresaId, setEmpresaId] = useState<string>("");
   const [titulo, setTitulo] = useState("");
@@ -116,10 +118,10 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setFechaSeguimiento("");
       setClasificacionId(defaultClasificacionId || "");
       setSubclasificacionId(defaultSubclasificacionId || "");
-      setCategoriaProyectoId("");
-      setSubcategoriaProyectoId("");
+      setCategoriaProyectoId(defaultCategoriaProyectoId || "");
+      setSubcategoriaProyectoId(defaultSubcategoriaProyectoId || "");
     }
-  }, [editTarget, open, currentUserId, defaultClasificacionId, defaultSubclasificacionId]);
+  }, [editTarget, open, currentUserId, defaultClasificacionId, defaultSubclasificacionId, defaultCategoriaProyectoId, defaultSubcategoriaProyectoId]);
 
   const selectedClasif = clasificaciones?.find(c => c.id === clasificacionId);
   const selectedCatProy = categoriasProyecto?.find(c => c.id === categoriaProyectoId);

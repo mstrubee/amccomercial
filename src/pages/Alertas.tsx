@@ -95,7 +95,7 @@ export default function Alertas() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [completeMode, setCompleteMode] = useState<"complete" | "uncomplete">("complete");
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; clasificacionId?: string; subclasificacionId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; clasificacionId?: string; subclasificacionId?: string; categoriaProyectoId?: string; subcategoriaProyectoId?: string }>({});
   const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
@@ -653,6 +653,8 @@ export default function Alertas() {
         parentAlertaId={createDefaults.parentAlertaId}
         defaultClasificacionId={createDefaults.clasificacionId}
         defaultSubclasificacionId={createDefaults.subclasificacionId}
+        defaultCategoriaProyectoId={createDefaults.categoriaProyectoId}
+        defaultSubcategoriaProyectoId={createDefaults.subcategoriaProyectoId}
       />
 
       {/* Delete Confirmation */}
@@ -690,7 +692,7 @@ export default function Alertas() {
           const next = clasificaciones && lastAc
             ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificaciones)
             : { clasificacionId: "", subclasificacionId: "" };
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId, categoriaProyectoId: (a as any).categoria_proyecto_id || undefined, subcategoriaProyectoId: (a as any).subcategoria_proyecto_id || undefined });
           setEditTarget(null);
           setDialogOpen(true);
         }}
