@@ -44,7 +44,7 @@ export default function AlertaWidget() {
 
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string; defaultCategoriaProyectoId?: string; defaultSubcategoriaProyectoId?: string }>({});
   const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
   const { data: clasificacionesAlerta } = useClasificacionesAlerta();
 
@@ -201,7 +201,7 @@ export default function AlertaWidget() {
           const next = clasificacionesAlerta && lastAc
             ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificacionesAlerta)
             : { clasificacionId: "", subclasificacionId: "" };
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: (a as any).categoria_proyecto_id || undefined, defaultSubcategoriaProyectoId: (a as any).subcategoria_proyecto_id || undefined });
           setCreateDialogOpen(true);
         }}
       />
@@ -220,6 +220,8 @@ export default function AlertaWidget() {
         parentAlertaId={createDefaults.parentAlertaId}
         defaultClasificacionId={createDefaults.defaultClasificacionId}
         defaultSubclasificacionId={createDefaults.defaultSubclasificacionId}
+        defaultCategoriaProyectoId={createDefaults.defaultCategoriaProyectoId}
+        defaultSubcategoriaProyectoId={createDefaults.defaultSubcategoriaProyectoId}
       />
     </>
   );

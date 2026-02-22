@@ -80,7 +80,7 @@ export default function Proyectos() {
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
-  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string } | null>(null);
+  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string; defaultCategoriaProyectoId?: string; defaultSubcategoriaProyectoId?: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showBackToAlertas, setShowBackToAlertas] = useState(false);
 
@@ -1036,6 +1036,8 @@ export default function Proyectos() {
           parentAlertaId={alertaCreateContext.parentAlertaId}
           defaultClasificacionId={alertaCreateContext.defaultClasificacionId}
           defaultSubclasificacionId={alertaCreateContext.defaultSubclasificacionId}
+          defaultCategoriaProyectoId={alertaCreateContext.defaultCategoriaProyectoId}
+          defaultSubcategoriaProyectoId={alertaCreateContext.defaultSubcategoriaProyectoId}
         />
       )}
 
@@ -1097,7 +1099,7 @@ export default function Proyectos() {
           const next = clasificacionesAlerta
             ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificacionesAlerta)
             : { clasificacionId: "", subclasificacionId: "" };
-          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId });
+          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: (a as any).categoria_proyecto_id || undefined, defaultSubcategoriaProyectoId: (a as any).subcategoria_proyecto_id || undefined });
         }}
       />
 

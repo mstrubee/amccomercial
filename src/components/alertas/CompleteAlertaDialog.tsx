@@ -55,30 +55,39 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
     enabled: !!proyectoId && !!empresaId && open && mode === "complete",
   });
 
+  // Effective category: prioritize alert's own fields, fallback to proyecto_empresas
+  const effectiveCat = useMemo(() => {
+    const alertCatId = (alerta as any)?.categoria_proyecto_id;
+    const alertSubId = (alerta as any)?.subcategoria_proyecto_id;
+    if (alertCatId) return { categoria_id: alertCatId, subcategoria_id: alertSubId || null };
+    if (proyectoEmpresa?.categoria_id) return { categoria_id: proyectoEmpresa.categoria_id, subcategoria_id: proyectoEmpresa.subcategoria_id };
+    return null;
+  }, [alerta, proyectoEmpresa]);
+
   // Compute next suggested category
   const suggested = useMemo(() => {
-    if (!categorias || !proyectoEmpresa) return null;
-    if (!proyectoEmpresa.categoria_id) {
+    if (!categorias) return null;
+    if (!effectiveCat?.categoria_id) {
       // No category yet → suggest the first one
       if (categorias.length === 0) return null;
       const first = categorias[0];
       const subs = first.subcategorias_proyecto || [];
       return { categoriaId: first.id, subcategoriaId: subs.length > 0 ? subs[0].id : "" };
     }
-    return getNextCategoriaComercial(proyectoEmpresa.categoria_id, proyectoEmpresa.subcategoria_id, categorias);
-  }, [categorias, proyectoEmpresa]);
+    return getNextCategoriaComercial(effectiveCat.categoria_id, effectiveCat.subcategoria_id, categorias);
+  }, [categorias, effectiveCat]);
 
   // Current category info
   const currentCatInfo = useMemo(() => {
-    if (!categorias || !proyectoEmpresa) return null;
-    if (!proyectoEmpresa.categoria_id) return { cat: null, sub: null };
-    const cat = categorias.find(c => c.id === proyectoEmpresa.categoria_id);
+    if (!categorias) return null;
+    if (!effectiveCat?.categoria_id) return { cat: null, sub: null };
+    const cat = categorias.find(c => c.id === effectiveCat.categoria_id);
     if (!cat) return { cat: null, sub: null };
-    const sub = proyectoEmpresa.subcategoria_id
-      ? cat.subcategorias_proyecto.find(s => s.id === proyectoEmpresa.subcategoria_id)
+    const sub = effectiveCat.subcategoria_id
+      ? cat.subcategorias_proyecto.find(s => s.id === effectiveCat.subcategoria_id)
       : null;
     return { cat, sub };
-  }, [categorias, proyectoEmpresa]);
+  }, [categorias, effectiveCat]);
 
   // Initialize selected value when suggested changes
   useEffect(() => {
@@ -104,7 +113,7 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
   const today = startOfDay(new Date());
   const isOverdue = isBefore(parseLocalDate(alerta.fecha_seguimiento), today);
   const needsDate = mode === "uncomplete" && isOverdue;
-  const showCategorySection = mode === "complete" && !!proyectoId && !!empresaId && !!currentCatInfo && !!categorias && categorias.length > 0;
+  const showCategorySection = mode === "complete" && !!proyectoId && !!empresaId && (!!currentCatInfo || !!effectiveCat) && !!categorias && categorias.length > 0;
 
   const handleClose = () => {
     setNewDate(undefined);
