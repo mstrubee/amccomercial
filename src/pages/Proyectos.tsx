@@ -161,9 +161,13 @@ export default function Proyectos() {
   }, []);
 
   const filtered = (proyectos || []).filter((p) => {
+    const searchLower = search.toLowerCase();
     const matchSearch =
-      p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      p.comuna.toLowerCase().includes(search.toLowerCase());
+      p.nombre.toLowerCase().includes(searchLower) ||
+      p.comuna.toLowerCase().includes(searchLower) ||
+      (p.proyecto_clientes || []).some(pc =>
+        pc.clientes?.nombre?.toLowerCase().includes(searchLower)
+      );
     const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
     const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
     const matchEmpresa =
@@ -280,7 +284,7 @@ export default function Proyectos() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nombre o comuna..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Buscar por nombre, comuna o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           {/* Estado AMC multi-select */}
