@@ -167,6 +167,8 @@ export interface AlertaInput {
   fecha_seguimiento: string;
   parent_alerta_id?: string | null;
   clasificaciones?: ClasificacionSelection[];
+  categoria_proyecto_id?: string | null;
+  subcategoria_proyecto_id?: string | null;
   // Legacy - still accepted for backward compat but junction table is preferred
   clasificacion_alerta_id?: string | null;
   subclasificacion_alerta_id?: string | null;
@@ -194,7 +196,7 @@ export function useCreateAlerta() {
     mutationFn: async (input: AlertaInput) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
-      const { parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, ...rest } = input;
+      const { parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, categoria_proyecto_id, subcategoria_proyecto_id, ...rest } = input;
 
       // Use first clasificacion for legacy column (backward compat)
       const firstClasif = clasificaciones?.[0];
@@ -205,12 +207,25 @@ export function useCreateAlerta() {
         ...(parent_alerta_id ? { parent_alerta_id } : {}),
         clasificacion_alerta_id: firstClasif?.clasificacion_id || clasificacion_alerta_id || null,
         subclasificacion_alerta_id: firstClasif?.subclasificacion_id || subclasificacion_alerta_id || null,
+        categoria_proyecto_id: categoria_proyecto_id || null,
+        subcategoria_proyecto_id: subcategoria_proyecto_id || null,
       } as any).select("id").single();
       if (error) throw error;
 
       // Sync junction table
       if (clasificaciones && clasificaciones.length > 0 && data) {
         await syncClasificaciones(data.id, clasificaciones);
+      }
+
+      // Sync proyecto_empresas category
+      if (rest.empresa_id && (categoria_proyecto_id || subcategoria_proyecto_id)) {
+        await supabase.from("proyecto_empresas")
+          .update({
+            categoria_id: categoria_proyecto_id || null,
+            subcategoria_id: subcategoria_proyecto_id || null,
+          } as any)
+          .eq("proyecto_id", rest.proyecto_id)
+          .eq("empresa_id", rest.empresa_id);
       }
     },
     onSuccess: (_data, variables) => {
@@ -230,7 +245,7 @@ export function useUpdateAlerta() {
     mutationFn: async (input: AlertaInput & { id: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
-      const { id, parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, ...rest } = input;
+      const { id, parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, categoria_proyecto_id, subcategoria_proyecto_id, ...rest } = input;
 
       const firstClasif = clasificaciones?.[0];
 
@@ -241,6 +256,8 @@ export function useUpdateAlerta() {
           updated_by: user.id,
           clasificacion_alerta_id: firstClasif?.clasificacion_id || clasificacion_alerta_id || null,
           subclasificacion_alerta_id: firstClasif?.subclasificacion_id || subclasificacion_alerta_id || null,
+          categoria_proyecto_id: categoria_proyecto_id || null,
+          subcategoria_proyecto_id: subcategoria_proyecto_id || null,
         } as any)
         .eq("id", id);
       if (error) throw error;
@@ -248,6 +265,17 @@ export function useUpdateAlerta() {
       // Sync junction table
       if (clasificaciones) {
         await syncClasificaciones(id, clasificaciones);
+      }
+
+      // Sync proyecto_empresas category
+      if (rest.empresa_id && (categoria_proyecto_id || subcategoria_proyecto_id)) {
+        await supabase.from("proyecto_empresas")
+          .update({
+            categoria_id: categoria_proyecto_id || null,
+            subcategoria_id: subcategoria_proyecto_id || null,
+          } as any)
+          .eq("proyecto_id", rest.proyecto_id)
+          .eq("empresa_id", rest.empresa_id);
       }
     },
     onSuccess: (_data, variables) => {

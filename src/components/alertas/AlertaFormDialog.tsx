@@ -12,7 +12,9 @@ import { cn } from "@/lib/utils";
 import { AlertaInput, AlertaWithRelations, ClasificacionSelection } from "@/hooks/useAlertas";
 import { useTitulosAlerta } from "@/hooks/useTitulosAlerta";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
+import { useCategorias } from "@/hooks/useCategorias";
 import { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
@@ -40,9 +42,40 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
   const [fechaSeguimiento, setFechaSeguimiento] = useState("");
   const [clasificacionId, setClasificacionId] = useState<string>("");
   const [subclasificacionId, setSubclasificacionId] = useState<string>("");
+  const [categoriaProyectoId, setCategoriaProyectoId] = useState<string>("");
+  const [subcategoriaProyectoId, setSubcategoriaProyectoId] = useState<string>("");
 
   const { data: titulosOpciones } = useTitulosAlerta();
   const { data: clasificaciones } = useClasificacionesAlerta();
+  const { data: categoriasProyecto } = useCategorias();
+
+  // Fetch current category from proyecto_empresas when both are selected
+  useEffect(() => {
+    if (!proyectoId || !empresaId || empresaId === "none") {
+      setCategoriaProyectoId("");
+      setSubcategoriaProyectoId("");
+      return;
+    }
+    // Don't override if editing and already loaded
+    if (editTarget) return;
+
+    const fetchPE = async () => {
+      const { data } = await supabase
+        .from("proyecto_empresas")
+        .select("categoria_id, subcategoria_id")
+        .eq("proyecto_id", proyectoId)
+        .eq("empresa_id", empresaId)
+        .maybeSingle();
+      if (data) {
+        setCategoriaProyectoId(data.categoria_id || "");
+        setSubcategoriaProyectoId(data.subcategoria_id || "");
+      } else {
+        setCategoriaProyectoId("");
+        setSubcategoriaProyectoId("");
+      }
+    };
+    fetchPE();
+  }, [proyectoId, empresaId]);
 
   useEffect(() => {
     if (editTarget) {
@@ -52,10 +85,27 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setTexto(editTarget.texto);
       setResponsableId(editTarget.usuario_responsable_id);
       setFechaSeguimiento(editTarget.fecha_seguimiento);
-      // Load first clasificacion from junction
       const first = editTarget.alerta_clasificaciones?.[0];
       setClasificacionId(first?.clasificacion_id || "");
       setSubclasificacionId(first?.subclasificacion_id || "");
+      // Load commercial category from alert or fetch from PE
+      setCategoriaProyectoId((editTarget as any).categoria_proyecto_id || "");
+      setSubcategoriaProyectoId((editTarget as any).subcategoria_proyecto_id || "");
+      // If alert doesn't have category stored, fetch from proyecto_empresas
+      if (!(editTarget as any).categoria_proyecto_id && editTarget.empresa_id) {
+        supabase
+          .from("proyecto_empresas")
+          .select("categoria_id, subcategoria_id")
+          .eq("proyecto_id", editTarget.proyecto_id)
+          .eq("empresa_id", editTarget.empresa_id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) {
+              setCategoriaProyectoId(data.categoria_id || "");
+              setSubcategoriaProyectoId(data.subcategoria_id || "");
+            }
+          });
+      }
     } else {
       setProyectoId(defaultProyectoId || "");
       setEmpresaId(defaultEmpresaId || "");
@@ -65,10 +115,14 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setFechaSeguimiento("");
       setClasificacionId(defaultClasificacionId || "");
       setSubclasificacionId(defaultSubclasificacionId || "");
+      setCategoriaProyectoId("");
+      setSubcategoriaProyectoId("");
     }
   }, [editTarget, open, currentUserId, defaultClasificacionId, defaultSubclasificacionId]);
 
   const selectedClasif = clasificaciones?.find(c => c.id === clasificacionId);
+  const selectedCatProy = categoriasProyecto?.find(c => c.id === categoriaProyectoId);
+  const showCategoriaComercial = proyectoId && empresaId && empresaId !== "none";
 
   const handleSubmit = () => {
     if (!proyectoId || !texto.trim() || !fechaSeguimiento) return;
@@ -84,6 +138,8 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       usuario_responsable_id: responsableId,
       fecha_seguimiento: fechaSeguimiento,
       clasificaciones: clasificacionesList,
+      categoria_proyecto_id: categoriaProyectoId || null,
+      subcategoria_proyecto_id: subcategoriaProyectoId || null,
       ...(!editTarget && parentAlertaId ? { parent_alerta_id: parentAlertaId } : {}),
     });
     onClose();
@@ -143,6 +199,49 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
               </SelectContent>
             </Select>
           </div>
+
+          {/* Categoría Comercial — only when proyecto + empresa selected */}
+          {showCategoriaComercial && (
+            <>
+              <div className="space-y-2">
+                <Label>Categoría Comercial</Label>
+                <Select value={categoriaProyectoId} onValueChange={(v) => { setCategoriaProyectoId(v === "none" ? "" : v); setSubcategoriaProyectoId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Sin categoría" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin categoría</SelectItem>
+                    {categoriasProyecto?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                          {c.nombre}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedCatProy && selectedCatProy.subcategorias_proyecto.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Sub-categoría Comercial</Label>
+                  <Select value={subcategoriaProyectoId} onValueChange={(v) => setSubcategoriaProyectoId(v === "none" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Sin sub-categoría" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin sub-categoría</SelectItem>
+                      {selectedCatProy.subcategorias_proyecto.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.nombre}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Clasificación — Single Select */}
           <div className="space-y-2">
