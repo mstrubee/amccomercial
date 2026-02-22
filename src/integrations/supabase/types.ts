@@ -47,6 +47,52 @@ export type Database = {
         }
         Relationships: []
       }
+      alerta_clasificaciones: {
+        Row: {
+          alerta_id: string
+          clasificacion_id: string
+          created_at: string
+          id: string
+          subclasificacion_id: string | null
+        }
+        Insert: {
+          alerta_id: string
+          clasificacion_id: string
+          created_at?: string
+          id?: string
+          subclasificacion_id?: string | null
+        }
+        Update: {
+          alerta_id?: string
+          clasificacion_id?: string
+          created_at?: string
+          id?: string
+          subclasificacion_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerta_clasificaciones_alerta_id_fkey"
+            columns: ["alerta_id"]
+            isOneToOne: false
+            referencedRelation: "alertas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerta_clasificaciones_clasificacion_id_fkey"
+            columns: ["clasificacion_id"]
+            isOneToOne: false
+            referencedRelation: "clasificaciones_alerta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerta_clasificaciones_subclasificacion_id_fkey"
+            columns: ["subclasificacion_id"]
+            isOneToOne: false
+            referencedRelation: "subclasificaciones_alerta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas: {
         Row: {
           clasificacion_alerta_id: string | null

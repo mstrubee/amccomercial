@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AlertaInput, AlertaWithRelations } from "@/hooks/useAlertas";
+import { AlertaInput, AlertaWithRelations, ClasificacionSelection } from "@/hooks/useAlertas";
 import { useTitulosAlerta } from "@/hooks/useTitulosAlerta";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { Tables } from "@/integrations/supabase/types";
@@ -26,10 +27,17 @@ interface Props {
   defaultProyectoId?: string;
   defaultEmpresaId?: string;
   defaultTexto?: string;
-  /** ID of the parent alert (when creating follow-up from completed alert) */
   parentAlertaId?: string | null;
   defaultClasificacionId?: string;
   defaultSubclasificacionId?: string;
+}
+
+/**
+ * Encode a clasificacion/sub pair as a unique string key.
+ * "c:{clasificacionId}" for clasificacion-only, "s:{subId}" for a sub.
+ */
+function encodeKey(clasificacionId: string, subclasificacionId?: string | null): string {
+  return subclasificacionId ? `s:${subclasificacionId}` : `c:${clasificacionId}`;
 }
 
 export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto, parentAlertaId, defaultClasificacionId, defaultSubclasificacionId }: Props) {
@@ -39,13 +47,10 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
   const [texto, setTexto] = useState("");
   const [responsableId, setResponsableId] = useState(currentUserId);
   const [fechaSeguimiento, setFechaSeguimiento] = useState("");
-  const [clasificacionId, setClasificacionId] = useState<string>("");
-  const [subclasificacionId, setSubclasificacionId] = useState<string>("");
+  const [selectedClasifs, setSelectedClasifs] = useState<Set<string>>(new Set());
 
   const { data: titulosOpciones } = useTitulosAlerta();
   const { data: clasificaciones } = useClasificacionesAlerta();
-
-  const selectedClasif = clasificaciones?.find(c => c.id === clasificacionId);
 
   useEffect(() => {
     if (editTarget) {
@@ -55,8 +60,12 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setTexto(editTarget.texto);
       setResponsableId(editTarget.usuario_responsable_id);
       setFechaSeguimiento(editTarget.fecha_seguimiento);
-      setClasificacionId((editTarget as any).clasificacion_alerta_id || "");
-      setSubclasificacionId((editTarget as any).subclasificacion_alerta_id || "");
+      // Load from junction table
+      const keys = new Set<string>();
+      for (const ac of editTarget.alerta_clasificaciones || []) {
+        keys.add(encodeKey(ac.clasificacion_id, ac.subclasificacion_id));
+      }
+      setSelectedClasifs(keys);
     } else {
       setProyectoId(defaultProyectoId || "");
       setEmpresaId(defaultEmpresaId || "");
@@ -64,13 +73,46 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setTexto(defaultTexto || "");
       setResponsableId(currentUserId);
       setFechaSeguimiento("");
-      setClasificacionId(defaultClasificacionId || "");
-      setSubclasificacionId(defaultSubclasificacionId || "");
+      // Set default clasificacion if provided
+      const keys = new Set<string>();
+      if (defaultClasificacionId) {
+        keys.add(encodeKey(defaultClasificacionId, defaultSubclasificacionId));
+      }
+      setSelectedClasifs(keys);
     }
   }, [editTarget, open, currentUserId, defaultClasificacionId, defaultSubclasificacionId]);
 
+  const toggleClasif = (key: string) => {
+    setSelectedClasifs(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const buildClasificaciones = (): ClasificacionSelection[] => {
+    if (!clasificaciones) return [];
+    const result: ClasificacionSelection[] = [];
+    for (const key of selectedClasifs) {
+      if (key.startsWith("s:")) {
+        const subId = key.slice(2);
+        // Find parent clasificacion
+        const parent = clasificaciones.find(c => c.subclasificaciones.some(s => s.id === subId));
+        if (parent) {
+          result.push({ clasificacion_id: parent.id, subclasificacion_id: subId });
+        }
+      } else if (key.startsWith("c:")) {
+        const clasifId = key.slice(2);
+        result.push({ clasificacion_id: clasifId, subclasificacion_id: null });
+      }
+    }
+    return result;
+  };
+
   const handleSubmit = () => {
     if (!proyectoId || !texto.trim() || !fechaSeguimiento) return;
+    const clasificacionesList = buildClasificaciones();
     onSubmit({
       ...(editTarget ? { id: editTarget.id } : {}),
       proyecto_id: proyectoId,
@@ -79,8 +121,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       texto: texto.trim(),
       usuario_responsable_id: responsableId,
       fecha_seguimiento: fechaSeguimiento,
-      clasificacion_alerta_id: clasificacionId && clasificacionId !== "none" ? clasificacionId : null,
-      subclasificacion_alerta_id: subclasificacionId && subclasificacionId !== "none" ? subclasificacionId : null,
+      clasificaciones: clasificacionesList,
       ...(!editTarget && parentAlertaId ? { parent_alerta_id: parentAlertaId } : {}),
     });
     onClose();
@@ -141,32 +182,48 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
             </Select>
           </div>
 
-          {/* Clasificación */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Clasificación</Label>
-              <Select value={clasificacionId} onValueChange={(v) => { setClasificacionId(v); setSubclasificacionId(""); }}>
-                <SelectTrigger><SelectValue placeholder="Sin clasificación" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin clasificación</SelectItem>
-                  {clasificaciones?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Clasificaciones — Checkboxes */}
+          <div className="space-y-2">
+            <Label>Clasificaciones</Label>
+            <div className="border border-border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+              {clasificaciones && clasificaciones.length > 0 ? (
+                clasificaciones.map((c) => (
+                  <div key={c.id}>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`clasif-${c.id}`}
+                        checked={selectedClasifs.has(`c:${c.id}`)}
+                        onCheckedChange={() => toggleClasif(`c:${c.id}`)}
+                      />
+                      <label htmlFor={`clasif-${c.id}`} className="text-sm font-medium cursor-pointer">
+                        {c.nombre}
+                      </label>
+                    </div>
+                    {c.subclasificaciones.length > 0 && (
+                      <div className="ml-6 mt-1 space-y-1">
+                        {c.subclasificaciones.map((s) => (
+                          <div key={s.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`sub-${s.id}`}
+                              checked={selectedClasifs.has(`s:${s.id}`)}
+                              onCheckedChange={() => toggleClasif(`s:${s.id}`)}
+                            />
+                            <label htmlFor={`sub-${s.id}`} className="text-xs text-muted-foreground cursor-pointer">
+                              ↳ {s.nombre}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">No hay clasificaciones configuradas</p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>Sub-clasificación</Label>
-              <Select value={subclasificacionId} onValueChange={setSubclasificacionId} disabled={!selectedClasif || selectedClasif.subclasificaciones.length === 0}>
-                <SelectTrigger><SelectValue placeholder="Sin sub-clasificación" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin sub-clasificación</SelectItem>
-                  {selectedClasif?.subclasificaciones.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {selectedClasifs.size > 0 && (
+              <p className="text-xs text-muted-foreground">{selectedClasifs.size} seleccionada(s)</p>
+            )}
           </div>
 
           {/* Texto de Alerta */}

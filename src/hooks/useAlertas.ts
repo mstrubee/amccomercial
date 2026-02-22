@@ -3,6 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLogActivity } from "@/hooks/useActivityLog";
 
+export interface AlertaClasificacionRow {
+  id: string;
+  alerta_id: string;
+  clasificacion_id: string;
+  subclasificacion_id: string | null;
+}
+
 export interface AlertaRow {
   id: string;
   proyecto_id: string;
@@ -22,8 +29,11 @@ export interface AlertaRow {
   deleted: boolean;
   deleted_by: string | null;
   deleted_at: string | null;
+  // Legacy single FK columns (kept for backward compat, but junction table is source of truth)
   clasificacion_alerta_id: string | null;
   subclasificacion_alerta_id: string | null;
+  // New: from junction table
+  alerta_clasificaciones: AlertaClasificacionRow[];
 }
 
 export interface AlertaWithRelations extends AlertaRow {
@@ -64,6 +74,26 @@ async function fetchAllAlertas(includeDeleted: boolean = false) {
   return allData;
 }
 
+async function fetchAlertaClasificaciones(alertaIds: string[]): Promise<Record<string, AlertaClasificacionRow[]>> {
+  if (alertaIds.length === 0) return {};
+  const map: Record<string, AlertaClasificacionRow[]> = {};
+
+  // Fetch in batches of 500 IDs
+  for (let i = 0; i < alertaIds.length; i += 500) {
+    const batch = alertaIds.slice(i, i + 500);
+    const { data, error } = await supabase
+      .from("alerta_clasificaciones")
+      .select("*")
+      .in("alerta_id", batch);
+    if (error) throw error;
+    for (const row of (data || [])) {
+      if (!map[row.alerta_id]) map[row.alerta_id] = [];
+      map[row.alerta_id].push(row as AlertaClasificacionRow);
+    }
+  }
+  return map;
+}
+
 async function enrichWithProfiles(data: any[], allUserFields: boolean = false) {
   const userIds = [...new Set(data.flatMap((a: any) =>
     allUserFields
@@ -91,10 +121,13 @@ export function useAlertas() {
     queryFn: async () => {
       const data = await fetchAllAlertas(false);
       const profilesMap = await enrichWithProfiles(data);
+      const alertaIds = data.map((a: any) => a.id);
+      const clasificacionesMap = await fetchAlertaClasificaciones(alertaIds);
 
       return data.map((a: any) => ({
         ...a,
         responsable_profile: profilesMap[a.usuario_responsable_id] || null,
+        alerta_clasificaciones: clasificacionesMap[a.id] || [],
       })) as AlertaWithRelations[];
     },
   });
@@ -107,14 +140,22 @@ export function useAllAlertas() {
     queryFn: async () => {
       const data = await fetchAllAlertas(true);
       const profilesMap = await enrichWithProfiles(data, true);
+      const alertaIds = data.map((a: any) => a.id);
+      const clasificacionesMap = await fetchAlertaClasificaciones(alertaIds);
 
       return data.map((a: any) => ({
         ...a,
         responsable_profile: profilesMap[a.usuario_responsable_id] || null,
+        alerta_clasificaciones: clasificacionesMap[a.id] || [],
         _profilesMap: profilesMap,
       })) as (AlertaWithRelations & { _profilesMap: Record<string, { display_name: string; email: string }> })[];
     },
   });
+}
+
+export interface ClasificacionSelection {
+  clasificacion_id: string;
+  subclasificacion_id: string | null;
 }
 
 export interface AlertaInput {
@@ -125,8 +166,25 @@ export interface AlertaInput {
   usuario_responsable_id: string;
   fecha_seguimiento: string;
   parent_alerta_id?: string | null;
+  clasificaciones?: ClasificacionSelection[];
+  // Legacy - still accepted for backward compat but junction table is preferred
   clasificacion_alerta_id?: string | null;
   subclasificacion_alerta_id?: string | null;
+}
+
+async function syncClasificaciones(alertaId: string, clasificaciones: ClasificacionSelection[]) {
+  // Delete existing
+  await supabase.from("alerta_clasificaciones").delete().eq("alerta_id", alertaId);
+  // Insert new
+  if (clasificaciones.length > 0) {
+    const rows = clasificaciones.map(c => ({
+      alerta_id: alertaId,
+      clasificacion_id: c.clasificacion_id,
+      subclasificacion_id: c.subclasificacion_id,
+    }));
+    const { error } = await supabase.from("alerta_clasificaciones").insert(rows as any);
+    if (error) throw error;
+  }
 }
 
 export function useCreateAlerta() {
@@ -136,15 +194,24 @@ export function useCreateAlerta() {
     mutationFn: async (input: AlertaInput) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
-      const { parent_alerta_id, ...rest } = input;
-      const { error } = await supabase.from("alertas").insert({
+      const { parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, ...rest } = input;
+
+      // Use first clasificacion for legacy column (backward compat)
+      const firstClasif = clasificaciones?.[0];
+
+      const { data, error } = await supabase.from("alertas").insert({
         ...rest,
         created_by: user.id,
         ...(parent_alerta_id ? { parent_alerta_id } : {}),
-        clasificacion_alerta_id: input.clasificacion_alerta_id || null,
-        subclasificacion_alerta_id: input.subclasificacion_alerta_id || null,
-      } as any);
+        clasificacion_alerta_id: firstClasif?.clasificacion_id || clasificacion_alerta_id || null,
+        subclasificacion_alerta_id: firstClasif?.subclasificacion_id || subclasificacion_alerta_id || null,
+      } as any).select("id").single();
       if (error) throw error;
+
+      // Sync junction table
+      if (clasificaciones && clasificaciones.length > 0 && data) {
+        await syncClasificaciones(data.id, clasificaciones);
+      }
     },
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
@@ -163,17 +230,25 @@ export function useUpdateAlerta() {
     mutationFn: async (input: AlertaInput & { id: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
-      const { id, parent_alerta_id, ...rest } = input;
+      const { id, parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, ...rest } = input;
+
+      const firstClasif = clasificaciones?.[0];
+
       const { error } = await supabase
         .from("alertas")
         .update({
           ...rest,
           updated_by: user.id,
-          clasificacion_alerta_id: input.clasificacion_alerta_id || null,
-          subclasificacion_alerta_id: input.subclasificacion_alerta_id || null,
+          clasificacion_alerta_id: firstClasif?.clasificacion_id || clasificacion_alerta_id || null,
+          subclasificacion_alerta_id: firstClasif?.subclasificacion_id || subclasificacion_alerta_id || null,
         } as any)
         .eq("id", id);
       if (error) throw error;
+
+      // Sync junction table
+      if (clasificaciones) {
+        await syncClasificaciones(id, clasificaciones);
+      }
     },
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
