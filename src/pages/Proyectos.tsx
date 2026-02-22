@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -203,6 +203,8 @@ export default function Proyectos() {
   }, [filtered]);
 
   // KPI stats
+  const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
+
   const kpiStats = useMemo(() => {
     const allProyectos = proyectos || [];
     const groupsAll: Record<string, ProyectoWithEmpresas[]> = {};
@@ -213,12 +215,14 @@ export default function Proyectos() {
     });
     const totalProyectos = Object.keys(groupsAll).length;
     let adjudicados = 0;
+    let ganados = 0;
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
+      if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length);
-    return { totalProyectos, adjudicados, filteredGroups, hasActiveFilters };
+    return { totalProyectos, adjudicados, ganados, filteredGroups, hasActiveFilters };
   }, [proyectos, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones]);
 
   const toggleGroup = (key: string) => {
@@ -428,7 +432,7 @@ export default function Proyectos() {
       </motion.div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <KpiCard
           title="Total Proyectos"
           value={String(kpiStats.totalProyectos)}
@@ -446,12 +450,34 @@ export default function Proyectos() {
           delay={0.1}
         />
         <KpiCard
+          title="Ganados"
+          value={String(kpiStats.ganados)}
+          subtitle="Proyectos ganados"
+          icon={Trophy}
+          variant="success"
+          delay={0.12}
+          onClick={() => {
+            const isActive = filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID;
+            if (isActive) {
+              setFilterCategorias([]);
+            } else {
+              setFilterCategorias([GANADO_SUBCATEGORIA_ID]);
+              setFilterEstados([]);
+              setFilterEmpresas([]);
+              setFilterEstadosObra([]);
+              setFilterClasificaciones([]);
+              setSearch("");
+            }
+          }}
+          active={filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID}
+        />
+        <KpiCard
           title="Resultado Filtros"
           value={String(kpiStats.filteredGroups)}
           subtitle={kpiStats.hasActiveFilters ? "con filtros aplicados" : "sin filtros activos"}
           icon={Filter}
           variant={kpiStats.hasActiveFilters ? "warning" : "default"}
-          delay={0.12}
+          delay={0.14}
         />
       </div>
 
