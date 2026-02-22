@@ -57,41 +57,38 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
 
   return (
     <div className={cn("border-l-2 pl-2 py-1", depth > 0 && "ml-3", isOverdue ? "border-destructive" : alerta.completada ? "border-emerald-400" : "border-amber-400")}>
-      <button
-        className="w-full text-left"
-        onClick={(e) => { e.stopPropagation(); setLocalTexto(!isTextoVisible); }}
-      >
-        <div className="flex items-start gap-1.5">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
-              {alerta.completada ? (
-                <span
-                  role="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); onComplete?.(alerta); }}
-                  className="shrink-0 text-emerald-600 hover:text-amber-600 transition-colors cursor-pointer"
-                  title="Reactivar alerta"
-                >
-                  <CheckCircle2 className="w-3 h-3" />
-                </span>
-              ) : null}
-              {titulo && (
-                <span className="text-[11px] font-semibold text-amber-700 truncate max-w-[160px]">{titulo}</span>
-              )}
-              {!titulo && (
-                <span className="text-[11px] text-card-foreground truncate max-w-[160px]">{alerta.texto}</span>
-              )}
-              {isTextoVisible ? <ChevronUp className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
-            </div>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <span className={cn(isOverdue && "text-destructive font-medium")}>
-                {format(fechaDate, "dd MMM yyyy", { locale: es })}
-                {isOverdue && " (vencida)"}
-              </span>
-              <span className="font-medium">{alerta.responsable_profile?.display_name || alerta.responsable_profile?.email || "—"}</span>
-            </div>
+      <div className="flex items-start gap-1.5">
+        {alerta.completada && (
+          <button
+            className="shrink-0 text-emerald-600 hover:text-amber-600 transition-colors cursor-pointer mt-0.5"
+            onClick={(e) => { e.stopPropagation(); onComplete?.(alerta); }}
+            title="Reactivar alerta"
+          >
+            <CheckCircle2 className="w-3 h-3" />
+          </button>
+        )}
+        <button
+          className="flex-1 min-w-0 text-left"
+          onClick={(e) => { e.stopPropagation(); setLocalTexto(!isTextoVisible); }}
+        >
+          <div className="flex items-center gap-1">
+            {titulo && (
+              <span className="text-[11px] font-semibold text-amber-700 truncate max-w-[160px]">{titulo}</span>
+            )}
+            {!titulo && (
+              <span className="text-[11px] text-card-foreground truncate max-w-[160px]">{alerta.texto}</span>
+            )}
+            {isTextoVisible ? <ChevronUp className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
           </div>
-        </div>
-      </button>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span className={cn(isOverdue && "text-destructive font-medium")}>
+              {format(fechaDate, "dd MMM yyyy", { locale: es })}
+              {isOverdue && " (vencida)"}
+            </span>
+            <span className="font-medium">{alerta.responsable_profile?.display_name || alerta.responsable_profile?.email || "—"}</span>
+          </div>
+        </button>
+      </div>
 
       {isTextoVisible && titulo && (
         <div className="mt-1 text-[10px] text-card-foreground bg-secondary/30 rounded px-2 py-1">
