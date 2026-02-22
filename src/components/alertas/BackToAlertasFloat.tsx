@@ -15,9 +15,9 @@ export default function BackToAlertasFloat() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
-        className="fixed bottom-4 left-4 z-50"
+        className="fixed bottom-20 right-4 z-[60]"
       >
-        <div className="flex items-center gap-1 bg-primary text-primary-foreground rounded-lg shadow-lg px-3 py-2">
+        <div className="flex items-center gap-1 bg-destructive text-destructive-foreground rounded-lg shadow-lg px-3 py-2">
           <button
             onClick={() => navigate("/alertas?restore=1")}
             className="flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity"
