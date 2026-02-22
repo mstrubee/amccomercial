@@ -562,6 +562,19 @@ export default function Alertas() {
                   <td className="px-5 py-3 text-muted-foreground">{a.empresas?.nombre || "—"}</td>
                   <td className="px-5 py-3 text-xs">
                     {(() => {
+                      // First try alert's own stored category
+                      const alertCat = (a as any).cat_proyecto;
+                      const alertSub = (a as any).subcat_proyecto;
+                      if (alertCat) {
+                        const color = alertSub?.color || alertCat.color || undefined;
+                        return (
+                          <span className="inline-flex items-center gap-1">
+                            {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
+                            <span>{alertSub ? `${alertCat.nombre} / ${alertSub.nombre}` : alertCat.nombre}</span>
+                          </span>
+                        );
+                      }
+                      // Fallback to proyecto_empresas
                       if (!a.empresa_id || !a.proyecto_id) return <span className="text-muted-foreground">—</span>;
                       const pe = proyectoEmpresas?.find(pe => pe.proyecto_id === a.proyecto_id && pe.empresa_id === a.empresa_id);
                       if (!pe) return <span className="text-muted-foreground">—</span>;
