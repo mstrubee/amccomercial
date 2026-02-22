@@ -67,6 +67,18 @@ export default function Alertas() {
     },
   });
 
+  // Fetch proyecto_empresas with their commercial categories
+  const { data: proyectoEmpresas } = useQuery({
+    queryKey: ["proyecto-empresas-categorias"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("proyecto_empresas")
+        .select("proyecto_id, empresa_id, categoria_id, subcategoria_id, categorias_proyecto(id, nombre, color), subcategorias_proyecto(id, nombre, color)");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("activas");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -355,6 +367,7 @@ export default function Alertas() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerta</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresa</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Cat. Comercial</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Clasificación</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Responsable</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Seguimiento</th>
@@ -363,7 +376,7 @@ export default function Alertas() {
             </thead>
             <tbody className="divide-y divide-border">
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
               )}
               {filtered.map((a) => {
                 const vencida = isVencida(a);
@@ -397,6 +410,23 @@ export default function Alertas() {
                     {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{a.empresas?.nombre || "—"}</td>
+                  <td className="px-5 py-3 text-xs">
+                    {(() => {
+                      if (!a.empresa_id || !a.proyecto_id) return <span className="text-muted-foreground">—</span>;
+                      const pe = proyectoEmpresas?.find(pe => pe.proyecto_id === a.proyecto_id && pe.empresa_id === a.empresa_id);
+                      if (!pe) return <span className="text-muted-foreground">—</span>;
+                      const cat = (pe as any).categorias_proyecto;
+                      const sub = (pe as any).subcategorias_proyecto;
+                      if (!cat) return <span className="text-muted-foreground">—</span>;
+                      const color = sub?.color || cat.color || undefined;
+                      return (
+                        <span className="inline-flex items-center gap-1">
+                          {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
+                          <span>{sub ? `${cat.nombre} / ${sub.nombre}` : cat.nombre}</span>
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="px-5 py-3 text-muted-foreground text-xs">
                     {(() => {
                       const cId = (a as any).clasificacion_alerta_id;
