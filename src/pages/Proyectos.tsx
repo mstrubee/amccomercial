@@ -439,7 +439,7 @@ export default function Proyectos() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
                     <MousePointerClick className="w-3 h-3" />
-                    Botón {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
+                    Seguimiento {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-52 p-2" align="start">
