@@ -44,6 +44,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
   const [subclasificacionId, setSubclasificacionId] = useState<string>("");
   const [categoriaProyectoId, setCategoriaProyectoId] = useState<string>("");
   const [subcategoriaProyectoId, setSubcategoriaProyectoId] = useState<string>("");
+  const [proyectoPopoverOpen, setProyectoPopoverOpen] = useState(false);
 
   const { data: titulosOpciones } = useTitulosAlerta();
   const { data: clasificaciones } = useClasificacionesAlerta();
@@ -158,7 +159,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
           {/* Proyecto */}
           <div className="space-y-2">
             <Label>Proyecto *</Label>
-            <Popover>
+            <Popover open={proyectoPopoverOpen} onOpenChange={setProyectoPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
                   {proyectoId
@@ -174,7 +175,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
                     <CommandEmpty>Sin resultados.</CommandEmpty>
                     <CommandGroup>
                       {proyectos.map((p) => (
-                        <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => setProyectoId(p.id)}>
+                        <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => { setProyectoId(p.id); setProyectoPopoverOpen(false); }}>
                           <Check className={cn("mr-2 h-4 w-4", proyectoId === p.id ? "opacity-100" : "opacity-0")} />
                           #{p.numero} — {p.nombre}
                         </CommandItem>
