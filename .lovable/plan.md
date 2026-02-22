@@ -1,65 +1,42 @@
 
+# Revertir alerta al cancelar creacion de seguimiento
 
-# Clasificaciones de Alertas
+## Problema actual
+Cuando el usuario elige "Completar y crear nueva", la alerta se marca como completada inmediatamente. Si luego cancela la creacion de la nueva alerta, la original queda completada sin seguimiento, lo cual no es el comportamiento deseado.
 
-## Resumen
-Agregar un sistema de clasificaciones (con sub-clasificaciones) para las alertas. Esto incluye nuevas tablas en la base de datos, un dialog de administracion, un filtro en la Central de Alertas, y la seleccion de clasificacion al crear/editar alertas.
+## Solucion
+Diferir la marcacion como completada: en lugar de completar la alerta al hacer clic en "Completar y crear nueva", solo abrir el formulario de creacion. La alerta original se marcara como completada unicamente cuando el usuario confirme la creacion de la nueva alerta.
 
-## Cambios en Base de Datos
+## Cambios necesarios
 
-1. **Tabla `clasificaciones_alerta`**: id, nombre, orden, created_at
-2. **Tabla `subclasificaciones_alerta`**: id, clasificacion_id (FK), nombre, orden, created_at
-3. **Columnas nuevas en `alertas`**: `clasificacion_alerta_id` (uuid, nullable), `subclasificacion_alerta_id` (uuid, nullable)
-4. **Politicas RLS**: Lectura para todos los autenticados, gestion completa solo para admins
-5. **Habilitar realtime** no es necesario para este caso
+### 1. Alertas.tsx (pagina principal)
+- En `onCompleteAndCreate`: NO llamar `toggleCompletada.mutate()`. Solo guardar el contexto (proyecto, empresa, parent) y abrir el dialog de creacion.
+- Agregar un estado `pendingCompleteId` para recordar que alerta debe completarse.
+- En el `onSubmit` del `AlertaFormDialog`: primero completar la alerta pendiente, luego crear la nueva.
+- En el `onClose` del `AlertaFormDialog`: si hay un `pendingCompleteId` y se cierra sin crear, limpiar el estado sin completar nada.
 
-## Cambios en Codigo
+### 2. Proyectos.tsx
+- Mismo patron: diferir `toggleCompletada` hasta que se confirme la creacion en el formulario.
+- Agregar `pendingCompleteId` y completar solo al hacer submit.
 
-### 1. Hook `src/hooks/useClasificacionesAlerta.ts` (nuevo)
-- CRUD para `clasificaciones_alerta` y `subclasificaciones_alerta`
-- Queries: `useClasificacionesAlerta()` que trae clasificaciones con sus sub-clasificaciones
-- Mutations: crear, editar, eliminar clasificaciones y sub-clasificaciones
+### 3. AlertaWidget.tsx
+- Mismo patron: diferir la completacion hasta el submit del formulario de creacion.
+- Al cancelar/cerrar el dialog de creacion, no completar la alerta.
 
-### 2. Dialog de administracion `src/components/alertas/ClasificacionesAlertaDialog.tsx` (nuevo)
-- Dialog accesible solo para Admin
-- Lista de clasificaciones con opcion de agregar, editar y eliminar
-- Cada clasificacion expandible para gestionar sub-clasificaciones
-- Boton ubicado entre "Arbol" y "Eliminadas" en la barra de acciones
+### Detalle tecnico
 
-### 3. Modificar `src/pages/Alertas.tsx`
-- Importar el nuevo dialog y hook
-- Agregar boton "Clasificacion" entre "Arbol" y "Eliminadas" (visible solo para admin)
-- Agregar filtro Select de clasificacion junto a los filtros existentes
-- Filtrar alertas por `clasificacion_alerta_id` cuando se seleccione
-
-### 4. Modificar `src/components/alertas/AlertaFormDialog.tsx`
-- Agregar selector de Clasificacion (dropdown)
-- Agregar selector de Sub-clasificacion (dropdown, dependiente de la clasificacion seleccionada)
-- Incluir `clasificacion_alerta_id` y `subclasificacion_alerta_id` en el submit
-
-### 5. Modificar `src/hooks/useAlertas.ts`
-- Agregar `clasificacion_alerta_id` y `subclasificacion_alerta_id` a `AlertaRow`, `AlertaInput`
-- Incluir estos campos en las mutaciones de crear y actualizar
-- Incluir la relacion en la query select para mostrar el nombre de la clasificacion
-
-### 6. Mostrar clasificacion en la tabla de alertas
-- Agregar columna "Clasificacion" en la tabla de la Central de Alertas
-
-## Seccion Tecnica
+En cada uno de los 3 archivos, el cambio sigue esta logica:
 
 ```text
-clasificaciones_alerta          subclasificaciones_alerta
-+--------+---------+-----+      +--------+------------------+---------+-----+
-| id     | nombre  |orden|      | id     | clasificacion_id | nombre  |orden|
-+--------+---------+-----+      +--------+------------------+---------+-----+
-| uuid   | text    | int |      | uuid   | uuid (FK)        | text    | int |
-+--------+---------+-----+      +--------+------------------+---------+-----+
+ANTES:
+  onCompleteAndCreate -> completar alerta + abrir form
+  form.onClose -> cerrar form
+  form.onSubmit -> crear nueva alerta
 
-alertas (columnas nuevas)
-+---------------------------+--------------------------------+
-| clasificacion_alerta_id   | subclasificacion_alerta_id     |
-| uuid nullable             | uuid nullable                  |
-+---------------------------+--------------------------------+
+DESPUES:
+  onCompleteAndCreate -> guardar id pendiente + abrir form (sin completar)
+  form.onClose -> limpiar pendiente (alerta NO se completa)
+  form.onSubmit -> completar alerta pendiente + crear nueva alerta
 ```
 
-La migracion SQL creara ambas tablas con RLS habilitado, politicas de lectura publica para autenticados y gestion exclusiva para admins. Luego agregara las dos columnas a la tabla `alertas`.
+No se requieren cambios en la base de datos ni en `CompleteAlertaDialog.tsx`.
