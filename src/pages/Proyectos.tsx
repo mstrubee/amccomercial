@@ -21,6 +21,7 @@ import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
 import { AlertasCollapsible, ParentAlertasDisplay, AlertasFullView } from "@/components/proyectos/AlertasInline";
+import ContactosColumn from "@/components/proyectos/ContactosColumn";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
@@ -468,6 +469,7 @@ export default function Proyectos() {
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">N°</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Contactos</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingreso</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
@@ -506,6 +508,9 @@ export default function Proyectos() {
                         {first.clasificaciones_proyecto && (
                           <div className="text-[10px] text-muted-foreground">{first.clasificaciones_proyecto.nombre}</div>
                         )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <ContactosColumn proyecto={first} groupItems={items} />
                       </td>
                       <td className="px-5 py-3 text-muted-foreground text-xs">{(first as any).fecha_ingreso ? new Date((first as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
@@ -583,7 +588,7 @@ export default function Proyectos() {
                     </tr>
                     {/* Parent note row */}
                     <tr className={evenBg}>
-                      <td className="px-5 pb-2 pt-0" colSpan={8}>
+                      <td className="px-5 pb-2 pt-0" colSpan={9}>
                         <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null, defaultTexto: texto })} />
                       </td>
                     </tr>
@@ -961,6 +966,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
       <tr className={`hover:bg-secondary/30 transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`}>
         <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
+        <td className="px-5 py-3"><ContactosColumn proyecto={p} /></td>
         <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
@@ -975,7 +981,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         </td>
       </tr>
       <tr className={evenBg}>
-        <td className="px-5 pb-2 pt-0" colSpan={8}>
+        <td className="px-5 pb-2 pt-0" colSpan={9}>
           <NotasCell proyecto={p} onSave={updateNotas} />
         </td>
       </tr>

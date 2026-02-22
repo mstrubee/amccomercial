@@ -579,44 +579,49 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
               )}
 
               {/* Alertas relacionadas */}
-              {mode === "edit" && alertas && alertas.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Bell className="w-3 h-3" /> Alertas ({alertas.filter(a => !a.completada).length} activas)
-                  </Label>
-                  <div className="space-y-1.5">
-                    {[...alertas].sort((a, b) => new Date(b.fecha_seguimiento).getTime() - new Date(a.fecha_seguimiento).getTime()).map(a => {
-                      const today = startOfDay(new Date());
-                      const isOverdue = !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
-                      return (
-                        <div
-                          key={a.id}
-                          className={cn(
-                            "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
-                            a.completada ? "border-border bg-muted/30 opacity-60" : isOverdue ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"
-                          )}
-                        >
-                          {a.completada
-                            ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                            : <Circle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", isOverdue ? "text-destructive" : "text-muted-foreground")} />
-                          }
-                          <div className="flex-1 min-w-0">
-                            {a.titulo && <div className="font-semibold text-amber-700 text-[11px]">{a.titulo}</div>}
-                            <div className={cn("truncate", a.completada && "line-through text-muted-foreground")}>{a.texto}</div>
-                            <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
-                              <span>{a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
-                              <span className={isOverdue ? "text-destructive font-medium" : ""}>
-                                {format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
-                                {isOverdue && " (vencida)"}
-                              </span>
-                            </div>
-                          </div>
+              {mode === "edit" && alertas && alertas.length > 0 && (() => {
+                const sorted = [...alertas].sort((a, b) => new Date(b.fecha_seguimiento).getTime() - new Date(a.fecha_seguimiento).getTime());
+                const activas = sorted.filter(a => !a.completada);
+                const completadas = sorted.filter(a => a.completada);
+                const renderAlerta = (a: AlertaWithRelations) => {
+                  const today = startOfDay(new Date());
+                  const isOverdue = !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
+                  return (
+                    <div key={a.id} className={cn("flex items-start gap-2 rounded-md border px-3 py-2 text-xs", a.completada ? "border-border bg-muted/30 opacity-60" : isOverdue ? "border-destructive/30 bg-destructive/5" : "border-border bg-card")}>
+                      {a.completada ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" /> : <Circle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", isOverdue ? "text-destructive" : "text-muted-foreground")} />}
+                      <div className="flex-1 min-w-0">
+                        {a.titulo && <div className="font-semibold text-amber-700 text-[11px]">{a.titulo}</div>}
+                        <div className={cn("truncate", a.completada && "line-through text-muted-foreground")}>{a.texto}</div>
+                        <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
+                          <span>{a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
+                          <span className={isOverdue ? "text-destructive font-medium" : ""}>{format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}{isOverdue && " (vencida)"}</span>
                         </div>
-                      );
-                    })}
+                      </div>
+                    </div>
+                  );
+                };
+                return (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Bell className="w-3 h-3" /> Alertas ({activas.length} activas)
+                    </Label>
+                    {activas.length > 0 && <div className="space-y-1.5">{activas.map(renderAlerta)}</div>}
+                    {completadas.length > 0 && (
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <button type="button" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1">
+                            <ChevronRight className="w-3 h-3 transition-transform [[data-state=open]>&]:rotate-90" />
+                            Completadas ({completadas.length})
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1.5 space-y-1.5">
+                          {completadas.map(renderAlerta)}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {!isChildRow && (<>
               {/* Collapsible: Ubicación */}
