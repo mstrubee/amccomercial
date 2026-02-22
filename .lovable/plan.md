@@ -1,110 +1,40 @@
 
-# Mejorar el dialogo de completar alerta
 
 ## Resumen
-Al marcar una alerta como completada, el dialogo emergente mostrara:
-1. Un resumen de la alerta que se esta completando (memoria visual) en la zona superior
-2. La categoria comercial actual de la empresa en ese proyecto
-3. Una sugerencia para avanzar a la siguiente categoria comercial, que el usuario puede aprobar o editar
 
-## Secuencia de categorias comerciales actuales
+El cambio anterior aplicó checkboxes de seleccion multiple en el lugar equivocado. Lo que se necesita es:
 
-```text
-Pendiente (orden 1)
-  1. Ofrecer para cotizar
-  2. Sin cotizar, en EV
+1. **Formulario de creacion/edicion de alertas** -- Volver a seleccion unica de clasificacion (un solo Select, no checkboxes).
+2. **Filtro de clasificaciones en la Central de Alertas** -- Cambiar de Select unico a checkboxes multi-seleccion.
 
-Contactado (orden 2)
-  1. Ofrecido para cotizar
-  2. Planos Solicitados
-  4. Planos Existentes
-  5. Planos Recibidos
+---
 
-Cotizacion (orden 3)
-  1. Presupuesto Solicitado
-  2. Cotizado Empresa
-  3. Enviado a Cliente
+## Cambios
 
-Negociacion (orden 5)
-  (sin subcategorias)
+### 1. Revertir AlertaFormDialog a seleccion unica
 
-Cerrado (orden 6)
-  1. Ganado
-  2. Perdido
-  3. Descartado
-  4. Atiende Directo
-```
+En `src/components/alertas/AlertaFormDialog.tsx`:
 
-## Cambios necesarios
+- Eliminar el estado `selectedClasifs` (Set) y las funciones `toggleClasif` / `buildClasificaciones` / `encodeKey`.
+- Restaurar dos estados simples: `clasificacionId` y `subclasificacionId`.
+- Restaurar el UI con un Select para clasificacion y otro Select condicional para sub-clasificacion (como estaba antes del cambio).
+- Al enviar, construir el array `clasificaciones` con un solo elemento basado en la seleccion unica.
 
-### 1. Nueva funcion utilitaria: `getNextCategoriaComercial`
-**Archivo:** `src/lib/clasificacion-utils.ts`
+### 2. Filtro multi-seleccion en Alertas.tsx
 
-Funcion analoga a `getNextClasificacion` pero para categorias comerciales (`categorias_proyecto` / `subcategorias_proyecto`). Recibe la categoria y subcategoria actuales mas la lista completa de categorias con sus subs, y retorna el siguiente paso logico.
+En `src/pages/Alertas.tsx`:
 
-### 2. CompleteAlertaDialog.tsx - Rediseno del modo "complete"
+- Cambiar `filterClasificacion` de `string` a `Set<string>` para almacenar multiples selecciones.
+- Reemplazar el `<Select>` de clasificaciones por un `<Popover>` con checkboxes (similar al patron usado en otros filtros del proyecto, como los de empresa o categoria en Proyectos).
+- Cada clasificacion aparece como checkbox, con sub-clasificaciones indentadas debajo.
+- Actualizar la logica de filtrado en `useMemo` para verificar si la alerta tiene alguna clasificacion que coincida con cualquiera de las seleccionadas.
+- Mostrar un indicador del numero de clasificaciones seleccionadas en el boton del Popover.
+- Actualizar `saveFiltersAndNavigate` y la restauracion de filtros para serializar/deserializar el Set correctamente.
 
-**Zona superior - Resumen de la alerta:**
-- Cuadro destacado (fondo suave) mostrando titulo, texto, proyecto, empresa y fecha de la alerta que se completa. Sirve como recordatorio visual.
+---
 
-**Zona media - Categoria comercial de la empresa:**
-- Solo se muestra si la alerta tiene `proyecto_id` y `empresa_id`.
-- Se consulta la tabla `proyecto_empresas` para obtener la `categoria_id` y `subcategoria_id` actual de esa empresa en ese proyecto.
-- Se muestra la categoria actual con su color.
-- Se sugiere la siguiente categoria con un selector (Select) pre-seleccionado en el "paso siguiente". El usuario puede cambiar a cualquier otra categoria/subcategoria o dejarlo sin cambio.
-- Un checkbox o toggle "Avanzar categoria" (activado por defecto) para que el usuario pueda desactivar el avance si no desea cambiar la categoria.
+## Detalles Tecnicos
 
-**Zona inferior - Botones (sin cambio):**
-- "Solo completar" y "Completar y crear nueva" siguen funcionando igual, pero ahora si el avance de categoria esta activo, tambien actualizan la `proyecto_empresas`.
-
-### 3. Props adicionales en CompleteAlertaDialog
-
-Nuevas props necesarias:
-- `categorias`: lista de `CategoriaWithSubs[]` (del hook `useCategorias`)
-- `onAdvanceCategoria`: callback opcional `(proyectoId: string, empresaId: string, categoriaId: string, subcategoriaId: string | null) => void` para actualizar la categoria comercial
-
-### 4. Alertas.tsx - Pasar datos de categorias
-
-- Importar `useCategorias` y pasar la data como prop al `CompleteAlertaDialog`.
-- Crear un handler `handleAdvanceCategoria` que haga el update a `proyecto_empresas` con la nueva `categoria_id` / `subcategoria_id`.
-- Invalidar queries de `proyecto-empresas-categorias` y `proyectos` tras el update.
-
-### 5. Proyectos.tsx y AlertaWidget.tsx
-
-Mismo patron: pasar `categorias` y `onAdvanceCategoria` al `CompleteAlertaDialog` desde estos componentes.
-
-## Detalle tecnico
-
-### Funcion `getNextCategoriaComercial`
-```text
-Input:  categoriaId, subcategoriaId, categorias[]
-Output: { categoriaId, subcategoriaId }
-
-Logica identica a getNextClasificacion:
-1. Buscar la categoria actual en la lista ordenada
-2. Si hay subcategoria actual, buscar la siguiente sub del mismo padre
-3. Si es la ultima sub, pasar a la primera sub de la siguiente categoria
-4. Si no hay sub, pasar a la siguiente categoria
-```
-
-### Update de proyecto_empresas
-```text
-supabase
-  .from("proyecto_empresas")
-  .update({ categoria_id, subcategoria_id })
-  .eq("proyecto_id", proyectoId)
-  .eq("empresa_id", empresaId)
-```
-
-### UI del selector de categoria sugerida
-El selector mostrara todas las categorias y subcategorias disponibles (como el selector de clasificacion de alertas, con subcategorias indentadas). Estara pre-seleccionado en el "paso siguiente" calculado. El usuario puede:
-- Dejarlo como esta (avanza automaticamente)
-- Cambiarlo a otra categoria
-- Desactivar el avance (checkbox)
-
-## Archivos a modificar
-1. `src/lib/clasificacion-utils.ts` - Agregar `getNextCategoriaComercial`
-2. `src/components/alertas/CompleteAlertaDialog.tsx` - Redisenar con resumen, categoria comercial y selector
-3. `src/pages/Alertas.tsx` - Pasar categorias y handler de avance
-4. `src/pages/Proyectos.tsx` - Pasar categorias y handler de avance
-5. `src/components/alertas/AlertaWidget.tsx` - Pasar categorias y handler de avance
+- El hook `useAlertas.ts` y la tabla `alerta_clasificaciones` no requieren cambios -- siguen soportando multiples clasificaciones por alerta a nivel de datos, pero el formulario solo permite seleccionar una a la vez.
+- El filtro usara la misma codificacion `c:id` / `s:id` para las keys del Set de filtros multiples.
+- El patron de Popover con checkboxes seguira el mismo estilo usado en los filtros de proyectos (contenedor con scroll, max-h-[400px]).
