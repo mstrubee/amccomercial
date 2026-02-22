@@ -124,26 +124,42 @@ export default function Proyectos() {
   }, []);
 
   // Highlight project from widget navigation or URL param
-  const highlightProject = useCallback((proyectoId: string) => {
-    setHighlightProyectoId(proyectoId);
+  const highlightProject = useCallback((proyectoId: string, empresaId?: string | null) => {
     if (proyectos) {
       const target = proyectos.find(p => p.id === proyectoId);
       if (target) {
         const key = target.nombre.trim().toLowerCase();
         setExpandedGroups(prev => ({ ...prev, [key]: true }));
       }
+      // If empresaId provided, find the child proyecto row that has that empresa linked
+      let targetRowId = proyectoId;
+      if (empresaId) {
+        const childRow = proyectos.find(p => 
+          p.nombre === target?.nombre && 
+          p.proyecto_empresas?.some(pe => pe.empresa_id === empresaId)
+        );
+        if (childRow) targetRowId = childRow.id;
+      }
+      setHighlightProyectoId(targetRowId);
+      setTimeout(() => {
+        const el = document.getElementById(`proyecto-row-${targetRowId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+    } else {
+      setHighlightProyectoId(proyectoId);
+      setTimeout(() => {
+        const el = document.getElementById(`proyecto-row-${proyectoId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
     }
-    setTimeout(() => {
-      const el = document.getElementById(`proyecto-row-${proyectoId}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 200);
     setTimeout(() => setHighlightProyectoId(null), 3000);
   }, [proyectos]);
 
   useEffect(() => {
     const id = searchParams.get("highlight");
+    const empresaId = searchParams.get("highlight_empresa");
     if (id && proyectos?.length) {
-      highlightProject(id);
+      highlightProject(id, empresaId);
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, proyectos, highlightProject, setSearchParams]);
@@ -151,7 +167,13 @@ export default function Proyectos() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) highlightProject(detail);
+      if (detail) {
+        if (typeof detail === "string") {
+          highlightProject(detail);
+        } else {
+          highlightProject(detail.proyectoId, detail.empresaId);
+        }
+      }
     };
     window.addEventListener("highlight-proyecto", handler);
     return () => window.removeEventListener("highlight-proyecto", handler);
