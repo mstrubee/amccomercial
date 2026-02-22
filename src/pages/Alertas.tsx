@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy, Tags } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import KpiCard from "@/components/dashboard/KpiCard";
@@ -308,17 +309,36 @@ export default function Alertas() {
       {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-start">
         <div className="flex gap-2 items-center flex-wrap">
-          <Select value={filterProyecto} onValueChange={setFilterProyecto}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Todos los proyectos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los proyectos</SelectItem>
-              {proyectosList.map((p) => (
-                <SelectItem key={p.id} value={p.id}>#{p.numero} {p.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" className="w-56 justify-between font-normal h-9 text-sm">
+                {filterProyecto !== "all"
+                  ? `#${proyectosList.find(p => p.id === filterProyecto)?.numero} ${proyectosList.find(p => p.id === filterProyecto)?.nombre}`
+                  : "Todos los proyectos"}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Buscar proyecto..." />
+                <CommandList>
+                  <CommandEmpty>Sin resultados.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem value="todos los proyectos" onSelect={() => setFilterProyecto("all")}>
+                      <Check className={cn("mr-2 h-4 w-4", filterProyecto === "all" ? "opacity-100" : "opacity-0")} />
+                      Todos los proyectos
+                    </CommandItem>
+                    {proyectosList.map((p) => (
+                      <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => setFilterProyecto(p.id)}>
+                        <Check className={cn("mr-2 h-4 w-4", filterProyecto === p.id ? "opacity-100" : "opacity-0")} />
+                        #{p.numero} {p.nombre}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <Select value={filterClasificacion} onValueChange={setFilterClasificacion}>
             <SelectTrigger className="w-56">
               <SelectValue placeholder="Todas las clasificaciones" />
