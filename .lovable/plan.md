@@ -1,77 +1,56 @@
 
-# Auto-clasificar la nueva alerta como el paso siguiente
+# Promover y degradar categorias / subcategorias
 
 ## Objetivo
-Cuando se completa una alerta y se elige "Completar y crear nueva", la nueva alerta debe pre-seleccionar automaticamente la siguiente clasificacion/sub-clasificacion en la secuencia logica. El usuario podra editarla antes de confirmar.
+Permitir que una categoria se convierta en subcategoria de otra categoria, y que una subcategoria se promueva a categoria independiente. Todo desde la interfaz del administrador de categorias.
 
-## Secuencia actual de clasificaciones
+## Operaciones
 
-```text
-Proyectos (orden 1)
-  1. Ofrecer para cotizar
-  2. Ofrecido para Cotizar
-  3. Chequear Estado Obra
-  4. Pedir Planos
-  5. Planos Pedidos
-  6. Cotizar / Solicitar Presupuesto
-  7. Seguimiento Presupuesto Empresa
-  8. Seguimiento Presupuesto Cliente  <-- ultima
+### 1. Subcategoria -> Categoria (Promover)
+- Se elimina la subcategoria de la tabla `subcategorias_proyecto`
+- Se crea una nueva fila en `categorias_proyecto` con el mismo nombre, color, es_adjudicado, y boton_* 
+- Se asigna el orden siguiente (max + 1) entre las categorias existentes
 
-Obras / Ejecucion (orden 2)
-  (sin sub-clasificaciones aun)
+### 2. Categoria -> Subcategoria (Degradar)
+- El usuario debe seleccionar bajo cual categoria madre quedara
+- Se elimina la categoria de `categorias_proyecto`
+- Se crea una nueva fila en `subcategorias_proyecto` con categoria_id apuntando a la madre elegida
+- Se asigna el orden siguiente (max + 1) dentro de las subcategorias de esa madre
+- Si la categoria tiene subcategorias propias, se impide la operacion (no se puede degradar una categoria que tenga hijas)
 
-Finanzas (orden 3)
-  (sin sub-clasificaciones aun)
-```
+## Cambios en la interfaz (CategoriasManagerDialog.tsx)
 
-## Logica del "paso siguiente"
+### Botones nuevos
+- En cada **subcategoria** (vista no-edicion): agregar un boton con icono de flecha arriba (ArrowUp) para "Promover a categoria"
+- En cada **categoria** (vista no-edicion): agregar un boton con icono de flecha abajo (ArrowDown) para "Convertir en subcategoria". Solo visible si la categoria NO tiene subcategorias
 
-1. Si la alerta tiene sub-clasificacion y hay una sub-clasificacion siguiente (mismo padre, orden mayor), se selecciona esa.
-2. Si la alerta tiene sub-clasificacion y es la ultima de su grupo, se pasa a la primera sub-clasificacion de la siguiente clasificacion. Si la siguiente clasificacion no tiene subs, se selecciona solo la clasificacion.
-3. Si la alerta tiene clasificacion pero sin sub-clasificacion, se pasa a la primera sub de la siguiente clasificacion, o a la clasificacion siguiente si no tiene subs.
-4. Si la alerta no tiene clasificacion, no se pre-selecciona nada.
+### Flujo "Degradar categoria"
+- Al hacer clic en ArrowDown, se muestra un pequeno selector (dropdown o popover) con las demas categorias disponibles como destino
+- Al seleccionar una, se ejecuta la operacion
 
-Ejemplo concreto: "Seguimiento Presupuesto Cliente" (ultima sub de Proyectos) pasa a "Obras / Ejecucion" (clasificacion, sin sub).
+## Cambios en hooks (useCategorias.ts)
 
-## Cambios necesarios
+### usePromoteToCategoria
+Nueva mutacion que:
+1. Lee los datos de la subcategoria
+2. Calcula max orden de categorias + 1
+3. Inserta en `categorias_proyecto`
+4. Elimina de `subcategorias_proyecto`
 
-### 1. AlertaFormDialog.tsx
-- Agregar props opcionales `defaultClasificacionId` y `defaultSubclasificacionId`.
-- En el `useEffect` de inicializacion (cuando no es edicion), usar estos valores como defaults para los campos de clasificacion y sub-clasificacion.
-
-### 2. Funcion utilitaria `getNextClasificacion`
-- Crear una funcion (dentro de `AlertaFormDialog.tsx` o como utilidad) que reciba la clasificacion/sub-clasificacion actual y la lista completa de clasificaciones, y retorne `{ clasificacionId, subclasificacionId }` del paso siguiente.
-
-### 3. Alertas.tsx
-- En `onCompleteAndCreate`: incluir `clasificacionId` y `subclasificacionId` de la alerta completada en `createDefaults`.
-- Calcular el paso siguiente usando `getNextClasificacion` antes de pasarlo al `AlertaFormDialog`.
-- Pasar los nuevos props `defaultClasificacionId` y `defaultSubclasificacionId`.
-
-### 4. Proyectos.tsx
-- Mismo cambio: en `onCompleteAndCreate`, incluir la clasificacion de la alerta en `alertaCreateContext`.
-- Pasar los defaults calculados al `AlertaFormDialog`.
-
-### 5. AlertaWidget.tsx
-- Mismo patron: incluir la clasificacion en `createDefaults` y pasar los defaults de siguiente paso al formulario.
+### useDemoteToSubcategoria
+Nueva mutacion que:
+1. Verifica que la categoria no tenga subcategorias
+2. Lee los datos de la categoria
+3. Calcula max orden de subcategorias del destino + 1
+4. Inserta en `subcategorias_proyecto` con el `categoria_id` destino
+5. Elimina de `categorias_proyecto`
 
 ## Detalle tecnico
 
-La funcion `getNextClasificacion` trabajara asi:
+- Las operaciones son de dos pasos (insert + delete). Si el insert falla, no se elimina nada. Si el delete falla, queda duplicado pero no se pierde dato.
+- Los campos `permite_fecha` solo existen en `categorias_proyecto`, por lo que al degradar se pierde ese campo. Al promover, se inicializa como `false`.
+- Los proyectos que referencien la categoria/subcategoria original quedaran apuntando a un ID que ya no existe. Esto se manejara con la logica existente (el campo queda null o se limpia).
 
-```text
-Input:  clasificacionId, subclasificacionId, clasificaciones[]
-Output: { clasificacionId, subclasificacionId }
-
-1. Encontrar la clasificacion actual en la lista ordenada
-2. Si hay subclasificacion actual:
-   a. Buscar la siguiente sub (orden mayor, mismo padre)
-   b. Si existe -> retornar misma clasificacion + siguiente sub
-   c. Si no existe -> buscar siguiente clasificacion en la lista global
-      - Si tiene subs -> retornar primera sub de esa clasificacion
-      - Si no tiene subs -> retornar solo la clasificacion
-3. Si no hay subclasificacion:
-   - Buscar siguiente clasificacion en la lista global (mismo patron)
-4. Si no hay clasificacion -> retornar vacio (sin default)
-```
-
-Los 3 archivos padres pasaran la clasificacion de la alerta completada al `createDefaults`, y calcularan el "next" antes de pasarlo como prop al formulario. El calculo se hace en cada archivo usando la data de `useClasificacionesAlerta()` que ya se importa o se puede importar.
+## Archivos a modificar
+1. **src/hooks/useCategorias.ts** - Agregar `usePromoteToCategoria` y `useDemoteToSubcategoria`
+2. **src/components/proyectos/CategoriasManagerDialog.tsx** - Agregar botones de promover/degradar y el selector de categoria destino para la degradacion
