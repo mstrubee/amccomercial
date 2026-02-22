@@ -51,7 +51,7 @@ async function fetchAllAlertas(includeDeleted: boolean = false) {
   while (hasMore) {
     let query = supabase
       .from("alertas")
-      .select("*, proyectos(id, nombre, numero), empresas(id, nombre)")
+      .select("*, proyectos(id, nombre, numero), empresas(id, nombre), cat_proyecto:categorias_proyecto!alertas_categoria_proyecto_id_fkey(id, nombre, color), subcat_proyecto:subcategorias_proyecto!alertas_subcategoria_proyecto_id_fkey(id, nombre, color)")
       .order("fecha_seguimiento", { ascending: true })
       .range(offset, offset + batchSize - 1);
 
@@ -231,7 +231,7 @@ export function useCreateAlerta() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
-      toast.success("Alerta creada exitosamente");
+      qc.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
       logActivity.mutate({ action: "crear", entity_type: "alerta", entity_name: variables.titulo, details: variables.proyecto_id });
     },
     onError: (e) => toast.error("Error al crear alerta: " + e.message),
@@ -281,7 +281,7 @@ export function useUpdateAlerta() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
-      toast.success("Alerta actualizada");
+      qc.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
       logActivity.mutate({ action: "editar", entity_type: "alerta", entity_id: variables.id, entity_name: variables.titulo, details: variables.proyecto_id });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),
