@@ -13,6 +13,8 @@ import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, 
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
+import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
+import { getNextClasificacion } from "@/lib/clasificacion-utils";
 import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -52,6 +54,7 @@ export default function Proyectos() {
   const { isAdmin } = useAuth();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
+  const { data: clasificacionesAlerta } = useClasificacionesAlerta();
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
   const deleteProyecto = useDeleteProyecto();
@@ -76,7 +79,7 @@ export default function Proyectos() {
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
-  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string } | null>(null);
+  const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: alertas } = useAlertas();
@@ -1025,6 +1028,8 @@ export default function Proyectos() {
           defaultEmpresaId={alertaCreateContext.empresa_id || undefined}
           defaultTexto={alertaCreateContext.defaultTexto}
           parentAlertaId={alertaCreateContext.parentAlertaId}
+          defaultClasificacionId={alertaCreateContext.defaultClasificacionId}
+          defaultSubclasificacionId={alertaCreateContext.defaultSubclasificacionId}
         />
       )}
 
@@ -1074,7 +1079,10 @@ export default function Proyectos() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
-          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id });
+          const next = clasificacionesAlerta
+            ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificacionesAlerta)
+            : { clasificacionId: "", subclasificacionId: "" };
+          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId });
         }}
       />
 

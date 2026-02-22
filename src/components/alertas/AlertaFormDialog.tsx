@@ -28,9 +28,11 @@ interface Props {
   defaultTexto?: string;
   /** ID of the parent alert (when creating follow-up from completed alert) */
   parentAlertaId?: string | null;
+  defaultClasificacionId?: string;
+  defaultSubclasificacionId?: string;
 }
 
-export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto, parentAlertaId }: Props) {
+export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, proyectos, empresas, profiles, currentUserId, defaultProyectoId, defaultEmpresaId, defaultTexto, parentAlertaId, defaultClasificacionId, defaultSubclasificacionId }: Props) {
   const [proyectoId, setProyectoId] = useState("");
   const [empresaId, setEmpresaId] = useState<string>("");
   const [titulo, setTitulo] = useState("");
@@ -62,10 +64,10 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setTexto(defaultTexto || "");
       setResponsableId(currentUserId);
       setFechaSeguimiento("");
-      setClasificacionId("");
-      setSubclasificacionId("");
+      setClasificacionId(defaultClasificacionId || "");
+      setSubclasificacionId(defaultSubclasificacionId || "");
     }
-  }, [editTarget, open, currentUserId]);
+  }, [editTarget, open, currentUserId, defaultClasificacionId, defaultSubclasificacionId]);
 
   const handleSubmit = () => {
     if (!proyectoId || !texto.trim() || !fechaSeguimiento) return;

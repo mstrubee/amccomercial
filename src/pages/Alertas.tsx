@@ -32,6 +32,7 @@ import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
 import DeletedAlertasDialog from "@/components/alertas/DeletedAlertasDialog";
 import ClasificacionesAlertaDialog from "@/components/alertas/ClasificacionesAlertaDialog";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
+import { getNextClasificacion } from "@/lib/clasificacion-utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -87,7 +88,7 @@ export default function Alertas() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [completeMode, setCompleteMode] = useState<"complete" | "uncomplete">("complete");
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; clasificacionId?: string; subclasificacionId?: string }>({});
   const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
@@ -524,6 +525,8 @@ export default function Alertas() {
         defaultProyectoId={createDefaults.proyectoId}
         defaultEmpresaId={createDefaults.empresaId}
         parentAlertaId={createDefaults.parentAlertaId}
+        defaultClasificacionId={createDefaults.clasificacionId}
+        defaultSubclasificacionId={createDefaults.subclasificacionId}
       />
 
       {/* Delete Confirmation */}
@@ -551,7 +554,10 @@ export default function Alertas() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
+          const next = clasificaciones
+            ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificaciones)
+            : { clasificacionId: "", subclasificacionId: "" };
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId });
           setEditTarget(null);
           setDialogOpen(true);
         }}

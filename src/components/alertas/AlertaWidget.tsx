@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, ChevronDown, ChevronUp, Circle, ExternalLink } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAlertas, useToggleAlertaCompletada, useCreateAlerta, AlertaWithRelations, AlertaInput } from "@/hooks/useAlertas";
+import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
+import { getNextClasificacion } from "@/lib/clasificacion-utils";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,8 +41,9 @@ export default function AlertaWidget() {
 
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string }>({});
   const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
+  const { data: clasificacionesAlerta } = useClasificacionesAlerta();
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -186,7 +189,10 @@ export default function AlertaWidget() {
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
+          const next = clasificacionesAlerta
+            ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificacionesAlerta)
+            : { clasificacionId: "", subclasificacionId: "" };
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId });
           setCreateDialogOpen(true);
         }}
       />
@@ -203,6 +209,8 @@ export default function AlertaWidget() {
         defaultProyectoId={createDefaults.proyectoId}
         defaultEmpresaId={createDefaults.empresaId}
         parentAlertaId={createDefaults.parentAlertaId}
+        defaultClasificacionId={createDefaults.defaultClasificacionId}
+        defaultSubclasificacionId={createDefaults.defaultSubclasificacionId}
       />
     </>
   );
