@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -144,7 +144,13 @@ export default function Alertas() {
     }
 
     if (filterClasificacion !== "all") {
-      list = list.filter((a) => (a as any).clasificacion_alerta_id === filterClasificacion);
+      if (filterClasificacion.startsWith("s:")) {
+        const subId = filterClasificacion.slice(2);
+        list = list.filter((a) => (a as any).subclasificacion_alerta_id === subId);
+      } else {
+        const clasifId = filterClasificacion.startsWith("c:") ? filterClasificacion.slice(2) : filterClasificacion;
+        list = list.filter((a) => (a as any).clasificacion_alerta_id === clasifId);
+      }
     }
 
     if (fechaDesde) {
@@ -309,13 +315,20 @@ export default function Alertas() {
             </SelectContent>
           </Select>
           <Select value={filterClasificacion} onValueChange={setFilterClasificacion}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-56">
               <SelectValue placeholder="Todas las clasificaciones" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas las clasificaciones</SelectItem>
               {clasificaciones?.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                <React.Fragment key={c.id}>
+                  <SelectItem value={`c:${c.id}`}>{c.nombre}</SelectItem>
+                  {c.subclasificaciones.map((s) => (
+                    <SelectItem key={s.id} value={`s:${s.id}`}>
+                      <span className="pl-3 text-muted-foreground">↳ {s.nombre}</span>
+                    </SelectItem>
+                  ))}
+                </React.Fragment>
               ))}
             </SelectContent>
           </Select>
