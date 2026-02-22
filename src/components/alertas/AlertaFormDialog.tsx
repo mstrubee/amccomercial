@@ -55,12 +55,13 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
   // Fetch current category from proyecto_empresas when both are selected
   useEffect(() => {
     if (!proyectoId || !empresaId || empresaId === "none") {
-      setCategoriaProyectoId("");
-      setSubcategoriaProyectoId("");
+      if (!defaultCategoriaProyectoId) setCategoriaProyectoId("");
+      if (!defaultSubcategoriaProyectoId) setSubcategoriaProyectoId("");
       return;
     }
-    // Don't override if editing and already loaded
+    // Don't override if editing or if defaults were provided
     if (editTarget) return;
+    if (defaultCategoriaProyectoId) return;
 
     const fetchPE = async () => {
       const { data } = await supabase
