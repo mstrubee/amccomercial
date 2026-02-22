@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,9 @@ export default function Alertas() {
     },
   });
 
+  const navigate = useNavigate();
+  const [searchParamsAlertas] = useSearchParams();
+
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("activas");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -101,6 +105,37 @@ export default function Alertas() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
+
+  // Restore filters from sessionStorage when returning from Proyectos
+  useEffect(() => {
+    if (searchParamsAlertas.get("restore") === "1") {
+      try {
+        const saved = sessionStorage.getItem("alertas-filters");
+        if (saved) {
+          const f = JSON.parse(saved);
+          if (f.search) setSearch(f.search);
+          if (f.activeTab) setActiveTab(f.activeTab);
+          if (f.filterProyecto) setFilterProyecto(f.filterProyecto);
+          if (f.filterClasificacion) setFilterClasificacion(f.filterClasificacion);
+          if (f.sortDir) setSortDir(f.sortDir);
+          if (f.fechaDesde) setFechaDesde(new Date(f.fechaDesde));
+          if (f.fechaHasta) setFechaHasta(new Date(f.fechaHasta));
+          sessionStorage.removeItem("alertas-filters");
+        }
+      } catch {}
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveFiltersAndNavigate = (proyectoId: string, empresaId?: string | null) => {
+    sessionStorage.setItem("alertas-filters", JSON.stringify({
+      search, activeTab, filterProyecto, filterClasificacion, sortDir,
+      fechaDesde: fechaDesde?.toISOString(),
+      fechaHasta: fechaHasta?.toISOString(),
+    }));
+    const params = new URLSearchParams({ highlight: proyectoId, from: "alertas" });
+    if (empresaId) params.set("highlight_empresa", empresaId);
+    navigate(`/proyectos?${params.toString()}`);
+  };
 
   const today = startOfDay(new Date());
   const in7 = addDays(today, 7);
@@ -448,7 +483,14 @@ export default function Alertas() {
                     {vencida && !a.completada && <span className="ml-1 text-[10px] font-semibold text-destructive">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
-                    {a.proyectos ? `#${a.proyectos.numero} ${a.proyectos.nombre}` : "—"}
+                    {a.proyectos ? (
+                      <button
+                        className="hover:text-primary hover:underline transition-colors text-left"
+                        onClick={(e) => { e.stopPropagation(); saveFiltersAndNavigate(a.proyecto_id, a.empresa_id); }}
+                      >
+                        #{a.proyectos.numero} {a.proyectos.nombre}
+                      </button>
+                    ) : "—"}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{a.empresas?.nombre || "—"}</td>
                   <td className="px-5 py-3 text-xs">

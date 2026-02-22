@@ -27,6 +27,7 @@ import ContactosColumn from "@/components/proyectos/ContactosColumn";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import CompleteAlertaDialog from "@/components/alertas/CompleteAlertaDialog";
 import AlertaTreeDialog from "@/components/alertas/AlertaTreeDialog";
+import BackToAlertasFloat from "@/components/alertas/BackToAlertasFloat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -81,6 +82,7 @@ export default function Proyectos() {
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
   const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showBackToAlertas, setShowBackToAlertas] = useState(false);
 
   const { data: alertas } = useAlertas();
   const { data: categorias } = useCategorias();
@@ -162,8 +164,10 @@ export default function Proyectos() {
   useEffect(() => {
     const id = searchParams.get("highlight");
     const empresaId = searchParams.get("highlight_empresa");
+    const from = searchParams.get("from");
     if (id && proyectos?.length) {
       highlightProject(id, empresaId);
+      if (from === "alertas") setShowBackToAlertas(true);
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, proyectos, highlightProject, setSearchParams]);
@@ -313,6 +317,8 @@ export default function Proyectos() {
   }
 
   return (
+    <>
+    {showBackToAlertas && <BackToAlertasFloat />}
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
@@ -1097,6 +1103,7 @@ export default function Proyectos() {
       {/* Tree dialog */}
       <AlertaTreeDialog open={showTree} onClose={() => setShowTree(false)} rootAlertaId={treeRootId} />
     </div>
+    </>
   );
 }
 
