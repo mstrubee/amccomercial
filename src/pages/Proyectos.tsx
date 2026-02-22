@@ -224,6 +224,7 @@ export default function Proyectos() {
     let adjudicados = 0;
     let ganados = 0;
     let obrasEjecucion = 0;
+    const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
@@ -231,7 +232,7 @@ export default function Proyectos() {
         const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
         const cat = categorias?.find(c => c.id === pe.categoria_id);
         const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
-        return !!label;
+        return label === OBRAS_LABEL;
       }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
@@ -524,25 +525,16 @@ export default function Proyectos() {
         <KpiCard
           title="Obras / Ejecución"
           value={String(kpiStats.obrasEjecucion)}
-          subtitle="Con botón de seguimiento"
+          subtitle="Seguimiento"
           icon={Hammer}
           variant="warning"
           delay={0.14}
           onClick={() => {
-            // Collect all button labels from categorias
-            const allLabels: string[] = [];
-            categorias?.forEach(cat => {
-              if ((cat as any).boton_label) allLabels.push((cat as any).boton_label);
-              cat.subcategorias_proyecto?.forEach(sub => {
-                if ((sub as any).boton_label) allLabels.push((sub as any).boton_label);
-              });
-            });
-            const uniqueLabels = [...new Set(allLabels)];
-            const isActive = filterBotones.length > 0 && filterBotones.length === uniqueLabels.length;
+            const isActive = filterBotones.length === 1 && filterBotones[0] === "Obra/Ejecución";
             if (isActive) {
               setFilterBotones([]);
             } else {
-              setFilterBotones(uniqueLabels);
+              setFilterBotones(["Obra/Ejecución"]);
               setFilterEstados([]);
               setFilterEmpresas([]);
               setFilterCategorias([]);
@@ -551,7 +543,7 @@ export default function Proyectos() {
               setSearch("");
             }
           }}
-          active={filterBotones.length > 0}
+          active={filterBotones.length === 1 && filterBotones[0] === "Obra/Ejecución"}
         />
         <KpiCard
           title="Resultado Filtros"
