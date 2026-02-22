@@ -21,6 +21,7 @@ import {
   AlertaInput,
 } from "@/hooks/useAlertas";
 import { useEmpresas } from "@/hooks/useEmpresas";
+import { useCategorias } from "@/hooks/useCategorias";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +49,7 @@ type SortDir = "asc" | "desc";
 export default function Alertas() {
   const { data: alertas, isLoading } = useAlertas();
   const { data: empresas } = useEmpresas();
+  const { data: categoriasComerciales } = useCategorias();
   const { data: proyectosRaw } = useProyectos();
   const { data: clasificaciones } = useClasificacionesAlerta();
   const { user, isAdmin } = useAuth();
@@ -551,6 +553,12 @@ export default function Alertas() {
         open={!!completeTarget}
         onClose={() => { setCompleteTarget(null); setCompleteMode("complete"); }}
         mode={completeMode}
+        categorias={categoriasComerciales}
+        onAdvanceCategoria={async (pId, eId, catId, subId) => {
+          await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
+          queryClient.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
+          queryClient.invalidateQueries({ queryKey: ["proyectos"] });
+        }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
