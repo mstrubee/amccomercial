@@ -295,16 +295,14 @@ export default function Proyectos() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2" align="start">
-              <ScrollArea className="max-h-80">
-                <div className="space-y-1">
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
                   {ESTADOS_AMC.filter(e => e !== "Todos").map((estado) => (
                     <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
                       <Checkbox checked={filterEstados.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstados, estado)} />
                       {estado}
                     </label>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
               {filterEstados.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstados([])}>Limpiar</Button>
               )}
@@ -319,16 +317,14 @@ export default function Proyectos() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2" align="start">
-              <ScrollArea className="max-h-80">
-                <div className="space-y-1">
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
                   {ESTADOS_OBRA.filter(e => e !== "Todos").map((estado) => (
                     <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
                       <Checkbox checked={filterEstadosObra.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstadosObra, estado)} />
                       {estado}
                     </label>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
               {filterEstadosObra.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstadosObra([])}>Limpiar</Button>
               )}
@@ -343,16 +339,14 @@ export default function Proyectos() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2" align="start">
-              <ScrollArea className="max-h-60">
-                <div className="space-y-1">
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
                   {empresas?.map((e) => (
                     <label key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
                       <Checkbox checked={filterEmpresas.includes(e.id)} onCheckedChange={() => toggleFilter(setFilterEmpresas, e.id)} />
                       {e.nombre}
                     </label>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
               {filterEmpresas.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEmpresas([])}>Limpiar</Button>
               )}
@@ -367,8 +361,7 @@ export default function Proyectos() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-60 p-2" align="start">
-              <ScrollArea className="max-h-80">
-                <div className="space-y-1">
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
                   {categorias?.map((cat) => (
                     <Fragment key={cat.id}>
                       <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
@@ -385,8 +378,7 @@ export default function Proyectos() {
                       ))}
                     </Fragment>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
               {filterCategorias.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterCategorias([])}>Limpiar</Button>
               )}
@@ -401,16 +393,14 @@ export default function Proyectos() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2" align="start">
-              <ScrollArea className="max-h-80">
-                <div className="space-y-1">
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
                   {clasificaciones?.map((c) => (
                     <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
                       <Checkbox checked={filterClasificaciones.includes(c.id)} onCheckedChange={() => toggleFilter(setFilterClasificaciones, c.id)} />
                       {c.nombre}
                     </label>
                   ))}
-                </div>
-              </ScrollArea>
+              </div>
               {filterClasificaciones.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterClasificaciones([])}>Limpiar</Button>
               )}
