@@ -1,71 +1,65 @@
 
 
-## Plan: Botones personalizados en categorias y subcategorias
+# Clasificaciones de Alertas
 
-### Resumen
+## Resumen
+Agregar un sistema de clasificaciones (con sub-clasificaciones) para las alertas. Esto incluye nuevas tablas en la base de datos, un dialog de administracion, un filtro en la Central de Alertas, y la seleccion de clasificacion al crear/editar alertas.
 
-Agregar la posibilidad de configurar un "boton" visual en cada categoria y subcategoria desde la seccion Categorias. Este boton se mostrara en las lineas hijas de la tabla de Proyectos, en una nueva columna dedicada.
+## Cambios en Base de Datos
 
----
+1. **Tabla `clasificaciones_alerta`**: id, nombre, orden, created_at
+2. **Tabla `subclasificaciones_alerta`**: id, clasificacion_id (FK), nombre, orden, created_at
+3. **Columnas nuevas en `alertas`**: `clasificacion_alerta_id` (uuid, nullable), `subclasificacion_alerta_id` (uuid, nullable)
+4. **Politicas RLS**: Lectura para todos los autenticados, gestion completa solo para admins
+5. **Habilitar realtime** no es necesario para este caso
 
-### 1. Migracion de base de datos
+## Cambios en Codigo
 
-Agregar 3 columnas nullable a **ambas** tablas:
+### 1. Hook `src/hooks/useClasificacionesAlerta.ts` (nuevo)
+- CRUD para `clasificaciones_alerta` y `subclasificaciones_alerta`
+- Queries: `useClasificacionesAlerta()` que trae clasificaciones con sus sub-clasificaciones
+- Mutations: crear, editar, eliminar clasificaciones y sub-clasificaciones
 
-**`categorias_proyecto`:**
-- `boton_label` (text, nullable, default null)
-- `boton_bg_color` (text, nullable, default null)
-- `boton_text_color` (text, nullable, default null)
+### 2. Dialog de administracion `src/components/alertas/ClasificacionesAlertaDialog.tsx` (nuevo)
+- Dialog accesible solo para Admin
+- Lista de clasificaciones con opcion de agregar, editar y eliminar
+- Cada clasificacion expandible para gestionar sub-clasificaciones
+- Boton ubicado entre "Arbol" y "Eliminadas" en la barra de acciones
 
-**`subcategorias_proyecto`:**
-- `boton_label` (text, nullable, default null)
-- `boton_bg_color` (text, nullable, default null)
-- `boton_text_color` (text, nullable, default null)
+### 3. Modificar `src/pages/Alertas.tsx`
+- Importar el nuevo dialog y hook
+- Agregar boton "Clasificacion" entre "Arbol" y "Eliminadas" (visible solo para admin)
+- Agregar filtro Select de clasificacion junto a los filtros existentes
+- Filtrar alertas por `clasificacion_alerta_id` cuando se seleccione
 
-No se requieren nuevas politicas RLS (las existentes ya cubren lectura/escritura).
+### 4. Modificar `src/components/alertas/AlertaFormDialog.tsx`
+- Agregar selector de Clasificacion (dropdown)
+- Agregar selector de Sub-clasificacion (dropdown, dependiente de la clasificacion seleccionada)
+- Incluir `clasificacion_alerta_id` y `subclasificacion_alerta_id` en el submit
 
----
+### 5. Modificar `src/hooks/useAlertas.ts`
+- Agregar `clasificacion_alerta_id` y `subclasificacion_alerta_id` a `AlertaRow`, `AlertaInput`
+- Incluir estos campos en las mutaciones de crear y actualizar
+- Incluir la relacion en la query select para mostrar el nombre de la clasificacion
 
-### 2. Hooks de categorias (`src/hooks/useCategorias.ts`)
+### 6. Mostrar clasificacion en la tabla de alertas
+- Agregar columna "Clasificacion" en la tabla de la Central de Alertas
 
-- Agregar los 3 campos de boton a los tipos `useUpdateCategoria` y `useUpdateSubcategoria`
-- Incluirlos en las mutaciones de update
+## Seccion Tecnica
 
----
+```text
+clasificaciones_alerta          subclasificaciones_alerta
++--------+---------+-----+      +--------+------------------+---------+-----+
+| id     | nombre  |orden|      | id     | clasificacion_id | nombre  |orden|
++--------+---------+-----+      +--------+------------------+---------+-----+
+| uuid   | text    | int |      | uuid   | uuid (FK)        | text    | int |
++--------+---------+-----+      +--------+------------------+---------+-----+
 
-### 3. Formulario de edicion en CategoriasManagerDialog
+alertas (columnas nuevas)
++---------------------------+--------------------------------+
+| clasificacion_alerta_id   | subclasificacion_alerta_id     |
+| uuid nullable             | uuid nullable                  |
++---------------------------+--------------------------------+
+```
 
-**En el formulario de edicion de categoria** (cuando `editingCat` esta activo):
-- Agregar seccion "Boton personalizado" con:
-  - Input para el nombre/label del boton
-  - Selector de color de fondo
-  - Selector de color de texto
-  - Preview del boton con los estilos aplicados
-  - Boton para eliminar la configuracion del boton (poner los 3 campos en null)
-- Si no hay boton configurado, mostrar un enlace "Agregar Boton" que expande los campos
-
-**Idem para el formulario de edicion de subcategoria.**
-
-Los campos de boton se envian junto con el resto de datos al guardar.
-
----
-
-### 4. Nueva columna en la tabla de Proyectos
-
-**`src/pages/Proyectos.tsx`:**
-- Agregar una columna con header vacio (o "Accion") en el `<thead>` de la tabla, antes de la columna "Acciones"
-- En las **lineas hijas** (child rows, donde se renderiza cada empresa): mostrar el boton configurado si la subcategoria o categoria de esa empresa tiene un boton definido
-  - Prioridad: si la subcategoria tiene boton, usar ese; si no, usar el de la categoria padre
-  - Si ninguno tiene boton, la celda queda vacia
-- El boton se renderiza con los estilos personalizados (`backgroundColor`, `color`) y el label configurado
-- En las filas agrupadas (header de grupo) y filas individuales no se muestra boton (celda vacia)
-
----
-
-### Seccion tecnica
-
-- La logica de resolucion del boton en child rows usa los datos de `categorias_proyecto` y `subcategorias_proyecto` que ya vienen cargados via `useCategorias()`
-- Se cruza `pe.subcategoria_id` y `pe.categoria_id` contra el listado de categorias para encontrar la configuracion de boton
-- El boton es puramente visual por ahora (no tiene accion al hacer click), pero queda preparado para agregar funcionalidad futura
-- Los campos `boton_*` son nullable: cuando son null significa "sin boton configurado"
-
+La migracion SQL creara ambas tablas con RLS habilitado, politicas de lectura publica para autenticados y gestion exclusiva para admins. Luego agregara las dos columnas a la tabla `alertas`.
