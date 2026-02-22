@@ -65,7 +65,13 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1">
               {alerta.completada ? (
-                <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); onComplete?.(alerta); }}
+                  className="shrink-0 text-emerald-600 hover:text-amber-600 transition-colors"
+                  title="Reactivar alerta"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                </button>
               ) : null}
               {titulo && (
                 <span className="text-[11px] font-semibold text-amber-700 truncate max-w-[160px]">{titulo}</span>
