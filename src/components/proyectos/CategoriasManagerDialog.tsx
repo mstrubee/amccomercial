@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Pencil, Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ArrowUp, ArrowDown } from "lucide-react";
 import {
   useCategorias,
   useCreateCategoria,
@@ -13,9 +13,12 @@ import {
   useCreateSubcategoria,
   useUpdateSubcategoria,
   useDeleteSubcategoria,
+  usePromoteToCategoria,
+  useDemoteToSubcategoria,
   CategoriaWithSubs,
   SubcategoriaRow,
 } from "@/hooks/useCategorias";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Props {
@@ -73,7 +76,8 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
   const createSub = useCreateSubcategoria();
   const updateSub = useUpdateSubcategoria();
   const deleteSub = useDeleteSubcategoria();
-
+  const promoteSub = usePromoteToCategoria();
+  const demoteCat = useDemoteToSubcategoria();
   const [editingCat, setEditingCat] = useState<CategoriaWithSubs | null>(null);
   const [editingSub, setEditingSub] = useState<SubcategoriaRow | null>(null);
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
@@ -246,6 +250,23 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEditCat(cat)}>
                       <Pencil className="w-3 h-3" />
                     </Button>
+                    {cat.subcategorias_proyecto.length === 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" title="Convertir en subcategoría">
+                            <ArrowDown className="w-3 h-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {(categorias || []).filter((c) => c.id !== cat.id).map((target) => (
+                            <DropdownMenuItem key={target.id} onClick={() => demoteCat.mutate({ catId: cat.id, targetCatId: target.id })}>
+                              <div className="w-3 h-3 rounded-full border border-border mr-2 flex-shrink-0" style={{ backgroundColor: target.color }} />
+                              {target.nombre}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                     <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={() => deleteCat.mutate(cat.id)}>
                       <Trash2 className="w-3 h-3" />
                     </Button>
@@ -302,6 +323,9 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                             )}
                             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => startEditSub(sub)}>
                               <Pencil className="w-2.5 h-2.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-5 w-5" title="Promover a categoría" onClick={() => promoteSub.mutate(sub.id)}>
+                              <ArrowUp className="w-2.5 h-2.5" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-5 w-5 hover:text-destructive" onClick={() => deleteSub.mutate(sub.id)}>
                               <Trash2 className="w-2.5 h-2.5" />
