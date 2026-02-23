@@ -1,48 +1,31 @@
 
+## Reordenar y renombrar filtros + scroll fijo en listado de Proyectos
 
-## Contactos separados por fila al agregar clientes
+### 1. Renombrar y reordenar botones de filtro
 
-### Contexto actual
-Cada seccion de contacto (Arquitectura, Constructora, ITO, Duenos) tiene 4 campos de texto (Nombre, Contacto, Email, Telefono). Cuando se agrega un segundo cliente, los valores se concatenan en el mismo campo con " / " como separador (ej: "Juan / Pedro").
+Orden actual: Estado AMC, Estado Obra, Empresa, Categoría, Clasificación, Seguimiento
 
-### Cambio solicitado
-Al agregar un nuevo cliente, se deben crear **4 casillas nuevas** (una fila completa) debajo de la fila existente, en lugar de concatenar los datos en las mismas casillas.
+Nuevo orden y nombres:
 
-### Enfoque tecnico
+| # | Nombre actual | Nuevo nombre |
+|---|--------------|-------------|
+| 1 | Estado AMC | **Estado (x Proyecto)** |
+| 2 | Clasificación | **Tipo de Proyecto** |
+| 3 | Estado Obra | Estado Obra (sin cambio) |
+| 4 | Empresa | Empresa (sin cambio) |
+| 5 | Seguimiento | **Estado AMC (x Empresa)** |
+| 6 | Categoría | **Estatus (x Empresa)** |
 
-La base de datos almacena estos campos como texto plano (ej: `arq_nombre`, `arq_contacto`, etc.). Para mantener compatibilidad sin migrar la BD, se usara el separador " / " internamente pero la UI mostrara filas separadas.
+### 2. Scroll fijo (sticky header)
 
-**Cambios en `src/components/proyectos/ProyectoFormDialog.tsx`:**
+Hacer que el titulo de la pagina, las KPI cards, la barra de busqueda/filtros, y los encabezados de columna de la tabla se mantengan fijos mientras se hace scroll en el listado de proyectos.
 
-1. **Reemplazar la estructura de `sections`** para que cada seccion maneje un arreglo de entradas en vez de 4 valores escalares. Al cargar datos existentes (que usan " / "), se hara split para generar las filas.
+Enfoque tecnico:
+- Envolver el contenido de la pagina en un contenedor flex con altura completa (`h-full flex flex-col overflow-hidden`)
+- La seccion superior (titulo, filtros, KPIs) sera estatica sin scroll
+- La tabla tendra un contenedor con `overflow-y-auto flex-1` para que solo el cuerpo de la tabla haga scroll
+- El `thead` de la tabla usara `sticky top-0 z-10` para que los nombres de columna queden fijos al hacer scroll dentro de la tabla
 
-2. **Modificar `ContactosSection`** para:
-   - Convertir los 4 strings (nombre/contacto/mail/telefono) en un arreglo de objetos `{ nombre, contacto, mail, telefono }` usando `.split(" / ")`.
-   - Renderizar una fila de 4 inputs por cada entrada del arreglo.
-   - Incluir un boton para eliminar filas individuales (excepto la primera).
-   - Al modificar cualquier input, reconstruir el string concatenado con " / " y llamar al setter correspondiente.
+### Archivo a modificar
 
-3. **Modificar `applyCliente`** para que en vez de concatenar, agregue una nueva fila (append al arreglo), lo que genera un nuevo grupo de 4 inputs.
-
-4. **Al guardar**, las filas se unen con " / " para cada campo, manteniendo la compatibilidad con la BD y con `ProyectoInput`.
-
-### Ejemplo visual
-
-Antes (un solo cliente):
-```text
-| Nombre: Juan  | Contacto: J. Perez |
-| Email: j@x.co | Telefono: 123      |
-```
-
-Despues de agregar otro cliente:
-```text
-| Nombre: Juan  | Contacto: J. Perez |
-| Email: j@x.co | Telefono: 123      |
-| Nombre: Pedro | Contacto: P. Lopez |  <-- fila nueva
-| Email: p@x.co | Telefono: 456      |
-```
-
-### Archivos a modificar
-
-- `src/components/proyectos/ProyectoFormDialog.tsx` - Unico archivo a modificar. Se cambia la logica interna de `ContactosSection` y `applyCliente`. No hay cambios en la BD ni en otros componentes.
-
+- `src/pages/Proyectos.tsx` - Reordenar los bloques de Popover de filtros, cambiar las etiquetas de texto, y ajustar la estructura de layout para scroll fijo.
