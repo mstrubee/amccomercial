@@ -187,8 +187,8 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
         </button>
       </motion.aside>
 
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">{children}</div>
+      <main className="flex-1 overflow-hidden">
+        <div className="p-8 h-full overflow-auto">{children}</div>
       </main>
     </div>
   );
