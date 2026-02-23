@@ -319,7 +319,7 @@ export default function Proyectos() {
   return (
     <>
     {showBackToAlertas && <BackToAlertasFloat />}
-    <div className="space-y-6">
+    <div className="h-full flex flex-col overflow-hidden gap-4">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Proyectos</h1>
@@ -338,11 +338,11 @@ export default function Proyectos() {
           <Input placeholder="Buscar por nombre, comuna o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Estado AMC multi-select */}
+          {/* 1. Estado (x Proyecto) — was Estado AMC */}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                Estado AMC {filterEstados.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterEstados.length}</span>}
+                Estado (x Proyecto) {filterEstados.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterEstados.length}</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2" align="start">
@@ -360,7 +360,29 @@ export default function Proyectos() {
             </PopoverContent>
           </Popover>
 
-          {/* Estado Obra multi-select */}
+          {/* 2. Tipo de Proyecto — was Clasificación */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                Tipo de Proyecto {filterClasificaciones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterClasificaciones.length}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-2" align="start">
+              <div className="max-h-[400px] overflow-y-auto space-y-1">
+                  {clasificaciones?.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterClasificaciones.includes(c.id)} onCheckedChange={() => toggleFilter(setFilterClasificaciones, c.id)} />
+                      {c.nombre}
+                    </label>
+                  ))}
+              </div>
+              {filterClasificaciones.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterClasificaciones([])}>Limpiar</Button>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          {/* 3. Estado Obra */}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
@@ -382,7 +404,7 @@ export default function Proyectos() {
             </PopoverContent>
           </Popover>
 
-          {/* Empresa multi-select */}
+          {/* 4. Empresa */}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
@@ -404,11 +426,46 @@ export default function Proyectos() {
             </PopoverContent>
           </Popover>
 
-          {/* Categoría multi-select */}
+          {/* 5. Estado AMC (x Empresa) — was Seguimiento */}
+          {(() => {
+            const allLabels = new Set<string>();
+            categorias?.forEach(cat => {
+              if ((cat as any).boton_label) allLabels.add((cat as any).boton_label);
+              cat.subcategorias_proyecto?.forEach(sub => {
+                if ((sub as any).boton_label) allLabels.add((sub as any).boton_label);
+              });
+            });
+            if (allLabels.size === 0) return null;
+            return (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                    <MousePointerClick className="w-3 h-3" />
+                    Estado AMC (x Empresa) {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-2" align="start">
+                  <div className="max-h-[400px] overflow-y-auto space-y-1">
+                    {Array.from(allLabels).map((label) => (
+                      <label key={label} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                        <Checkbox checked={filterBotones.includes(label)} onCheckedChange={() => toggleFilter(setFilterBotones, label)} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  {filterBotones.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterBotones([])}>Limpiar</Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
+
+          {/* 6. Estatus (x Empresa) — was Categoría */}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                Categoría {filterCategorias.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterCategorias.length}</span>}
+                Estatus (x Empresa) {filterCategorias.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterCategorias.length}</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-60 p-2" align="start">
@@ -435,62 +492,6 @@ export default function Proyectos() {
               )}
             </PopoverContent>
           </Popover>
-
-          {/* Clasificación multi-select */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                Clasificación {filterClasificaciones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterClasificaciones.length}</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-2" align="start">
-              <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {clasificaciones?.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                      <Checkbox checked={filterClasificaciones.includes(c.id)} onCheckedChange={() => toggleFilter(setFilterClasificaciones, c.id)} />
-                      {c.nombre}
-                    </label>
-                  ))}
-              </div>
-              {filterClasificaciones.length > 0 && (
-                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterClasificaciones([])}>Limpiar</Button>
-              )}
-            </PopoverContent>
-          </Popover>
-          {/* Botón filter */}
-          {(() => {
-            const allLabels = new Set<string>();
-            categorias?.forEach(cat => {
-              if ((cat as any).boton_label) allLabels.add((cat as any).boton_label);
-              cat.subcategorias_proyecto?.forEach(sub => {
-                if ((sub as any).boton_label) allLabels.add((sub as any).boton_label);
-              });
-            });
-            if (allLabels.size === 0) return null;
-            return (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                    <MousePointerClick className="w-3 h-3" />
-                    Seguimiento {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-52 p-2" align="start">
-                  <div className="max-h-[400px] overflow-y-auto space-y-1">
-                    {Array.from(allLabels).map((label) => (
-                      <label key={label} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                        <Checkbox checked={filterBotones.includes(label)} onCheckedChange={() => toggleFilter(setFilterBotones, label)} />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  {filterBotones.length > 0 && (
-                    <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterBotones([])}>Limpiar</Button>
-                  )}
-                </PopoverContent>
-              </Popover>
-            );
-          })()}
           {kpiStats.hasActiveFilters && (
             <Button
               variant="outline"
@@ -588,11 +589,11 @@ export default function Proyectos() {
       </div>
 
       {/* Table */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex-1 min-h-0 bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-border bg-secondary/80 backdrop-blur-sm">
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">N°</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Contactos</th>
