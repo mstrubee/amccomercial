@@ -507,7 +507,7 @@ export default function Alertas() {
             <thead>
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-10">Estado</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Descripción</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Descripción Alerta </th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresa</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estatus</th>
