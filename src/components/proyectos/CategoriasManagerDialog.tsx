@@ -290,10 +290,6 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                                 <input type="color" value={editSubColor} onChange={(e) => setEditSubColor(e.target.value)} className="w-10 h-8 rounded border border-input cursor-pointer" />
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Checkbox checked={editSubAdj} onCheckedChange={(v) => setEditSubAdj(!!v)} />
-                              <span className="text-xs text-muted-foreground">Marca como adjudicado</span>
-                            </div>
                             {/* Button config for subcategory */}
                             {editSubBotonActive ? (
                               <BotonConfig
