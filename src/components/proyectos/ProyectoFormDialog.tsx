@@ -23,6 +23,7 @@ import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import CategoriasManagerDialog from "./CategoriasManagerDialog";
 import { REGIONES_CHILE } from "@/data/chile-geo";
 import { useClientes, useCategoriasCliente, useCreateCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
+import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
 
 interface Props {
   open: boolean;
@@ -38,7 +39,7 @@ interface Props {
   isAdmin?: boolean;
 }
 
-const ESTADOS_AMC = ["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"];
+// ESTADOS_AMC now loaded dynamically via useEstadosProyecto
 
 const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
 
@@ -58,6 +59,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
+  const { data: estadosProyecto } = useEstadosProyecto();
 
   const [nombre, setNombre] = useState("");
   const [region, setRegion] = useState("");
@@ -471,8 +473,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                     value={estadoAmc}
                     onChange={(e) => setEstadoAmc(e.target.value)}
                   >
-                    {ESTADOS_AMC.map((e) => (
-                      <option key={e} value={e}>{e}</option>
+                    {(estadosProyecto || []).map((ep) => (
+                      <option key={ep.id} value={ep.nombre}>{ep.nombre}</option>
                     ))}
                   </select>
                 </div>

@@ -18,6 +18,7 @@ import CargaMasiva from "@/pages/CargaMasiva";
 import Clientes from "@/pages/Clientes";
 import CategoriasPage from "@/pages/CategoriasPage";
 import Reporteria from "@/pages/Reporteria";
+import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ function AppRoutes() {
         {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
         {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
         {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
+        {isAdmin && <Route path="/estados-proyecto" element={<EstadosProyectoPage />} />}
         {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
         {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
         <Route path="*" element={<NotFound />} />
