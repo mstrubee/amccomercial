@@ -385,7 +385,7 @@ export default function Alertas() {
               <Button variant="outline" className="w-56 justify-between font-normal h-9 text-sm">
                 {filterClasificacion.size > 0
                   ? `Clasificaciones (${filterClasificacion.size})`
-                  : "Todas las clasificaciones"}
+                  : "Tareas y Alertas"}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
