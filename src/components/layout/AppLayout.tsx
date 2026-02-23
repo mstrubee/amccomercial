@@ -45,6 +45,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
   const allAdminSubItems = [
     { path: "/clientes", label: "Clientes y Captadores", allowTipo1: true },
     { path: "/categorias", label: "Estatus", allowTipo1: false },
+    { path: "/estados-proyecto", label: "Estado (x Proyecto)", allowTipo1: false },
     { path: "/reporteria", label: "Reportería", allowTipo1: false },
     { path: "/usuarios", label: "Usuarios", allowTipo1: false },
     { path: "/empresas", label: "Empresas", allowTipo1: false },

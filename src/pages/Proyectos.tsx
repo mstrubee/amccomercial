@@ -12,6 +12,7 @@ import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
+import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { getNextClasificacion } from "@/lib/clasificacion-utils";
@@ -47,7 +48,7 @@ function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations
   return Array.from(seen.values());
 }
 
-const ESTADOS_AMC = ["Todos", "Vigente", "Todo Ofrecido", "Sin Respuesta", "Descartado"];
+// ESTADOS_AMC now loaded dynamically via useEstadosProyecto
 const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
 export default function Proyectos() {
@@ -55,6 +56,7 @@ export default function Proyectos() {
   const { isAdmin } = useAuth();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
+  const { data: estadosProyecto } = useEstadosProyecto();
   const { data: clasificacionesAlerta } = useClasificacionesAlerta();
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
@@ -347,12 +349,13 @@ export default function Proyectos() {
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2" align="start">
               <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {ESTADOS_AMC.filter(e => e !== "Todos").map((estado) => (
-                    <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                      <Checkbox checked={filterEstados.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstados, estado)} />
-                      {estado}
+                  {(estadosProyecto || []).map((ep) => (
+                    <label key={ep.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterEstados.includes(ep.nombre)} onCheckedChange={() => toggleFilter(setFilterEstados, ep.nombre)} />
+                      {ep.nombre}
                     </label>
                   ))}
+
               </div>
               {filterEstados.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstados([])}>Limpiar</Button>

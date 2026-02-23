@@ -591,6 +591,27 @@ export type Database = {
         }
         Relationships: []
       }
+      estados_proyecto: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
