@@ -1,84 +1,69 @@
 
 
-## Hacer "Estado (x Proyecto)" administrable por el Admin
+## Renombrar etiquetas en todo el sistema
 
-### Problema actual
-Los valores de "Estado AMC" (ahora llamado "Estado (x Proyecto)") estan hardcodeados en dos archivos:
-- `src/pages/Proyectos.tsx` linea 50: `["Todos", "Vigente", "Todo Ofrecido", "Sin Respuesta", "Descartado"]`
-- `src/components/proyectos/ProyectoFormDialog.tsx` linea 41: `["Vigente", "Descartado", "Todo Ofrecido", "Sin Respuesta"]`
+### Resumen de cambios
 
-### Cambios planificados
+Se renombraran las siguientes etiquetas UI en todos los archivos donde aparezcan como texto visible al usuario:
 
-#### 1. Nueva tabla en la base de datos: `estados_proyecto`
+| Nombre actual | Nuevo nombre |
+|---|---|
+| Estado AMC (como encabezado/titulo) | Estado (x Proyecto) |
+| Clasificación (de proyecto, no de alerta) | Tipo de Proyecto |
+| Seguimiento (como etiqueta KPI) | Estado AMC (x Empresa) |
+| Categoría / Categorías (comerciales, de empresa) | Estatus (x Empresa) |
+| Estatus (menu admin) | Estatus (x Empresa) |
 
-```sql
-CREATE TABLE public.estados_proyecto (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre text NOT NULL,
-  orden integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.estados_proyecto ENABLE ROW LEVEL SECURITY;
-
--- Lectura para todos los autenticados
-CREATE POLICY "Authenticated can read estados_proyecto"
-  ON public.estados_proyecto FOR SELECT USING (true);
-
--- CRUD completo solo para admins
-CREATE POLICY "Admins can manage estados_proyecto"
-  ON public.estados_proyecto FOR ALL
-  USING (has_role(auth.uid(), 'admin'))
-  WITH CHECK (has_role(auth.uid(), 'admin'));
-
--- Insertar los 4 valores por defecto
-INSERT INTO public.estados_proyecto (nombre, orden) VALUES
-  ('Vigente', 1),
-  ('Descartado', 2),
-  ('Todo Ofrecido', 3),
-  ('Sin Respuesta', 4);
-```
-
-#### 2. Nuevo hook: `src/hooks/useEstadosProyecto.ts`
-Hook con funciones CRUD (similar a `useCategorias`):
-- `useEstadosProyecto()` - leer todos ordenados por `orden`
-- `useCreateEstadoProyecto()` - crear
-- `useUpdateEstadoProyecto()` - editar nombre
-- `useDeleteEstadoProyecto()` - eliminar
-
-#### 3. Nueva pagina: `src/pages/EstadosProyectoPage.tsx`
-Interfaz simple de administracion con lista de estados, botones para agregar, editar (inline) y eliminar con confirmacion. Similar en estilo a la pagina de Categorias pero mas sencilla (sin subcategorias ni colores).
-
-#### 4. Agregar ruta y menu de navegacion
-
-**`src/App.tsx`**: Agregar ruta `/estados-proyecto` protegida para admin.
-
-**`src/components/layout/AppLayout.tsx`**: Agregar entrada en `allAdminSubItems` entre "Estatus" y "Reporteria":
-```text
-Clientes y Captadores
-Estatus
-Estado (x Proyecto)   <-- NUEVO
-Reporteria
-Usuarios
-Empresas
-Carga Masiva
-```
-
-#### 5. Actualizar componentes que usan estados hardcodeados
-
-**`src/pages/Proyectos.tsx`**: Reemplazar la constante `ESTADOS_AMC` por los datos del hook `useEstadosProyecto()`. El filtro popover mostrara los valores dinamicos de la BD.
-
-**`src/components/proyectos/ProyectoFormDialog.tsx`**: Reemplazar la constante `ESTADOS_AMC` por los datos del hook. El select de estado en el formulario mostrara opciones dinamicas.
-
-### Archivos a crear
-- `src/hooks/useEstadosProyecto.ts`
-- `src/pages/EstadosProyectoPage.tsx`
+**Nota importante:** La "Clasificación" en la seccion de Alertas (boton "Clasificación" y "Clasificación Alerta") NO se renombra, ya que es un concepto diferente (clasificacion de alertas, no de proyectos). Tampoco se renombra "Categoría" en el contexto de Clientes (es la categoria del cliente, no del proyecto).
 
 ### Archivos a modificar
-- `src/App.tsx` (agregar ruta)
-- `src/components/layout/AppLayout.tsx` (agregar item al menu admin)
-- `src/pages/Proyectos.tsx` (usar hook en vez de constante)
-- `src/components/proyectos/ProyectoFormDialog.tsx` (usar hook en vez de constante)
 
-### Migracion de base de datos
-- Crear tabla `estados_proyecto` con RLS y datos iniciales
+#### 1. `src/pages/Proyectos.tsx`
+- Encabezado de columna "Estado AMC" -> "Estado (x Proyecto)" (linea 606)
+- Subtitulo KPI "Seguimiento" -> "Estado AMC (x Empresa)" (linea 564)
+
+#### 2. `src/pages/Dashboard.tsx`
+- Titulo de grafico "Proyectos por Estado AMC" -> "Proyectos por Estado (x Proyecto)" (linea 239)
+- Encabezado de columna "Estado AMC" -> "Estado (x Proyecto)" (linea 356)
+- Comentarios internos con "Estado AMC" (lineas 96, 231)
+
+#### 3. `src/components/proyectos/ProyectoFormDialog.tsx`
+- Label "Clasificación" -> "Tipo de Proyecto" (linea 436)
+- Placeholder "Sin clasificación" -> "Sin tipo" (linea 442)
+- Label "Estado AMC" -> "Estado (x Proyecto)" (linea 470)
+- Boton "Categorías" -> "Estatus (x Empresa)" (linea 492)
+- Texto "Elegir Categoría" -> "Elegir Estatus" (linea 1196)
+
+#### 4. `src/components/proyectos/CategoriasManagerDialog.tsx`
+- Titulo dialog "Administrar Categorías" -> "Administrar Estatus (x Empresa)" (linea 186)
+- Labels "Nueva categoría" -> "Nuevo estatus" (linea 371)
+- Labels "Nueva subcategoría" -> "Nuevo sub-estatus" (linea 339)
+- Tooltips "Convertir en subcategoría" / "Promover a categoría" actualizados
+- Boton "Agregar subcategoría" -> "Agregar sub-estatus" (linea 361)
+
+#### 5. `src/pages/CategoriasPage.tsx`
+- Titulo "Categorías Comerciales" -> "Estatus (x Empresa)" (linea 10)
+- Subtitulo actualizado (linea 11)
+- Texto boton "Abrir administrador de categorías" -> "Abrir administrador de estatus" (linea 17)
+
+#### 6. `src/components/layout/AppLayout.tsx`
+- Item menu admin "Estatus" -> "Estatus (x Empresa)" (linea 47)
+
+#### 7. `src/pages/CargaMasiva.tsx`
+- Columnas de plantilla Excel: "Clasificación" -> "Tipo de Proyecto", "Estado AMC" -> "Estado (x Proyecto)", "Categoría Empresa X" -> "Estatus Empresa X"
+- Encabezados de tabla de preview (lineas 1608, 1610)
+- Encabezados de hoja de referencia (linea 245)
+- Mensajes de error de validacion
+- Etiqueta AI "1/3 Clasificación" -> "1/3 Tipo de Proyecto" (linea 1349)
+- Todas las referencias internas a las claves de datos del Excel deben actualizarse de forma consistente
+
+#### 8. `src/pages/Alertas.tsx`
+- Encabezado de columna "Estatus" ya esta correcto, no requiere cambio
+
+### Archivos que NO se modifican
+- `src/pages/Clientes.tsx` - "Categoría" aqui se refiere a categorias de clientes, concepto diferente
+- `src/pages/Alertas.tsx` boton "Clasificación" - se refiere a clasificacion de alertas, concepto diferente
+- `src/components/alertas/ClasificacionesAlertaDialog.tsx` - concepto de alertas, no de proyectos
+- Edge functions (`generate-titulos`, `parse-alertas`) - "Seguimiento" es un valor de dato de alertas, no una etiqueta UI
+- Campos de base de datos (`estado_amc`, `clasificacion_id`, etc.) - no se renombran, solo las etiquetas visibles
+
