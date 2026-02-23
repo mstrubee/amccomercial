@@ -20,8 +20,8 @@ import {
   useDeleteAlerta,
   useToggleAlertaCompletada,
   AlertaWithRelations,
-  AlertaInput,
-} from "@/hooks/useAlertas";
+  AlertaInput } from
+"@/hooks/useAlertas";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useProyectos } from "@/hooks/useProyectos";
@@ -38,8 +38,8 @@ import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { getNextClasificacion } from "@/lib/clasificacion-utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from
+"@/components/ui/alert-dialog";
 import { format, isToday, isBefore, startOfDay, addDays } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
@@ -62,7 +62,7 @@ export default function Alertas() {
   const queryClient = useQueryClient();
   const [generatingTitles, setGeneratingTitles] = useState(false);
   const [detectingDuplicates, setDetectingDuplicates] = useState(false);
-  const [duplicatesResult, setDuplicatesResult] = useState<{ duplicates: any[]; total_alertas: number } | null>(null);
+  const [duplicatesResult, setDuplicatesResult] = useState<{duplicates: any[];total_alertas: number;} | null>(null);
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
 
   const { data: profiles } = useQuery({
@@ -70,19 +70,19 @@ export default function Alertas() {
     queryFn: async () => {
       const { data } = await supabase.from("profiles").select("user_id, display_name, email");
       return data || [];
-    },
+    }
   });
 
   // Fetch proyecto_empresas with their commercial categories
   const { data: proyectoEmpresas } = useQuery({
     queryKey: ["proyecto-empresas-categorias"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("proyecto_empresas")
-        .select("proyecto_id, empresa_id, categoria_id, subcategoria_id, categorias_proyecto(id, nombre, color), subcategorias_proyecto(id, nombre, color)");
+      const { data, error } = await supabase.
+      from("proyecto_empresas").
+      select("proyecto_id, empresa_id, categoria_id, subcategoria_id, categorias_proyecto(id, nombre, color), subcategorias_proyecto(id, nombre, color)");
       if (error) throw error;
       return data || [];
-    },
+    }
   });
 
   const navigate = useNavigate();
@@ -95,7 +95,7 @@ export default function Alertas() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [completeTarget, setCompleteTarget] = useState<AlertaWithRelations | null>(null);
   const [completeMode, setCompleteMode] = useState<"complete" | "uncomplete">("complete");
-  const [createDefaults, setCreateDefaults] = useState<{ proyectoId?: string; empresaId?: string; parentAlertaId?: string; clasificacionId?: string; subclasificacionId?: string; categoriaProyectoId?: string; subcategoriaProyectoId?: string }>({});
+  const [createDefaults, setCreateDefaults] = useState<{proyectoId?: string;empresaId?: string;parentAlertaId?: string;clasificacionId?: string;subclasificacionId?: string;categoriaProyectoId?: string;subcategoriaProyectoId?: string;}>({});
   const [pendingCompleteId, setPendingCompleteId] = useState<string | null>(null);
   const [showTree, setShowTree] = useState(false);
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export default function Alertas() {
           if (f.activeTab) setActiveTab(f.activeTab);
           if (f.filterProyecto) setFilterProyecto(f.filterProyecto);
           if (f.filterClasificacion) {
-            try { setFilterClasificacion(new Set(JSON.parse(f.filterClasificacion))); } catch {}
+            try {setFilterClasificacion(new Set(JSON.parse(f.filterClasificacion)));} catch {}
           }
           if (f.sortDir) setSortDir(f.sortDir);
           if (f.fechaDesde) setFechaDesde(new Date(f.fechaDesde));
@@ -133,7 +133,7 @@ export default function Alertas() {
     sessionStorage.setItem("alertas-filters", JSON.stringify({
       search, activeTab, filterProyecto, filterClasificacion: JSON.stringify([...filterClasificacion]), sortDir,
       fechaDesde: fechaDesde?.toISOString(),
-      fechaHasta: fechaHasta?.toISOString(),
+      fechaHasta: fechaHasta?.toISOString()
     }));
     const params = new URLSearchParams({ highlight: proyectoId, from: "alertas" });
     if (empresaId) params.set("highlight_empresa", empresaId);
@@ -146,7 +146,7 @@ export default function Alertas() {
 
   const proyectosList = useMemo(() => {
     if (!proyectosRaw) return [];
-    const seen = new Map<string, { id: string; nombre: string; numero: number }>();
+    const seen = new Map<string, {id: string;nombre: string;numero: number;}>();
     proyectosRaw.forEach((p) => {
       if (!seen.has(p.nombre)) {
         seen.set(p.nombre, { id: p.id, nombre: p.nombre, numero: p.numero });
@@ -177,10 +177,10 @@ export default function Alertas() {
 
     const isOverdue = (a: AlertaWithRelations) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today);
 
-    if (activeTab === "activas") list = list.filter((a) => !a.completada && !isOverdue(a));
-    else if (activeTab === "vencidas") list = list.filter((a) => isOverdue(a));
-    else if (activeTab === "7dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in7);
-    else if (activeTab === "30dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in30);
+    if (activeTab === "activas") list = list.filter((a) => !a.completada && !isOverdue(a));else
+    if (activeTab === "vencidas") list = list.filter((a) => isOverdue(a));else
+    if (activeTab === "7dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in7);else
+    if (activeTab === "30dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in30);
 
     if (filterProyecto !== "all") {
       list = list.filter((a) => a.proyecto_id === filterProyecto);
@@ -189,9 +189,9 @@ export default function Alertas() {
     if (filterClasificacion.size > 0) {
       list = list.filter((a) => {
         if (!a.alerta_clasificaciones || a.alerta_clasificaciones.length === 0) return false;
-        return a.alerta_clasificaciones.some(ac => {
+        return a.alerta_clasificaciones.some((ac) => {
           return filterClasificacion.has(`c:${ac.clasificacion_id}`) ||
-            (ac.subclasificacion_id && filterClasificacion.has(`s:${ac.subclasificacion_id}`));
+          ac.subclasificacion_id && filterClasificacion.has(`s:${ac.subclasificacion_id}`);
         });
       });
     }
@@ -208,10 +208,10 @@ export default function Alertas() {
     if (search.trim()) {
       const s = search.toLowerCase();
       list = list.filter((a) =>
-        a.texto.toLowerCase().includes(s) ||
-        ((a as any).titulo || "").toLowerCase().includes(s) ||
-        a.proyectos?.nombre?.toLowerCase().includes(s) ||
-        a.empresas?.nombre?.toLowerCase().includes(s)
+      a.texto.toLowerCase().includes(s) ||
+      ((a as any).titulo || "").toLowerCase().includes(s) ||
+      a.proyectos?.nombre?.toLowerCase().includes(s) ||
+      a.empresas?.nombre?.toLowerCase().includes(s)
       );
     }
 
@@ -230,7 +230,7 @@ export default function Alertas() {
       let remaining = 1;
       while (remaining > 0) {
         const { data, error } = await supabase.functions.invoke("generate-titulos", {
-          body: { batchSize: 30 },
+          body: { batchSize: 30 }
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
@@ -253,7 +253,7 @@ export default function Alertas() {
     setDetectingDuplicates(true);
     try {
       const { data, error } = await supabase.functions.invoke("detect-duplicates", {
-        body: { dryRun },
+        body: { dryRun }
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -274,14 +274,14 @@ export default function Alertas() {
     }
   };
 
-  const handleSubmit = (data: AlertaInput & { id?: string }) => {
+  const handleSubmit = (data: AlertaInput & {id?: string;}) => {
     if (data.empresa_id === "none") data.empresa_id = null;
     if (pendingCompleteId) {
       toggleCompletada.mutate({ id: pendingCompleteId, completada: true });
       setPendingCompleteId(null);
     }
     if (data.id) {
-      updateAlerta.mutate(data as AlertaInput & { id: string });
+      updateAlerta.mutate(data as AlertaInput & {id: string;});
     } else {
       createAlerta.mutate(data);
     }
@@ -289,20 +289,20 @@ export default function Alertas() {
 
   const isVencida = (a: AlertaWithRelations) => !a.completada && isBefore(parseLocalDate(a.fecha_seguimiento), today);
 
-  const tabs: { key: FilterTab; label: string; count: number }[] = [
-    { key: "todas", label: "Todas", count: stats.total },
-    { key: "activas", label: "Activas", count: stats.activas },
-    { key: "7dias", label: "Próx. 7 días", count: stats.prox7 },
-    { key: "30dias", label: "Próx. 30 días", count: stats.prox30 },
-    { key: "vencidas", label: "Vencidas", count: stats.vencidas },
-  ];
+  const tabs: {key: FilterTab;label: string;count: number;}[] = [
+  { key: "todas", label: "Todas", count: stats.total },
+  { key: "activas", label: "Activas", count: stats.activas },
+  { key: "7dias", label: "Próx. 7 días", count: stats.prox7 },
+  { key: "30dias", label: "Próx. 30 días", count: stats.prox30 },
+  { key: "vencidas", label: "Vencidas", count: stats.vencidas }];
+
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -321,18 +321,18 @@ export default function Alertas() {
             {detectingDuplicates ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Copy className="w-4 h-4 mr-1" />}
             {detectingDuplicates ? "Analizando..." : "Detectar duplicados IA"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { setTreeRootId(null); setShowTree(true); }}>
+          <Button variant="outline" size="sm" onClick={() => {setTreeRootId(null);setShowTree(true);}}>
             <GitBranch className="w-4 h-4 mr-1" /> Árbol
           </Button>
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setShowClasificaciones(true)}>
+          {isAdmin &&
+          <Button variant="outline" size="sm" onClick={() => setShowClasificaciones(true)}>
               <Tags className="w-4 h-4 mr-1" /> Clasificación
             </Button>
-          )}
+          }
           <Button variant="outline" size="sm" onClick={() => setShowDeleted(true)}>
             <RotateCcw className="w-4 h-4 mr-1" /> Eliminadas
           </Button>
-          <Button onClick={() => { setEditTarget(null); setCreateDefaults({}); setDialogOpen(true); }}>
+          <Button onClick={() => {setEditTarget(null);setCreateDefaults({});setDialogOpen(true);}}>
             <Plus className="w-4 h-4 mr-2" /> Nueva Alerta
           </Button>
         </div>
@@ -353,9 +353,9 @@ export default function Alertas() {
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" role="combobox" className="w-56 justify-between font-normal h-9 text-sm">
-                {filterProyecto !== "all"
-                  ? `#${proyectosList.find(p => p.id === filterProyecto)?.numero} ${proyectosList.find(p => p.id === filterProyecto)?.nombre}`
-                  : "Todos los proyectos"}
+                {filterProyecto !== "all" ?
+                `#${proyectosList.find((p) => p.id === filterProyecto)?.numero} ${proyectosList.find((p) => p.id === filterProyecto)?.nombre}` :
+                "Todos los proyectos"}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
@@ -369,12 +369,12 @@ export default function Alertas() {
                       <Check className={cn("mr-2 h-4 w-4", filterProyecto === "all" ? "opacity-100" : "opacity-0")} />
                       Todos los proyectos
                     </CommandItem>
-                    {proyectosList.map((p) => (
-                      <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => setFilterProyecto(p.id)}>
+                    {proyectosList.map((p) =>
+                    <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => setFilterProyecto(p.id)}>
                         <Check className={cn("mr-2 h-4 w-4", filterProyecto === p.id ? "opacity-100" : "opacity-0")} />
                         #{p.numero} {p.nombre}
                       </CommandItem>
-                    ))}
+                    )}
                   </CommandGroup>
                 </CommandList>
               </Command>
@@ -383,83 +383,83 @@ export default function Alertas() {
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-56 justify-between font-normal h-9 text-sm">
-                {filterClasificacion.size > 0
-                  ? `Clasificaciones (${filterClasificacion.size})`
-                  : "Tareas y Alertas"}
+                {filterClasificacion.size > 0 ?
+                `Clasificaciones (${filterClasificacion.size})` :
+                "Tareas y Alertas"}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
               <div className="p-3 max-h-[400px] overflow-y-auto space-y-2">
-                {clasificaciones && clasificaciones.length > 0 ? (
-                  clasificaciones.map((c) => {
-                    const cKey = `c:${c.id}`;
-                    // Subs that have at least one alert assigned
-                    const subsWithAlertas = c.subclasificaciones.filter(s =>
-                      alertas?.some(a => a.alerta_clasificaciones?.some(ac => ac.subclasificacion_id === s.id))
-                    );
-                    return (
-                      <div key={c.id}>
+                {clasificaciones && clasificaciones.length > 0 ?
+                clasificaciones.map((c) => {
+                  const cKey = `c:${c.id}`;
+                  // Subs that have at least one alert assigned
+                  const subsWithAlertas = c.subclasificaciones.filter((s) =>
+                  alertas?.some((a) => a.alerta_clasificaciones?.some((ac) => ac.subclasificacion_id === s.id))
+                  );
+                  return (
+                    <div key={c.id}>
                         <div className="flex items-center gap-2">
                           <Checkbox
-                            id={`fc-${c.id}`}
-                            checked={filterClasificacion.has(cKey)}
-                            onCheckedChange={() => {
-                              setFilterClasificacion(prev => {
-                                const next = new Set(prev);
-                                if (next.has(cKey)) {
-                                  // Uncheck parent and all its subs
-                                  next.delete(cKey);
-                                  c.subclasificaciones.forEach(s => next.delete(`s:${s.id}`));
-                                } else {
-                                  // Check parent + auto-check subs that have alerts
-                                  next.add(cKey);
-                                  subsWithAlertas.forEach(s => next.add(`s:${s.id}`));
-                                }
-                                return next;
-                              });
-                            }}
-                          />
+                          id={`fc-${c.id}`}
+                          checked={filterClasificacion.has(cKey)}
+                          onCheckedChange={() => {
+                            setFilterClasificacion((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(cKey)) {
+                                // Uncheck parent and all its subs
+                                next.delete(cKey);
+                                c.subclasificaciones.forEach((s) => next.delete(`s:${s.id}`));
+                              } else {
+                                // Check parent + auto-check subs that have alerts
+                                next.add(cKey);
+                                subsWithAlertas.forEach((s) => next.add(`s:${s.id}`));
+                              }
+                              return next;
+                            });
+                          }} />
+
                           <label htmlFor={`fc-${c.id}`} className="text-sm font-medium cursor-pointer">{c.nombre}</label>
                         </div>
-                        {c.subclasificaciones.length > 0 && (
-                          <div className="ml-6 mt-1 space-y-1">
+                        {c.subclasificaciones.length > 0 &&
+                      <div className="ml-6 mt-1 space-y-1">
                             {c.subclasificaciones.map((s) => {
-                              const sKey = `s:${s.id}`;
-                              return (
-                                <div key={s.id} className="flex items-center gap-2">
+                          const sKey = `s:${s.id}`;
+                          return (
+                            <div key={s.id} className="flex items-center gap-2">
                                   <Checkbox
-                                    id={`fs-${s.id}`}
-                                    checked={filterClasificacion.has(sKey)}
-                                    onCheckedChange={() => {
-                                      setFilterClasificacion(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(sKey)) next.delete(sKey);
-                                        else next.add(sKey);
-                                        return next;
-                                      });
-                                    }}
-                                  />
+                                id={`fs-${s.id}`}
+                                checked={filterClasificacion.has(sKey)}
+                                onCheckedChange={() => {
+                                  setFilterClasificacion((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(sKey)) next.delete(sKey);else
+                                    next.add(sKey);
+                                    return next;
+                                  });
+                                }} />
+
                                   <label htmlFor={`fs-${s.id}`} className="text-xs text-muted-foreground cursor-pointer">↳ {s.nombre}</label>
-                                </div>
-                              );
-                            })}
+                                </div>);
+
+                        })}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-muted-foreground">No hay clasificaciones</p>
-                )}
+                      }
+                      </div>);
+
+                }) :
+
+                <p className="text-xs text-muted-foreground">No hay clasificaciones</p>
+                }
               </div>
-              {filterClasificacion.size > 0 && (
-                <div className="border-t p-2">
+              {filterClasificacion.size > 0 &&
+              <div className="border-t p-2">
                   <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setFilterClasificacion(new Set())}>
                     Limpiar filtros
                   </Button>
                 </div>
-              )}
+              }
             </PopoverContent>
           </Popover>
           <Popover>
@@ -484,12 +484,12 @@ export default function Alertas() {
               <Calendar mode="single" selected={fechaHasta} onSelect={setFechaHasta} className="p-3 pointer-events-auto" />
             </PopoverContent>
           </Popover>
-          {(fechaDesde || fechaHasta) && (
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setFechaDesde(undefined); setFechaHasta(undefined); }} title="Limpiar fechas">
+          {(fechaDesde || fechaHasta) &&
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {setFechaDesde(undefined);setFechaHasta(undefined);}} title="Limpiar fechas">
               <X className="w-4 h-4" />
             </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} title="Ordenar por fecha">
+          }
+          <Button variant="outline" size="sm" onClick={() => setSortDir((d) => d === "asc" ? "desc" : "asc")} title="Ordenar por fecha">
             <ArrowUpDown className="w-4 h-4 mr-1" />
             {sortDir === "asc" ? "Más antigua" : "Más reciente"}
           </Button>
@@ -507,7 +507,7 @@ export default function Alertas() {
             <thead>
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-10">Estado</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerta</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Descripción</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresa</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estatus</th>
@@ -518,30 +518,30 @@ export default function Alertas() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.length === 0 && (
-                <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
-              )}
+              {filtered.length === 0 &&
+              <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">No hay alertas</td></tr>
+              }
               {filtered.map((a) => {
                 const vencida = isVencida(a);
                 const looksCompleted = a.completada;
                 return (
-                <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", vencida && "bg-destructive/5")}>
+                  <tr key={a.id} className={cn("hover:bg-secondary/20 transition-colors", vencida && "bg-destructive/5")}>
                   <td className="px-5 py-3">
                     <button onClick={() => {
-                      if (a.completada) {
-                        setCompleteTarget(a);
-                        setCompleteMode("uncomplete");
-                      } else {
-                        setCompleteTarget(a);
-                        setCompleteMode("complete");
-                      }
-                    }}>
-                      {a.completada
-                        ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        : vencida
-                          ? <AlertTriangle className="w-5 h-5 text-destructive" />
-                          : <Circle className="w-5 h-5 text-muted-foreground" />
-                      }
+                        if (a.completada) {
+                          setCompleteTarget(a);
+                          setCompleteMode("uncomplete");
+                        } else {
+                          setCompleteTarget(a);
+                          setCompleteMode("complete");
+                        }
+                      }}>
+                      {a.completada ?
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" /> :
+                        vencida ?
+                        <AlertTriangle className="w-5 h-5 text-destructive" /> :
+                        <Circle className="w-5 h-5 text-muted-foreground" />
+                        }
                     </button>
                   </td>
                   <td className={cn("px-5 py-3 font-medium max-w-[200px]", looksCompleted ? "line-through text-muted-foreground" : vencida ? "text-destructive" : "text-card-foreground")}>
@@ -550,57 +550,57 @@ export default function Alertas() {
                     {vencida && !a.completada && <span className="ml-1 text-[10px] font-semibold text-destructive">(vencida)</span>}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
-                    {a.proyectos ? (
+                    {a.proyectos ?
                       <button
                         className="hover:text-primary hover:underline transition-colors text-left"
-                        onClick={(e) => { e.stopPropagation(); saveFiltersAndNavigate(a.proyecto_id, a.empresa_id); }}
-                      >
+                        onClick={(e) => {e.stopPropagation();saveFiltersAndNavigate(a.proyecto_id, a.empresa_id);}}>
+
                         #{a.proyectos.numero} {a.proyectos.nombre}
-                      </button>
-                    ) : "—"}
+                      </button> :
+                      "—"}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{a.empresas?.nombre || "—"}</td>
                   <td className="px-5 py-3 text-xs">
                     {(() => {
-                      // First try alert's own stored category
-                      const alertCat = (a as any).cat_proyecto;
-                      const alertSub = (a as any).subcat_proyecto;
-                      if (alertCat) {
-                        const color = alertSub?.color || alertCat.color || undefined;
-                        return (
-                          <span className="inline-flex items-center gap-1">
+                        // First try alert's own stored category
+                        const alertCat = (a as any).cat_proyecto;
+                        const alertSub = (a as any).subcat_proyecto;
+                        if (alertCat) {
+                          const color = alertSub?.color || alertCat.color || undefined;
+                          return (
+                            <span className="inline-flex items-center gap-1">
                             {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
                             <span>{alertSub ? `${alertCat.nombre} / ${alertSub.nombre}` : alertCat.nombre}</span>
-                          </span>
-                        );
-                      }
-                      // Fallback to proyecto_empresas
-                      if (!a.empresa_id || !a.proyecto_id) return <span className="text-muted-foreground">—</span>;
-                      const pe = proyectoEmpresas?.find(pe => pe.proyecto_id === a.proyecto_id && pe.empresa_id === a.empresa_id);
-                      if (!pe) return <span className="text-muted-foreground">—</span>;
-                      const cat = (pe as any).categorias_proyecto;
-                      const sub = (pe as any).subcategorias_proyecto;
-                      if (!cat) return <span className="text-muted-foreground">—</span>;
-                      const color = sub?.color || cat.color || undefined;
-                      return (
-                        <span className="inline-flex items-center gap-1">
+                          </span>);
+
+                        }
+                        // Fallback to proyecto_empresas
+                        if (!a.empresa_id || !a.proyecto_id) return <span className="text-muted-foreground">—</span>;
+                        const pe = proyectoEmpresas?.find((pe) => pe.proyecto_id === a.proyecto_id && pe.empresa_id === a.empresa_id);
+                        if (!pe) return <span className="text-muted-foreground">—</span>;
+                        const cat = (pe as any).categorias_proyecto;
+                        const sub = (pe as any).subcategorias_proyecto;
+                        if (!cat) return <span className="text-muted-foreground">—</span>;
+                        const color = sub?.color || cat.color || undefined;
+                        return (
+                          <span className="inline-flex items-center gap-1">
                           {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />}
                           <span>{sub ? `${cat.nombre} / ${sub.nombre}` : cat.nombre}</span>
-                        </span>
-                      );
-                    })()}
+                        </span>);
+
+                      })()}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground text-xs">
                     {(() => {
-                      const acs = a.alerta_clasificaciones || [];
-                      if (acs.length === 0) return "—";
-                      return acs.map(ac => {
-                        const clasif = clasificaciones?.find(c => c.id === ac.clasificacion_id);
-                        if (!clasif) return null;
-                        const sub = ac.subclasificacion_id ? clasif.subclasificaciones.find(s => s.id === ac.subclasificacion_id) : null;
-                        return sub ? `${clasif.nombre} / ${sub.nombre}` : clasif.nombre;
-                      }).filter(Boolean).join(", ") || "—";
-                    })()}
+                        const acs = a.alerta_clasificaciones || [];
+                        if (acs.length === 0) return "—";
+                        return acs.map((ac) => {
+                          const clasif = clasificaciones?.find((c) => c.id === ac.clasificacion_id);
+                          if (!clasif) return null;
+                          const sub = ac.subclasificacion_id ? clasif.subclasificaciones.find((s) => s.id === ac.subclasificacion_id) : null;
+                          return sub ? `${clasif.nombre} / ${sub.nombre}` : clasif.nombre;
+                        }).filter(Boolean).join(", ") || "—";
+                      })()}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
@@ -610,19 +610,19 @@ export default function Alertas() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex gap-1 justify-end">
-                      {a.parent_alerta_id && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Ver árbol" onClick={() => { setTreeRootId(a.id); setShowTree(true); }}>
+                      {a.parent_alerta_id &&
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Ver árbol" onClick={() => {setTreeRootId(a.id);setShowTree(true);}}>
                           <GitBranch className="w-3.5 h-3.5" />
                         </Button>
-                      )}
+                        }
                       <Button variant="ghost" size="icon" className="h-8 w-8" title="Crear dependiente" onClick={() => {
-                        setEditTarget(null);
-                        setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
-                        setDialogOpen(true);
-                      }}>
+                          setEditTarget(null);
+                          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id });
+                          setDialogOpen(true);
+                        }}>
                         <Plus className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditTarget(a); setDialogOpen(true); }}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {setEditTarget(a);setDialogOpen(true);}}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(a.id)}>
@@ -630,8 +630,8 @@ export default function Alertas() {
                       </Button>
                     </div>
                   </td>
-                </tr>
-                );
+                </tr>);
+
               })}
             </tbody>
           </table>
@@ -641,7 +641,7 @@ export default function Alertas() {
       {/* Form Dialog */}
       <AlertaFormDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); setPendingCompleteId(null); }}
+        onClose={() => {setDialogOpen(false);setEditTarget(null);setCreateDefaults({});setPendingCompleteId(null);}}
         onSubmit={handleSubmit}
         editTarget={editTarget}
         proyectos={proyectosList}
@@ -654,8 +654,8 @@ export default function Alertas() {
         defaultClasificacionId={createDefaults.clasificacionId}
         defaultSubclasificacionId={createDefaults.subclasificacionId}
         defaultCategoriaProyectoId={createDefaults.categoriaProyectoId}
-        defaultSubcategoriaProyectoId={createDefaults.subcategoriaProyectoId}
-      />
+        defaultSubcategoriaProyectoId={createDefaults.subcategoriaProyectoId} />
+
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
@@ -666,7 +666,7 @@ export default function Alertas() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (deleteTarget) deleteAlerta.mutate(deleteTarget); setDeleteTarget(null); }}>
+            <AlertDialogAction onClick={() => {if (deleteTarget) deleteAlerta.mutate(deleteTarget);setDeleteTarget(null);}}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -677,7 +677,7 @@ export default function Alertas() {
       <CompleteAlertaDialog
         alerta={completeTarget}
         open={!!completeTarget}
-        onClose={() => { setCompleteTarget(null); setCompleteMode("complete"); }}
+        onClose={() => {setCompleteTarget(null);setCompleteMode("complete");}}
         mode={completeMode}
         categorias={categoriasComerciales}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
@@ -689,9 +689,9 @@ export default function Alertas() {
         onCompleteAndCreate={(a) => {
           setPendingCompleteId(a.id);
           const lastAc = a.alerta_clasificaciones?.length ? a.alerta_clasificaciones[a.alerta_clasificaciones.length - 1] : null;
-          const next = clasificaciones && lastAc
-            ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificaciones)
-            : { clasificacionId: "", subclasificacionId: "" };
+          const next = clasificaciones && lastAc ?
+          getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificaciones) :
+          { clasificacionId: "", subclasificacionId: "" };
           setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId, categoriaProyectoId: (a as any).categoria_proyecto_id || undefined, subcategoriaProyectoId: (a as any).subcategoria_proyecto_id || undefined });
           setEditTarget(null);
           setDialogOpen(true);
@@ -701,8 +701,8 @@ export default function Alertas() {
           if (newDate) {
             updateAlerta.mutate({ id, fecha_seguimiento: newDate, proyecto_id: completeTarget!.proyecto_id, empresa_id: completeTarget!.empresa_id, titulo: (completeTarget as any)?.titulo || "", texto: completeTarget!.texto, usuario_responsable_id: completeTarget!.usuario_responsable_id });
           }
-        }}
-      />
+        }} />
+
 
       {/* Clasificaciones dialog */}
       <ClasificacionesAlertaDialog open={showClasificaciones} onClose={() => setShowClasificaciones(false)} />
@@ -714,7 +714,7 @@ export default function Alertas() {
       <DeletedAlertasDialog open={showDeleted} onClose={() => setShowDeleted(false)} />
 
       {/* Duplicates detection dialog */}
-      <Dialog open={showDuplicatesDialog} onOpenChange={(v) => { if (!v) { setShowDuplicatesDialog(false); setDuplicatesResult(null); } }}>
+      <Dialog open={showDuplicatesDialog} onOpenChange={(v) => {if (!v) {setShowDuplicatesDialog(false);setDuplicatesResult(null);}}}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Duplicados detectados por IA</DialogTitle>
@@ -722,10 +722,10 @@ export default function Alertas() {
               {duplicatesResult ? `Se analizaron ${duplicatesResult.total_alertas} alertas. Se encontraron ${duplicatesResult.duplicates.length} posibles duplicados.` : "Analizando..."}
             </DialogDescription>
           </DialogHeader>
-          {duplicatesResult && duplicatesResult.duplicates.length > 0 ? (
-            <div className="space-y-3">
-              {duplicatesResult.duplicates.map((d, i) => (
-                <div key={i} className="border border-border rounded-lg p-3 text-sm space-y-1">
+          {duplicatesResult && duplicatesResult.duplicates.length > 0 ?
+          <div className="space-y-3">
+              {duplicatesResult.duplicates.map((d, i) =>
+            <div key={i} className="border border-border rounded-lg p-3 text-sm space-y-1">
                   <div className="flex items-start gap-2">
                     <Trash2 className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                     <div>
@@ -742,20 +742,20 @@ export default function Alertas() {
                   </div>
                   <p className="text-xs text-muted-foreground italic pl-6">Razón: {d.reason}</p>
                 </div>
-              ))}
+            )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setShowDuplicatesDialog(false); setDuplicatesResult(null); }}>Cancelar</Button>
+                <Button variant="outline" onClick={() => {setShowDuplicatesDialog(false);setDuplicatesResult(null);}}>Cancelar</Button>
                 <Button variant="destructive" onClick={() => handleDetectDuplicates(false)} disabled={detectingDuplicates}>
                   {detectingDuplicates ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
                   Eliminar {duplicatesResult.duplicates.length} duplicados
                 </Button>
               </DialogFooter>
-            </div>
-          ) : duplicatesResult ? (
-            <p className="text-muted-foreground text-center py-6">No se encontraron alertas duplicadas. ✅</p>
-          ) : null}
+            </div> :
+          duplicatesResult ?
+          <p className="text-muted-foreground text-center py-6">No se encontraron alertas duplicadas. ✅</p> :
+          null}
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>);
+
 }
