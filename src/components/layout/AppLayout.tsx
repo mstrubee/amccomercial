@@ -34,7 +34,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/", label: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban, key: "proyectos" },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp, key: "finanzas" },
-    { path: "/alertas", label: "Alertas", icon: Bell, key: "alertas" },
+    { path: "/alertas", label: "Tareas y Alertas", icon: Bell, key: "alertas" },
   ];
 
   // Filter nav items based on permissions
