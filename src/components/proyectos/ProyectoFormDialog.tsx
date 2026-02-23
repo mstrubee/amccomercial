@@ -895,6 +895,41 @@ const CONTACTO_CAT_MAP: Record<string, string> = {
   "Dueños": "Dueños",
 };
 
+interface ContactoRow {
+  nombre: string;
+  contacto: string;
+  email: string;
+  telefono: string;
+}
+
+function splitToRows(nombre: string, contacto: string, email: string, telefono: string): ContactoRow[] {
+  const nombres = nombre ? nombre.split(" / ") : [""];
+  const contactos = contacto ? contacto.split(" / ") : [""];
+  const emails = email ? email.split(" / ") : [""];
+  const telefonos = telefono ? telefono.split(" / ") : [""];
+  const maxLen = Math.max(nombres.length, contactos.length, emails.length, telefonos.length, 1);
+  const rows: ContactoRow[] = [];
+  for (let i = 0; i < maxLen; i++) {
+    rows.push({
+      nombre: nombres[i] || "",
+      contacto: contactos[i] || "",
+      email: emails[i] || "",
+      telefono: telefonos[i] || "",
+    });
+  }
+  return rows;
+}
+
+function rowsToStrings(rows: ContactoRow[]): [string, string, string, string] {
+  const filtered = rows.length === 0 ? [{ nombre: "", contacto: "", email: "", telefono: "" }] : rows;
+  return [
+    filtered.map(r => r.nombre).join(" / ").replace(/^( \/ )+|( \/ )+$/g, "").trim(),
+    filtered.map(r => r.contacto).join(" / ").replace(/^( \/ )+|( \/ )+$/g, "").trim(),
+    filtered.map(r => r.email).join(" / ").replace(/^( \/ )+|( \/ )+$/g, "").trim(),
+    filtered.map(r => r.telefono).join(" / ").replace(/^( \/ )+|( \/ )+$/g, "").trim(),
+  ];
+}
+
 function ContactosSection(props: ContactosSectionProps) {
   const { data: clientes } = useClientes();
   const { data: categoriasCliente } = useCategoriasCliente();
@@ -913,28 +948,53 @@ function ContactosSection(props: ContactosSectionProps) {
     return clientes.filter((c) => c.categoria_id === cat.id);
   };
 
-  const applyCliente = (cliente: ClienteWithCategoria, setters: ((v: string) => void)[]) => {
-    const currentNombre = sections.find(s => s.setters === setters)?.values[0] || "";
-    const currentContacto = sections.find(s => s.setters === setters)?.values[1] || "";
-    const currentEmail = sections.find(s => s.setters === setters)?.values[2] || "";
-    const currentTelefono = sections.find(s => s.setters === setters)?.values[3] || "";
+  const applyCliente = (cliente: ClienteWithCategoria, setters: ((v: string) => void)[], values: string[]) => {
+    const rows = splitToRows(values[0], values[1], values[2], values[3]);
 
-    const append = (current: string, newVal: string) => {
-      if (!newVal) return current;
-      if (!current) return newVal;
-      return `${current} / ${newVal}`;
+    const contactos = cliente.contactos_cliente || [];
+    const newRow: ContactoRow = {
+      nombre: cliente.nombre,
+      contacto: contactos.map(c => c.contacto).filter(Boolean).join(" / "),
+      email: contactos.map(c => c.email).filter(Boolean).join(" / "),
+      telefono: contactos.map(c => c.telefono).filter(Boolean).join(" / "),
     };
 
-    // Build concatenated contact info from all contactos
-    const contactos = cliente.contactos_cliente || [];
-    const allContacto = contactos.map(c => c.contacto).filter(Boolean).join(" / ");
-    const allEmail = contactos.map(c => c.email).filter(Boolean).join(" / ");
-    const allTelefono = contactos.map(c => c.telefono).filter(Boolean).join(" / ");
+    if (rows.length === 1 && !rows[0].nombre && !rows[0].contacto && !rows[0].email && !rows[0].telefono) {
+      rows[0] = newRow;
+    } else {
+      rows.push(newRow);
+    }
 
-    setters[0](append(currentNombre, cliente.nombre));
-    setters[1](append(currentContacto, allContacto));
-    setters[2](append(currentEmail, allEmail));
-    setters[3](append(currentTelefono, allTelefono));
+    const [n, c, e, t] = rowsToStrings(rows);
+    setters[0](n);
+    setters[1](c);
+    setters[2](e);
+    setters[3](t);
+  };
+
+  const updateRow = (setters: ((v: string) => void)[], values: string[], rowIndex: number, field: keyof ContactoRow, newValue: string) => {
+    const rows = splitToRows(values[0], values[1], values[2], values[3]);
+    if (rows[rowIndex]) {
+      rows[rowIndex][field] = newValue;
+    }
+    const [n, c, e, t] = rowsToStrings(rows);
+    setters[0](n);
+    setters[1](c);
+    setters[2](e);
+    setters[3](t);
+  };
+
+  const removeRow = (setters: ((v: string) => void)[], values: string[], rowIndex: number) => {
+    const rows = splitToRows(values[0], values[1], values[2], values[3]);
+    rows.splice(rowIndex, 1);
+    if (rows.length === 0) {
+      rows.push({ nombre: "", contacto: "", email: "", telefono: "" });
+    }
+    const [n, c, e, t] = rowsToStrings(rows);
+    setters[0](n);
+    setters[1](c);
+    setters[2](e);
+    setters[3](t);
   };
 
   return (
@@ -942,22 +1002,37 @@ function ContactosSection(props: ContactosSectionProps) {
       {sections.map(({ title, values, setters }) => {
         const availableClientes = getClientesForCategory(title);
         const catForTitle = categoriasCliente?.find((c) => c.nombre === CONTACTO_CAT_MAP[title]);
+        const rows = splitToRows(values[0], values[1], values[2], values[3]);
         return (
           <div key={title} className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
               <ClientePicker
                 clientes={availableClientes}
-                onSelect={(c) => applyCliente(c, setters)}
+                onSelect={(c) => applyCliente(c, setters, values)}
                 categoryId={catForTitle?.id}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="Nombre" value={values[0]} onChange={(e) => setters[0](e.target.value)} />
-              <Input placeholder="Contacto" value={values[1]} onChange={(e) => setters[1](e.target.value)} />
-              <Input placeholder="Email" value={values[2]} onChange={(e) => setters[2](e.target.value)} />
-              <Input placeholder="Teléfono" value={values[3]} onChange={(e) => setters[3](e.target.value)} />
-            </div>
+            {rows.map((row, idx) => (
+              <div key={idx} className="relative">
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    className="absolute -right-1 -top-1 z-10 rounded-full bg-destructive/10 p-0.5 text-destructive hover:bg-destructive/20 transition-colors"
+                    onClick={() => removeRow(setters, values, idx)}
+                    title="Eliminar contacto"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Nombre" value={row.nombre} onChange={(e) => updateRow(setters, values, idx, "nombre", e.target.value)} />
+                  <Input placeholder="Contacto" value={row.contacto} onChange={(e) => updateRow(setters, values, idx, "contacto", e.target.value)} />
+                  <Input placeholder="Email" value={row.email} onChange={(e) => updateRow(setters, values, idx, "email", e.target.value)} />
+                  <Input placeholder="Teléfono" value={row.telefono} onChange={(e) => updateRow(setters, values, idx, "telefono", e.target.value)} />
+                </div>
+              </div>
+            ))}
           </div>
         );
       })}
