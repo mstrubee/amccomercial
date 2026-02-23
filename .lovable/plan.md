@@ -1,30 +1,48 @@
 
 
-## Recordar la categoria comercial avanzada al crear nueva alerta
+## Contactos separados por fila al agregar clientes
 
-### Problema
+### Contexto actual
+Cada seccion de contacto (Arquitectura, Constructora, ITO, Duenos) tiene 4 campos de texto (Nombre, Contacto, Email, Telefono). Cuando se agrega un segundo cliente, los valores se concatenan en el mismo campo con " / " como separador (ej: "Juan / Pedro").
 
-Cuando el usuario completa una alerta y elige avanzar la categoria comercial (por ejemplo, de "Contactado" a "Planos Recibidos"), esa seleccion no se transmite al formulario de la nueva alerta. El formulario recibe la categoria **antigua** de la alerta original en lugar de la categoria **avanzada** que el usuario selecciono.
+### Cambio solicitado
+Al agregar un nuevo cliente, se deben crear **4 casillas nuevas** (una fila completa) debajo de la fila existente, en lugar de concatenar los datos en las mismas casillas.
 
-Esto sucede porque `onCompleteAndCreate` recibe solo el objeto de alerta original, y tanto `Alertas.tsx` como `AlertaWidget.tsx` leen `alerta.categoria_proyecto_id` (el valor viejo) para pasarlo como default al formulario.
+### Enfoque tecnico
 
-### Solucion
+La base de datos almacena estos campos como texto plano (ej: `arq_nombre`, `arq_contacto`, etc.). Para mantener compatibilidad sin migrar la BD, se usara el separador " / " internamente pero la UI mostrara filas separadas.
 
-Modificar la firma de `onCompleteAndCreate` en `CompleteAlertaDialog` para que incluya la categoria avanzada seleccionada por el usuario. Luego actualizar los consumidores (`Alertas.tsx` y `AlertaWidget.tsx`) para usar esa categoria en lugar de la original.
+**Cambios en `src/components/proyectos/ProyectoFormDialog.tsx`:**
 
-### Cambios tecnicos
+1. **Reemplazar la estructura de `sections`** para que cada seccion maneje un arreglo de entradas en vez de 4 valores escalares. Al cargar datos existentes (que usan " / "), se hara split para generar las filas.
 
-**1. `src/components/alertas/CompleteAlertaDialog.tsx`**
+2. **Modificar `ContactosSection`** para:
+   - Convertir los 4 strings (nombre/contacto/mail/telefono) en un arreglo de objetos `{ nombre, contacto, mail, telefono }` usando `.split(" / ")`.
+   - Renderizar una fila de 4 inputs por cada entrada del arreglo.
+   - Incluir un boton para eliminar filas individuales (excepto la primera).
+   - Al modificar cualquier input, reconstruir el string concatenado con " / " y llamar al setter correspondiente.
 
-- Cambiar la firma de `onCompleteAndCreate` de `(alerta: AlertaWithRelations)` a `(alerta: AlertaWithRelations, advancedCat?: { categoriaId: string; subcategoriaId: string | null })`.
-- En el boton "Completar y crear nueva", calcular la categoria avanzada a partir de `selectedCatValue` y `advanceEnabled`, y pasarla como segundo argumento.
+3. **Modificar `applyCliente`** para que en vez de concatenar, agregue una nueva fila (append al arreglo), lo que genera un nuevo grupo de 4 inputs.
 
-**2. `src/pages/Alertas.tsx`**
+4. **Al guardar**, las filas se unen con " / " para cada campo, manteniendo la compatibilidad con la BD y con `ProyectoInput`.
 
-- Actualizar el handler `onCompleteAndCreate` para recibir el segundo parametro `advancedCat`.
-- Si `advancedCat` existe, usar esos valores para `categoriaProyectoId` y `subcategoriaProyectoId` en `setCreateDefaults` en lugar de leer los campos de la alerta original.
+### Ejemplo visual
 
-**3. `src/components/alertas/AlertaWidget.tsx`**
+Antes (un solo cliente):
+```text
+| Nombre: Juan  | Contacto: J. Perez |
+| Email: j@x.co | Telefono: 123      |
+```
 
-- Aplicar el mismo cambio: recibir `advancedCat` en el handler `onCompleteAndCreate` y usarlo para `defaultCategoriaProyectoId` y `defaultSubcategoriaProyectoId` en `setCreateDefaults`.
+Despues de agregar otro cliente:
+```text
+| Nombre: Juan  | Contacto: J. Perez |
+| Email: j@x.co | Telefono: 123      |
+| Nombre: Pedro | Contacto: P. Lopez |  <-- fila nueva
+| Email: p@x.co | Telefono: 456      |
+```
+
+### Archivos a modificar
+
+- `src/components/proyectos/ProyectoFormDialog.tsx` - Unico archivo a modificar. Se cambia la logica interna de `ContactosSection` y `applyCliente`. No hay cambios en la BD ni en otros componentes.
 
