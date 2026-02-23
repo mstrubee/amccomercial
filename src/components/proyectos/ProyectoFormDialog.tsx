@@ -426,20 +426,20 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                 <Input id="pnombre" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
               </div>
 
-              {/* Fecha Ingreso + Clasificación */}
+              {/* Fecha Ingreso + Tipo de Proyecto */}
               <div className="grid grid-cols-2 gap-3 min-w-0">
                 <div className="space-y-1">
                   <Label>Fecha Ingreso</Label>
                   <Input type="date" value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} />
                 </div>
                 <div className="space-y-1 min-w-0">
-                  <Label>Clasificación</Label>
+                  <Label>Tipo de Proyecto</Label>
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring truncate"
                     value={clasificacionId || ""}
                     onChange={(e) => setClasificacionId(e.target.value || null)}
                   >
-                    <option value="">Sin clasificación</option>
+                    <option value="">Sin tipo</option>
                     {clasificaciones?.map((c) => (
                       <option key={c.id} value={c.id}>{c.nombre}</option>
                     ))}
@@ -447,7 +447,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                 </div>
               </div>
 
-              {/* Estado Obra / Fecha / Estado AMC */}
+              {/* Estado Obra / Fecha / Estado (x Proyecto) */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label>Estado Obra</Label>
@@ -467,7 +467,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   <Input type="date" value={fechaEstadoObra} onChange={(e) => setFechaEstadoObra(e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Estado AMC</Label>
+                  <Label>Estado (x Proyecto)</Label>
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={estadoAmc}
@@ -489,7 +489,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                     </Label>
                     {isAdmin && (
                       <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 text-xs text-muted-foreground" onClick={() => setShowCategoriasManager(true)}>
-                        <Settings2 className="w-3 h-3" /> Categorías
+                        <Settings2 className="w-3 h-3" /> Estatus (x Empresa)
                       </Button>
                     )}
                   </div>
@@ -1193,7 +1193,7 @@ function CategoriaSelect({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
       >
-        <option value="none">Elegir Categoría</option>
+        <option value="none">Elegir Estatus</option>
         {categorias.map((cat) => (
           cat.subcategorias_proyecto.length > 0 ? (
             <optgroup key={cat.id} label={cat.nombre}>

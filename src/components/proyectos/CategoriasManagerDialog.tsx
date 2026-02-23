@@ -183,7 +183,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[80vh] p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>Administrar Categorías</DialogTitle>
+          <DialogTitle>Administrar Estatus (x Empresa)</DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[65vh] px-6 pb-6">
           <div className="space-y-3">
@@ -253,7 +253,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                     {cat.subcategorias_proyecto.length === 0 && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" title="Convertir en subcategoría">
+                          <Button variant="ghost" size="icon" className="h-6 w-6" title="Convertir en sub-estatus">
                             <ArrowDown className="w-3 h-3" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -320,7 +320,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => startEditSub(sub)}>
                               <Pencil className="w-2.5 h-2.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-5 w-5" title="Promover a categoría" onClick={() => promoteSub.mutate(sub.id)}>
+                            <Button variant="ghost" size="icon" className="h-5 w-5" title="Promover a estatus" onClick={() => promoteSub.mutate(sub.id)}>
                               <ArrowUp className="w-2.5 h-2.5" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-5 w-5 hover:text-destructive" onClick={() => deleteSub.mutate(sub.id)}>
@@ -336,7 +336,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                       <div className="p-3 ml-6 space-y-2">
                         <div className="flex gap-2 items-end">
                           <div className="flex-1 space-y-1">
-                            <Label className="text-xs">Nueva subcategoría</Label>
+                            <Label className="text-xs">Nuevo sub-estatus</Label>
                             <Input value={newSubName} onChange={(e) => setNewSubName(e.target.value)} className="h-8 text-sm" placeholder="Nombre..." />
                           </div>
                           <div className="space-y-1">
@@ -358,7 +358,7 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
                         className="flex items-center gap-1 px-3 py-2 ml-6 text-xs text-muted-foreground hover:text-card-foreground"
                         onClick={() => { setNewSubCatId(cat.id); setNewSubColor(cat.color); }}
                       >
-                        <Plus className="w-3 h-3" /> Agregar subcategoría
+                        <Plus className="w-3 h-3" /> Agregar sub-estatus
                       </button>
                     )}
                   </div>
@@ -368,10 +368,10 @@ export default function CategoriasManagerDialog({ open, onOpenChange }: Props) {
 
             {/* Add new category */}
             <div className="border border-dashed border-border rounded-lg p-3 space-y-2">
-              <Label className="text-xs font-medium">Nueva categoría</Label>
+              <Label className="text-xs font-medium">Nuevo estatus</Label>
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="h-8 text-sm" placeholder="Nombre de la categoría..." />
+                  <Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="h-8 text-sm" placeholder="Nombre del estatus..." />
                 </div>
                 <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} className="w-10 h-8 rounded border border-input cursor-pointer" />
                 <Button size="sm" onClick={handleCreateCat} disabled={!newCatName.trim()}>

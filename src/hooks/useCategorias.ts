@@ -44,7 +44,7 @@ export function useCreateCategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Categoría creada");
+      toast.success("Estatus creado");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -63,7 +63,7 @@ export function useUpdateCategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Categoría actualizada");
+      toast.success("Estatus actualizado");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -78,7 +78,7 @@ export function useDeleteCategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Categoría eliminada");
+      toast.success("Estatus eliminado");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -98,7 +98,7 @@ export function useCreateSubcategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Subcategoría creada");
+      toast.success("Sub-estatus creado");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -117,7 +117,7 @@ export function useUpdateSubcategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Subcategoría actualizada");
+      toast.success("Sub-estatus actualizado");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -132,7 +132,7 @@ export function useDeleteSubcategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Subcategoría eliminada");
+      toast.success("Sub-estatus eliminado");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -148,7 +148,7 @@ export function usePromoteToCategoria() {
         .select("*")
         .eq("id", subId)
         .single();
-      if (readErr || !sub) throw readErr || new Error("Subcategoría no encontrada");
+      if (readErr || !sub) throw readErr || new Error("Sub-estatus no encontrado");
 
       // 2. Calculate next orden
       const { data: cats } = await supabase
@@ -182,7 +182,7 @@ export function usePromoteToCategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Subcategoría promovida a categoría");
+      toast.success("Sub-estatus promovido a estatus");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -198,11 +198,11 @@ export function useDemoteToSubcategoria() {
         .select("*, subcategorias_proyecto(*)")
         .eq("id", catId)
         .single();
-      if (readErr || !cat) throw readErr || new Error("Categoría no encontrada");
+      if (readErr || !cat) throw readErr || new Error("Estatus no encontrado");
 
       // 2. Verify no subcategories
       if ((cat as any).subcategorias_proyecto?.length > 0) {
-        throw new Error("No se puede degradar una categoría que tiene subcategorías");
+        throw new Error("No se puede degradar un estatus que tiene sub-estatus");
       }
 
       // 3. Calculate next orden in target
@@ -238,7 +238,7 @@ export function useDemoteToSubcategoria() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["categorias_proyecto"] });
-      toast.success("Categoría convertida en subcategoría");
+      toast.success("Estatus convertido en sub-estatus");
     },
     onError: (e) => toast.error("Error: " + e.message),
   });

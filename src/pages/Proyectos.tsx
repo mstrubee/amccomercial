@@ -561,7 +561,7 @@ export default function Proyectos() {
         <KpiCard
           title="Obras / Ejecución"
           value={String(kpiStats.obrasEjecucion)}
-          subtitle="Seguimiento"
+          subtitle="Estado AMC (x Empresa)"
           icon={Hammer}
           variant="warning"
           delay={0.14}
@@ -603,7 +603,7 @@ export default function Proyectos() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingreso</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado (x Proyecto)</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas / Cotización</th>
                 <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider"></th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>

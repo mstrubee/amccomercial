@@ -93,7 +93,7 @@ export default function Dashboard() {
       }
     });
 
-    // Estado AMC distribution (count unique project groups)
+    // Estado (x Proyecto) distribution (count unique project groups)
     const estadoAmcCounts = new Map<string, number>();
     uniqueProjects.forEach(group => {
       const estado = group[0].estado_amc || "Sin estado";
@@ -228,7 +228,7 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pie chart - Estado AMC */}
+        {/* Pie chart - Estado (x Proyecto) */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -236,7 +236,7 @@ export default function Dashboard() {
           className="bg-card rounded-xl border border-border p-6 shadow-sm"
         >
           <h3 className="text-sm font-semibold text-card-foreground mb-4">
-            Proyectos por Estado AMC
+            Proyectos por Estado (x Proyecto)
           </h3>
           {pieDataAmc.length > 0 ? (
             <>
@@ -353,7 +353,7 @@ export default function Dashboard() {
                 <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">N°</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado (x Proyecto)</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
                 <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Cotización UF</th>
               </tr>

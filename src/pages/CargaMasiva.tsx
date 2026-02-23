@@ -33,10 +33,10 @@ const ESTADOS_OBRA = [
 ];
 
 const TEMPLATE_COLUMNS = [
-  "Nombre Proyecto", "Fecha Ingreso", "Clasificación", "Estado Obra", "Fecha Estado Obra",
-  "Estado AMC",
-  "Empresa 1", "Categoría Empresa 1", "Empresa 2", "Categoría Empresa 2",
-  "Empresa 3", "Categoría Empresa 3", "Empresa 4", "Categoría Empresa 4",
+  "Nombre Proyecto", "Fecha Ingreso", "Tipo de Proyecto", "Estado Obra", "Fecha Estado Obra",
+  "Estado (x Proyecto)",
+  "Empresa 1", "Estatus Empresa 1", "Empresa 2", "Estatus Empresa 2",
+  "Empresa 3", "Estatus Empresa 3", "Empresa 4", "Estatus Empresa 4",
   "Dirección", "Región", "Comuna",
   "Arq Nombre", "Arq Contacto", "Arq Email", "Arq Teléfono",
   "Const Nombre", "Const Contacto", "Const Email", "Const Teléfono",
@@ -47,18 +47,18 @@ const TEMPLATE_COLUMNS = [
 
 /** Dropdown field definitions for AI matching */
 const DROPDOWN_FIELDS: { column: string; getOptions: (ctx: DropdownCtx) => string[] }[] = [
-  { column: "Clasificación", getOptions: (ctx) => ctx.clasificacionNames },
+  { column: "Tipo de Proyecto", getOptions: (ctx) => ctx.clasificacionNames },
   { column: "Estado Obra", getOptions: () => ESTADOS_OBRA },
-  { column: "Estado AMC", getOptions: (ctx) => ctx.estadosAMC },
+  { column: "Estado (x Proyecto)", getOptions: (ctx) => ctx.estadosAMC },
   { column: "Región", getOptions: (ctx) => ctx.regionNames },
   ...([1, 2, 3, 4].flatMap((i) => [
     { column: `Empresa ${i}`, getOptions: (ctx: DropdownCtx) => ctx.empresaNames },
-    { column: `Categoría Empresa ${i}`, getOptions: (ctx: DropdownCtx) => ctx.categoriaNames },
+    { column: `Estatus Empresa ${i}`, getOptions: (ctx: DropdownCtx) => ctx.categoriaNames },
   ])),
 ];
 
 /** Fields that should ideally have a value - shown in orange when empty after AI processing */
-const EXPECTED_FIELDS = ["Clasificación", "Estado Obra", "Estado AMC", "Región", "Comuna"];
+const EXPECTED_FIELDS = ["Tipo de Proyecto", "Estado Obra", "Estado (x Proyecto)", "Región", "Comuna"];
 
 interface DropdownCtx {
   clasificacionNames: string[];
@@ -242,7 +242,7 @@ export default function CargaMasiva() {
 
     const refData: string[][] = [];
     const maxLen = Math.max(clasificacionNames.length, ESTADOS_OBRA.length, estadosAMC.length, empresaNames.length, categoriaNames.length, regionNames.length);
-    const refHeaders = ["Clasificaciones", "Estados Obra", "Estados AMC", "Empresas", "Categorías", "Regiones"];
+    const refHeaders = ["Tipos de Proyecto", "Estados Obra", "Estados (x Proyecto)", "Empresas", "Estatus", "Regiones"];
     refData.push(refHeaders);
     for (let i = 0; i < maxLen; i++) {
       refData.push([
@@ -318,17 +318,17 @@ export default function CargaMasiva() {
     const nombre = (d["Nombre Proyecto"] || "").trim();
     if (!nombre) errors.push("Nombre Proyecto requerido");
 
-    const clasificacion = (d["Clasificación"] || "").trim();
+    const clasificacion = (d["Tipo de Proyecto"] || "").trim();
     if (clasificacion && !clasificacionNames.includes(clasificacion))
-      errors.push(`Clasificación "${clasificacion}" no reconocida`);
+      errors.push(`Tipo de Proyecto "${clasificacion}" no reconocido`);
 
     const estadoObra = (d["Estado Obra"] || "").trim();
     if (estadoObra && !ESTADOS_OBRA.includes(estadoObra))
       errors.push(`Estado Obra "${estadoObra}" no reconocido`);
 
-    const estadoAmc = (d["Estado AMC"] || "").trim();
+    const estadoAmc = (d["Estado (x Proyecto)"] || "").trim();
     if (estadoAmc && !estadosAMC.includes(estadoAmc))
-      errors.push(`Estado AMC "${estadoAmc}" no reconocido`);
+      errors.push(`Estado (x Proyecto) "${estadoAmc}" no reconocido`);
 
     const region = (d["Región"] || "").trim();
     const comuna = (d["Comuna"] || "").trim();
@@ -343,8 +343,8 @@ export default function CargaMasiva() {
     for (let i = 1; i <= 4; i++) {
       const emp = (d[`Empresa ${i}`] || "").trim();
       if (emp && !empresaNames.includes(emp)) errors.push(`Empresa ${i} "${emp}" no reconocida`);
-      const cat = (d[`Categoría Empresa ${i}`] || "").trim();
-      if (cat && !categoriaNames.includes(cat)) errors.push(`Categoría Empresa ${i} "${cat}" no reconocida`);
+      const cat = (d[`Estatus Empresa ${i}`] || "").trim();
+      if (cat && !categoriaNames.includes(cat)) errors.push(`Estatus Empresa ${i} "${cat}" no reconocido`);
     }
 
     return { ...row, errors, valid: errors.length === 0 };
@@ -481,7 +481,7 @@ export default function CargaMasiva() {
       if (clsOptions.length > 0) {
         const inferItems: { rowIndex: number; projectName: string }[] = [];
         for (const row of updatedRows) {
-          const cls = (row.data["Clasificación"] || "").trim();
+          const cls = (row.data["Tipo de Proyecto"] || "").trim();
           const name = (row.data["Nombre Proyecto"] || "").trim();
           if (!cls && name) {
             inferItems.push({ rowIndex: row.rowIndex, projectName: name });
@@ -493,7 +493,7 @@ export default function CargaMasiva() {
             const batch = inferItems.slice(i, i + batchSize).map((item, idx) => ({
               index: idx + i,
               value: item.projectName,
-              field: "Clasificación (inferida del nombre)",
+              field: "Tipo de Proyecto (inferido del nombre)",
               options: clsOptions,
             }));
 
@@ -509,8 +509,8 @@ export default function CargaMasiva() {
                 updatedRows = updatedRows.map((row) => {
                   if (row.rowIndex !== item.rowIndex) return row;
                   const newData = { ...row.data };
-                  newData["Clasificación"] = result.match!;
-                  return { ...row, data: newData, aiCorrected: [...row.aiCorrected, "Clasificación"] };
+                  newData["Tipo de Proyecto"] = result.match!;
+                  return { ...row, data: newData, aiCorrected: [...row.aiCorrected, "Tipo de Proyecto"] };
                 });
               }
             }
@@ -934,7 +934,7 @@ export default function CargaMasiva() {
         const d = row.data;
 
         let clasificacion_id: string | null = null;
-        const clsName = safeStr(d["Clasificación"]);
+        const clsName = safeStr(d["Tipo de Proyecto"]);
         if (clsName && clasificaciones) {
           const found = clasificaciones.find((c) => c.nombre === clsName);
           if (found) clasificacion_id = found.id;
@@ -943,7 +943,7 @@ export default function CargaMasiva() {
         const empLinks: { empresa_id: string; categoria_id: string | null }[] = [];
         for (let i = 1; i <= 4; i++) {
           const empName = safeStr(d[`Empresa ${i}`]);
-          const catName = safeStr(d[`Categoría Empresa ${i}`]);
+          const catName = safeStr(d[`Estatus Empresa ${i}`]);
           if (empName && empresas) {
             const emp = empresas.find((e) => e.nombre === empName);
             if (emp) {
@@ -972,7 +972,7 @@ export default function CargaMasiva() {
           clasificacion_id,
           estado_obra: safeStr(d["Estado Obra"]),
           fecha_estado_obra: (fechaEstado && fechaEstado !== "null") ? fechaEstado : null,
-          estado_amc: safeStr(d["Estado AMC"]) || "Vigente",
+          estado_amc: safeStr(d["Estado (x Proyecto)"]) || "Vigente",
           direccion: safeStr(d["Dirección"]),
           region: safeStr(d["Región"]),
           comuna: safeStr(d["Comuna"]),
@@ -1346,7 +1346,7 @@ export default function CargaMasiva() {
                       <div className={`w-2 h-2 rounded-full ${aiPhase === "contactos" ? "bg-primary animate-pulse" : "bg-muted"}`} />
                     </div>
                     <span className="text-xs">
-                      {aiPhase === "dropdowns" && "1/3 Clasificación"}
+                      {aiPhase === "dropdowns" && "1/3 Tipo de Proyecto"}
                       {aiPhase === "alertas" && "2/3 Alertas"}
                       {aiPhase === "contactos" && "3/3 Contactos"}
                     </span>
@@ -1605,9 +1605,9 @@ export default function CargaMasiva() {
                     <TableHead className="w-10"></TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Nombre Proyecto</TableHead>
-                    <TableHead>Clasificación</TableHead>
+                    <TableHead>Tipo de Proyecto</TableHead>
                     <TableHead>Estado Obra</TableHead>
-                    <TableHead>Estado AMC</TableHead>
+                    <TableHead>Estado (x Proyecto)</TableHead>
                     <TableHead>Región</TableHead>
                     <TableHead>Comuna</TableHead>
                     <TableHead>Empresas</TableHead>
@@ -1644,12 +1644,12 @@ export default function CargaMasiva() {
                       {/* Clasificación */}
                       <TableCell>
                         <InlineDropdown
-                          value={row.data["Clasificación"] || ""}
+                          value={row.data["Tipo de Proyecto"] || ""}
                           options={clasificacionNames}
-                          isUnmatched={row.aiUnmatched.includes("Clasificación")}
-                          isCorrected={row.aiCorrected.includes("Clasificación")}
-                          isEmpty={!(row.data["Clasificación"] || "").trim() && aiPhase === "done"}
-                          onChange={(v) => updateRowField(row.rowIndex, "Clasificación", v)}
+                          isUnmatched={row.aiUnmatched.includes("Tipo de Proyecto")}
+                          isCorrected={row.aiCorrected.includes("Tipo de Proyecto")}
+                          isEmpty={!(row.data["Tipo de Proyecto"] || "").trim() && aiPhase === "done"}
+                          onChange={(v) => updateRowField(row.rowIndex, "Tipo de Proyecto", v)}
                         />
                       </TableCell>
 
@@ -1668,12 +1668,12 @@ export default function CargaMasiva() {
                       {/* Estado AMC */}
                       <TableCell>
                         <InlineDropdown
-                          value={row.data["Estado AMC"] || ""}
+                          value={row.data["Estado (x Proyecto)"] || ""}
                           options={estadosAMC}
-                          isUnmatched={row.aiUnmatched.includes("Estado AMC")}
-                          isCorrected={row.aiCorrected.includes("Estado AMC")}
-                          isEmpty={!(row.data["Estado AMC"] || "").trim() && aiPhase === "done"}
-                          onChange={(v) => updateRowField(row.rowIndex, "Estado AMC", v)}
+                          isUnmatched={row.aiUnmatched.includes("Estado (x Proyecto)")}
+                          isCorrected={row.aiCorrected.includes("Estado (x Proyecto)")}
+                          isEmpty={!(row.data["Estado (x Proyecto)"] || "").trim() && aiPhase === "done"}
+                          onChange={(v) => updateRowField(row.rowIndex, "Estado (x Proyecto)", v)}
                         />
                       </TableCell>
 
