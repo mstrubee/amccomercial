@@ -1106,9 +1106,12 @@ function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWi
                   ))
                 )}
               </div>
-              <div className="border-t p-2">
+              <div className="border-t p-2 space-y-1">
                 <Button type="button" variant="ghost" size="sm" className="w-full h-7 text-xs gap-1" onClick={() => setShowCreate(true)}>
                   <UserPlus className="w-3 h-3" /> Crear nuevo cliente
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="w-full h-7 text-xs" onClick={() => { setOpen(false); setSearch(""); }}>
+                  Cancelar
                 </Button>
               </div>
             </>
