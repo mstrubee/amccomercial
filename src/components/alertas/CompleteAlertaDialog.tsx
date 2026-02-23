@@ -22,7 +22,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onComplete: (id: string) => void;
-  onCompleteAndCreate: (alerta: AlertaWithRelations) => void;
+  onCompleteAndCreate: (alerta: AlertaWithRelations, advancedCat?: { categoriaId: string; subcategoriaId: string | null }) => void;
   onUncomplete?: (id: string, newDate?: string) => void;
   mode?: "complete" | "uncomplete";
   categorias?: CategoriaWithSubs[];
@@ -307,7 +307,23 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
           <Button variant="outline" onClick={() => { handleAdvanceIfNeeded(); onComplete(alerta.id); handleClose(); }}>
             Solo completar
           </Button>
-          <Button onClick={() => { handleAdvanceIfNeeded(); onCompleteAndCreate(alerta); handleClose(); }}>
+          <Button onClick={() => {
+            handleAdvanceIfNeeded();
+            // Pass the advanced category selection to the consumer
+            let advancedCat: { categoriaId: string; subcategoriaId: string | null } | undefined;
+            if (showCategorySection && advanceEnabled && selectedCatValue) {
+              if (selectedCatValue.startsWith("s:")) {
+                const subId = selectedCatValue.slice(2);
+                const parentCat = categorias!.find(c => c.subcategorias_proyecto.some(s => s.id === subId));
+                advancedCat = { categoriaId: parentCat?.id || "", subcategoriaId: subId };
+              } else {
+                const catId = selectedCatValue.startsWith("c:") ? selectedCatValue.slice(2) : selectedCatValue;
+                advancedCat = { categoriaId: catId, subcategoriaId: null };
+              }
+            }
+            onCompleteAndCreate(alerta, advancedCat);
+            handleClose();
+          }}>
             Completar y crear nueva
           </Button>
         </DialogFooter>
