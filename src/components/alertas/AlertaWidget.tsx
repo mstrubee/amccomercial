@@ -195,13 +195,13 @@ export default function AlertaWidget() {
           widgetQc.invalidateQueries({ queryKey: ["proyectos"] });
         }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
-        onCompleteAndCreate={(a) => {
+        onCompleteAndCreate={(a, advancedCat) => {
           setPendingCompleteId(a.id);
           const lastAc = a.alerta_clasificaciones?.length ? a.alerta_clasificaciones[a.alerta_clasificaciones.length - 1] : null;
           const next = clasificacionesAlerta && lastAc
             ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificacionesAlerta)
             : { clasificacionId: "", subclasificacionId: "" };
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: (a as any).categoria_proyecto_id || undefined, defaultSubcategoriaProyectoId: (a as any).subcategoria_proyecto_id || undefined });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: advancedCat?.categoriaId || (a as any).categoria_proyecto_id || undefined, defaultSubcategoriaProyectoId: advancedCat?.subcategoriaId || (a as any).subcategoria_proyecto_id || undefined });
           setCreateDialogOpen(true);
         }}
       />
