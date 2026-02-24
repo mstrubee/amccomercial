@@ -503,6 +503,12 @@ export default function Alertas() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar alertas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
+          {(filterProyecto !== "all" || filterClasificacion.size > 0 || fechaDesde || fechaHasta || search.trim()) && (
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1" onClick={() => { setFilterProyecto("all"); setFilterClasificacion(new Set()); setFechaDesde(undefined); setFechaHasta(undefined); setSearch(""); }}>
+              <RotateCcw className="w-3.5 h-3.5" />
+              Limpiar filtros
+            </Button>
+          )}
         </div>
       </div>
 
