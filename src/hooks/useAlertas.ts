@@ -232,7 +232,10 @@ export function useCreateAlerta() {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       qc.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
-      logActivity.mutate({ action: "crear", entity_type: "alerta", entity_name: variables.titulo, details: variables.proyecto_id });
+      const details = (variables as any).on_behalf_of
+        ? `${variables.proyecto_id}|a nombre de ${(variables as any).on_behalf_of}`
+        : variables.proyecto_id;
+      logActivity.mutate({ action: "crear", entity_type: "alerta", entity_name: variables.titulo, details });
     },
     onError: (e) => toast.error("Error al crear alerta: " + e.message),
   });
@@ -292,7 +295,7 @@ export function useToggleAlertaCompletada() {
   const qc = useQueryClient();
   const logActivity = useLogActivity();
   return useMutation({
-    mutationFn: async ({ id, completada }: { id: string; completada: boolean }) => {
+    mutationFn: async ({ id, completada, on_behalf_of }: { id: string; completada: boolean; on_behalf_of?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
       const updateData: any = { completada };
@@ -308,11 +311,13 @@ export function useToggleAlertaCompletada() {
         .update(updateData)
         .eq("id", id);
       if (error) throw error;
+      return { on_behalf_of };
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (result, variables) => {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
-      logActivity.mutate({ action: variables.completada ? "completar" : "restaurar", entity_type: "alerta", entity_id: variables.id });
+      const details = result?.on_behalf_of ? `a nombre de ${result.on_behalf_of}` : undefined;
+      logActivity.mutate({ action: variables.completada ? "completar" : "restaurar", entity_type: "alerta", entity_id: variables.id, details });
     },
     onError: (e) => toast.error("Error: " + e.message),
   });

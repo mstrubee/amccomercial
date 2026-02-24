@@ -14,12 +14,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
+import { Badge } from "@/components/ui/badge";
+
 const actionLabels: Record<string, string> = {
   crear: "Crear",
   editar: "Editar",
   eliminar: "Eliminar",
   completar: "Completar",
   restaurar: "Restaurar",
+  delegado: "Delegado",
 };
 
 const entityLabels: Record<string, string> = {
@@ -231,7 +234,14 @@ export default function Reporteria() {
                               <span className="text-xs font-medium capitalize">{actionLabels[log.action] || log.action}</span>
                             </TableCell>
                             <TableCell className="text-sm">{entityLabels[log.entity_type] || log.entity_type}</TableCell>
-                            <TableCell className="text-sm max-w-[300px] truncate">{log.entity_name}</TableCell>
+                            <TableCell className="text-sm max-w-[300px] truncate">
+                              {log.entity_name}
+                              {log.details && typeof log.details === "string" && log.details.includes("a nombre de") && (
+                                <Badge variant="outline" className="ml-2 text-[10px] text-amber-700 border-amber-300">
+                                  {log.details.split("|").find((s: string) => s.includes("a nombre de")) || log.details}
+                                </Badge>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
