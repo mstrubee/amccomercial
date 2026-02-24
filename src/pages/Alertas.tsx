@@ -26,6 +26,8 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAuth } from "@/hooks/useAuth";
+import { useDelegacionesActivas } from "@/hooks/useDelegaciones";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
@@ -55,6 +57,7 @@ export default function Alertas() {
   const { data: proyectosRaw } = useProyectos();
   const { data: clasificaciones } = useClasificacionesAlerta();
   const { user, isAdmin } = useAuth();
+  const { data: delegacionesActivas } = useDelegacionesActivas();
   const createAlerta = useCreateAlerta();
   const updateAlerta = useUpdateAlerta();
   const deleteAlerta = useDeleteAlerta();
@@ -337,6 +340,25 @@ export default function Alertas() {
           </Button>
         </div>
       </motion.div>
+
+      {/* Delegation banner */}
+      {delegacionesActivas && delegacionesActivas.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+          <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px]">Delegación</Badge>
+          <span className="text-amber-800 dark:text-amber-200">
+            Puedes completar alertas a nombre de:{" "}
+            {delegacionesActivas.map((d, i) => {
+              const p = profiles?.find((p) => p.user_id === d.delegante_id);
+              return (
+                <strong key={d.id}>
+                  {p?.display_name || p?.email || d.delegante_id}
+                  {i < delegacionesActivas.length - 1 ? ", " : ""}
+                </strong>
+              );
+            })}
+          </span>
+        </div>
+      )}
 
       {/* KPIs — clickable filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -685,7 +707,19 @@ export default function Alertas() {
           queryClient.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
           queryClient.invalidateQueries({ queryKey: ["proyectos"] });
         }}
-        onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
+        onComplete={(id) => {
+          // Check if completing on behalf of someone
+          const alerta = alertas?.find((a) => a.id === id);
+          if (alerta && user && alerta.usuario_responsable_id !== user.id && !isAdmin) {
+            const deleg = delegacionesActivas?.find((d) => d.delegante_id === alerta.usuario_responsable_id);
+            if (deleg) {
+              const deleganteProfile = profiles?.find((p) => p.user_id === deleg.delegante_id);
+              toggleCompletada.mutate({ id, completada: true, on_behalf_of: deleganteProfile?.display_name || deleganteProfile?.email || "" });
+              return;
+            }
+          }
+          toggleCompletada.mutate({ id, completada: true });
+        }}
         onCompleteAndCreate={(a, advancedCat) => {
           setPendingCompleteId(a.id);
           const lastAc = a.alerta_clasificaciones?.length ? a.alerta_clasificaciones[a.alerta_clasificaciones.length - 1] : null;

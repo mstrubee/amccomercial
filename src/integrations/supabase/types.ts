@@ -564,6 +564,42 @@ export type Database = {
           },
         ]
       }
+      delegaciones_alerta: {
+        Row: {
+          created_at: string
+          delegado_id: string
+          delegante_id: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          otorgado_por: string
+          revocada: boolean
+          revocada_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          delegado_id: string
+          delegante_id: string
+          fecha_fin: string
+          fecha_inicio?: string
+          id?: string
+          otorgado_por: string
+          revocada?: boolean
+          revocada_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          delegado_id?: string
+          delegante_id?: string
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          otorgado_por?: string
+          revocada?: boolean
+          revocada_at?: string | null
+        }
+        Relationships: []
+      }
       empresas: {
         Row: {
           created_at: string

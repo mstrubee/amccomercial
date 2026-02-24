@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useUserPermissions, useSavePermissions, ALL_SECTIONS, ALL_DASHBOARD_WIDGETS } from "@/hooks/usePermissions";
+import DelegacionesDialog from "@/components/usuarios/DelegacionesDialog";
 
 interface UserRecord {
   id: string;
@@ -38,6 +39,7 @@ export default function Usuarios() {
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
   const [permissionsUser, setPermissionsUser] = useState<UserRecord | null>(null);
+  const [delegacionesUser, setDelegacionesUser] = useState<UserRecord | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -115,6 +117,9 @@ export default function Usuarios() {
                 <td className="px-5 py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("es-CL")}</td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Delegaciones" onClick={() => setDelegacionesUser(u)}>
+                      <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Permisos" onClick={() => setPermissionsUser(u)}>
                       <Shield className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
@@ -146,6 +151,12 @@ export default function Usuarios() {
         open={!!permissionsUser}
         onOpenChange={(v) => !v && setPermissionsUser(null)}
         user={permissionsUser}
+      />
+
+      <DelegacionesDialog
+        open={!!delegacionesUser}
+        onOpenChange={(v) => !v && setDelegacionesUser(null)}
+        user={delegacionesUser}
       />
 
       <AlertDialog open={!!deleteUser} onOpenChange={(v) => !v && setDeleteUser(null)}>
