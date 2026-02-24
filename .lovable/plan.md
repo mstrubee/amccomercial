@@ -1,102 +1,62 @@
 
 
-## Correcciones: Completar alerta con delegacion + Scroll en formulario
+## Correccion: Alerta no se completa en flujo "Completar y crear nueva"
 
-### Problema 1: La alerta no se marca como completada al usar "Completar y crear nueva"
+### Causa raiz
 
-**Causa raiz**: En `handleSubmit` de `Alertas.tsx` (linea 280), cuando hay un `pendingCompleteId`, se disparan dos mutaciones casi simultaneamente:
+El problema NO es la condicion de carrera entre mutaciones (eso ya se corrigio con `mutateAsync`). El problema real es que `AlertaFormDialog` llama `onClose()` inmediatamente despues de `onSubmit()` sin esperar a que termine:
 
-1. `toggleCompletada.mutate(...)` - marca la alerta como completada
-2. `createAlerta.mutate(...)` - crea la nueva alerta dependiente
-
-El problema es que `createAlerta` puede resolverse antes que `toggleCompletada` termine de escribir en la base de datos. Cuando `createAlerta.onSuccess` se ejecuta, invalida la query `["alertas"]` y se refetch con el estado anterior (la alerta aun no completada en la BD). Esto sobreescribe el resultado de `toggleCompletada`.
-
-Adicionalmente, cuando el usuario actua por delegacion, el `toggleCompletada` en `handleSubmit` no pasa el parametro `on_behalf_of`, perdiendo la trazabilidad.
-
-**Solucion**: Cambiar `handleSubmit` para que la completacion se haga de forma secuencial: primero completar la alerta (con `await` usando `mutateAsync`), luego crear la nueva. Tambien pasar `on_behalf_of` cuando corresponda.
-
-**Archivo**: `src/pages/Alertas.tsx` - funcion `handleSubmit` (linea 280-291)
-
-Cambiar de:
-```typescript
-const handleSubmit = (data: AlertaInput & {id?: string;}) => {
-  if (data.empresa_id === "none") data.empresa_id = null;
-  if (pendingCompleteId) {
-    toggleCompletada.mutate({ id: pendingCompleteId, completada: true });
-    setPendingCompleteId(null);
-  }
-  if (data.id) {
-    updateAlerta.mutate(data as AlertaInput & {id: string;});
-  } else {
-    createAlerta.mutate(data);
-  }
+```
+// AlertaFormDialog.tsx linea 131-149
+const handleSubmit = () => {
+  onSubmit({...data...});  // async, retorna Promise sin awaitar
+  onClose();               // se ejecuta de inmediato
 };
 ```
 
-A:
+Y en `Alertas.tsx` linea 679, el `onClose` del dialog limpia `pendingCompleteId`:
+```
+onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); setPendingCompleteId(null); }}
+```
+
+Entonces cuando el `handleSubmit` async finalmente evalua `if (pendingCompleteId)`, este ya es `null` y nunca ejecuta la completacion.
+
+### Solucion
+
+Dos cambios minimos:
+
+**1. `src/components/alertas/AlertaFormDialog.tsx` (linea 131)**
+
+Cambiar `handleSubmit` para que espere a que `onSubmit` termine antes de cerrar:
+
 ```typescript
-const handleSubmit = async (data: AlertaInput & {id?: string;}) => {
-  if (data.empresa_id === "none") data.empresa_id = null;
-  if (pendingCompleteId) {
-    // Determine delegation info
-    const alertaToComplete = alertas?.find(a => a.id === pendingCompleteId);
-    let onBehalfOf: string | undefined;
-    if (alertaToComplete && user && alertaToComplete.usuario_responsable_id !== user.id && !isAdmin) {
-      const deleg = delegacionesActivas?.find(d => d.delegante_id === alertaToComplete.usuario_responsable_id);
-      if (deleg) {
-        const deleganteProfile = profiles?.find(p => p.user_id === deleg.delegante_id);
-        onBehalfOf = deleganteProfile?.display_name || deleganteProfile?.email || "";
-      }
-    }
-    await toggleCompletada.mutateAsync({
-      id: pendingCompleteId,
-      completada: true,
-      on_behalf_of: onBehalfOf,
-    });
-    setPendingCompleteId(null);
-  }
-  if (data.id) {
-    updateAlerta.mutate(data as AlertaInput & {id: string;});
-  } else {
-    createAlerta.mutate(data);
-  }
+const handleSubmit = async () => {
+  if (!proyectoId || !texto.trim() || !fechaSeguimiento) return;
+  // ... construir data igual que antes ...
+  await onSubmit({...data...});
+  onClose();
 };
 ```
 
----
-
-### Problema 2: El scroll del formulario de edicion/creacion de alertas no funciona
-
-**Causa raiz**: El `DialogContent` en `AlertaFormDialog.tsx` no tiene restriccion de altura maxima ni scroll. Cuando el formulario tiene muchos campos visibles (proyecto, empresa, categoria comercial, clasificacion, sub-clasificacion, texto, responsable, fecha), el contenido desborda sin scroll.
-
-**Solucion**: Agregar `max-h-[85vh]` y `overflow-y-auto` al contenedor del formulario, manteniendo header y footer fijos.
-
-**Archivo**: `src/components/alertas/AlertaFormDialog.tsx` - linea 154
-
-Cambiar:
-```html
-<DialogContent className="sm:max-w-lg">
-```
-A:
-```html
-<DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+Y actualizar el tipo de `onSubmit` en Props (linea 22):
+```typescript
+onSubmit: (data: AlertaInput & { id?: string }) => void | Promise<void>;
 ```
 
-Y cambiar el div del formulario (linea 161):
-```html
-<div className="space-y-4 py-2">
-```
-A:
-```html
-<div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0 pr-1">
+**2. `src/pages/Alertas.tsx` (linea 679)**
+
+Mover `setPendingCompleteId(null)` fuera del `onClose` del dialog, ya que ahora se limpia dentro de `handleSubmit` (linea 297) despues del `await`:
+
+```typescript
+onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); }}
 ```
 
----
+El `setPendingCompleteId(null)` ya existe en la linea 297 de `handleSubmit`, despues de la completacion exitosa. Para el caso donde el usuario cancela sin enviar, se limpia cuando se abre una nueva alerta o en el propio flujo.
 
-### Resumen de archivos a modificar
+### Archivos a modificar
 
 | Archivo | Cambio |
 |---|---|
-| `src/pages/Alertas.tsx` | `handleSubmit`: usar `mutateAsync` para completar antes de crear; pasar `on_behalf_of` en delegacion |
-| `src/components/alertas/AlertaFormDialog.tsx` | Agregar scroll al formulario con `max-h-[85vh]`, `overflow-y-auto`, `flex flex-col` |
+| `src/components/alertas/AlertaFormDialog.tsx` | `handleSubmit` pasa a ser `async`, `onSubmit` type acepta `Promise<void>`, se usa `await onSubmit(...)` antes de `onClose()` |
+| `src/pages/Alertas.tsx` | Quitar `setPendingCompleteId(null)` del `onClose` del dialog para evitar limpieza prematura |
 
