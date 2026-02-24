@@ -1,51 +1,122 @@
 
 
-## Fix: Sticky header en listado de Proyectos
+## Delegacion temporal de alertas
 
-### Causa del problema
+### Resumen
 
-El contenedor de la pagina Proyectos usa `h-full flex flex-col overflow-hidden`, pero el elemento padre en `AppLayout.tsx` es:
+El admin podra otorgar a cualquier usuario permiso temporal para **completar** y **crear alertas dependientes** de las alertas asignadas a otro usuario (el admin u otro). Este permiso tiene fecha de expiracion y puede ser revocado en cualquier momento. Las acciones realizadas bajo delegacion quedan diferenciadas en reportes como "completado a nombre de [nombre]".
 
+### Alcance del permiso delegado
+
+El usuario delegado podra:
+- Completar alertas asignadas al usuario delegante
+- Crear alertas dependientes (hijas) de esas alertas
+
+NO podra:
+- Crear alertas nuevas independientes a nombre del delegante
+- Eliminar alertas del delegante
+- Editar alertas del delegante
+
+---
+
+### 1. Nueva tabla: `delegaciones_alerta`
+
+```sql
+CREATE TABLE public.delegaciones_alerta (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  delegante_id uuid NOT NULL,       -- usuario cuyas alertas se delegan
+  delegado_id uuid NOT NULL,        -- usuario que recibe el permiso
+  otorgado_por uuid NOT NULL,       -- admin que creo la delegacion
+  fecha_inicio timestamptz NOT NULL DEFAULT now(),
+  fecha_fin timestamptz NOT NULL,   -- expiracion del permiso
+  revocada boolean NOT NULL DEFAULT false,
+  revocada_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(delegante_id, delegado_id)  -- solo una delegacion activa por par
+);
+
+ALTER TABLE public.delegaciones_alerta ENABLE ROW LEVEL SECURITY;
+
+-- Admins pueden gestionar
+CREATE POLICY "Admins can manage delegaciones"
+  ON public.delegaciones_alerta FOR ALL
+  USING (has_role(auth.uid(), 'admin'))
+  WITH CHECK (has_role(auth.uid(), 'admin'));
+
+-- Usuarios pueden leer sus propias delegaciones (como delegado)
+CREATE POLICY "Users can read own delegaciones"
+  ON public.delegaciones_alerta FOR SELECT
+  USING (auth.uid() = delegado_id OR auth.uid() = delegante_id);
 ```
-<main className="flex-1 overflow-auto">
-  <div className="p-8">{children}</div>   <!-- no tiene altura definida -->
-</main>
-```
 
-Como `<div className="p-8">` no tiene altura fija ni `h-full`, el `h-full` de Proyectos no tiene referencia de altura y no restringe el contenedor. Esto hace que todo el contenido crezca libremente y el scroll lo maneja `<main>`, anulando el `sticky` del `thead`.
+### 2. Hook: `useDelegaciones.ts`
 
-### Solucion
+Nuevo hook con:
+- `useDelegacionesActivas()`: retorna delegaciones activas del usuario actual (donde es delegado, no revocadas, dentro del rango de fechas)
+- `useDelegacionesPorUsuario(userId)`: para admin, retorna delegaciones de un usuario
+- `useCreateDelegacion()`: mutation para crear delegacion
+- `useRevokeDelegacion()`: mutation para revocar
 
-Dos cambios minimos:
+### 3. Modificar la logica de completar alertas
 
-**1. `src/components/layout/AppLayout.tsx`** (linea 190-191)
+**`src/hooks/useAlertas.ts` - `useToggleAlertaCompletada`**:
+- Agregar campo opcional `on_behalf_of` al input
+- Cuando el usuario completa una alerta que no es suya (es delegado), guardar `completed_by = usuario_actual` pero tambien registrar en `activity_log` con detalle "a nombre de [delegante]"
+- La RLS de alertas ya permite UPDATE con `WITH CHECK (true)`, lo cual es compatible
 
-Cambiar:
-```html
-<main className="flex-1 overflow-auto">
-  <div className="p-8">{children}</div>
-</main>
-```
-Por:
-```html
-<main className="flex-1 overflow-hidden">
-  <div className="p-8 h-full overflow-auto">{children}</div>
-</main>
-```
+**`src/pages/Alertas.tsx`**:
+- Antes de permitir completar una alerta, verificar si el usuario actual es el responsable, admin, o tiene delegacion activa
+- Si actua como delegado, pasar esa informacion al proceso de completar
 
-Esto hace que el div interior tenga una altura definida (100% de main) y sea el que haga scroll. Todas las paginas siguen funcionando igual porque el scroll pasa del `<main>` al `<div>`.
+### 4. Modificar la logica de crear alertas dependientes
 
-**2. `src/pages/Proyectos.tsx`** (linea 324)
+**`src/hooks/useAlertas.ts` - `useCreateAlerta`**:
+- Cuando se crea una alerta dependiente bajo delegacion, el `created_by` sera el usuario actual pero se registrara en `activity_log` con detalle "a nombre de [delegante]"
 
-Cambiar `h-full` por `h-full overflow-hidden` (mantener, ya lo tiene). Ademas agregar `overflow-hidden` al div padre para que Proyectos controle su propio scroll interno y no el del layout:
+### 5. UI de gestion de delegaciones (en Usuarios)
 
-```html
-<div className="h-full flex flex-col overflow-hidden gap-4">
-```
+**`src/pages/Usuarios.tsx`**:
+- Nuevo boton en las acciones de cada usuario: icono de "UserCheck" para gestionar delegaciones
+- Nuevo dialog `DelegacionesDialog` con:
+  - Lista de delegaciones activas del usuario seleccionado (como delegante)
+  - Formulario para crear nueva delegacion: seleccionar delegado + fecha fin
+  - Boton para revocar delegaciones existentes
 
-Esto ya esta correcto. Solo el cambio en AppLayout es necesario. Con `h-full` en el wrapper del layout, la cadena de alturas queda: `main (flex-1)` -> `div (h-full)` -> Proyectos `(h-full)`, y el sticky del thead funciona dentro del scroll interno de la tabla.
+### 6. Indicador visual en Alertas
 
-### Archivo a modificar
+**`src/pages/Alertas.tsx`**:
+- Cuando el usuario tiene delegaciones activas, mostrar un banner sutil indicando "Actuando en nombre de [nombre] hasta [fecha]"
+- En la tabla, las alertas que puede completar por delegacion tendran un indicador visual (tooltip o badge)
 
-- `src/components/layout/AppLayout.tsx` - Lineas 190-191: cambiar clases de main y su div hijo
+### 7. Diferenciacion en reportes
+
+**`src/pages/Reporteria.tsx`**:
+- En la columna de detalles del activity_log, cuando el detalle contenga "a nombre de", mostrar con badge diferenciado
+- Agregar label "delegado" en `actionLabels`
+
+**`src/hooks/useActivityLog.ts`**:
+- Sin cambios estructurales; el campo `details` ya existe y se usara para guardar "a nombre de [nombre]"
+
+---
+
+### Secuencia tecnica
+
+1. Crear tabla `delegaciones_alerta` con migracion
+2. Crear hook `useDelegaciones.ts`
+3. Crear componente `DelegacionesDialog.tsx` en `src/components/usuarios/`
+4. Integrar dialog en `src/pages/Usuarios.tsx`
+5. Modificar `useToggleAlertaCompletada` y `useCreateAlerta` para soportar delegacion
+6. Modificar `Alertas.tsx` para verificar delegaciones y mostrar indicadores
+7. Ajustar `Reporteria.tsx` para diferenciar acciones delegadas
+
+### Archivos nuevos
+- `src/hooks/useDelegaciones.ts`
+- `src/components/usuarios/DelegacionesDialog.tsx`
+
+### Archivos a modificar
+- `src/hooks/useAlertas.ts` - agregar soporte de delegacion en completar y crear dependientes
+- `src/pages/Usuarios.tsx` - boton y dialog de delegaciones
+- `src/pages/Alertas.tsx` - verificacion de delegaciones, indicadores visuales
+- `src/pages/Reporteria.tsx` - diferenciacion visual de acciones delegadas
+- Migracion SQL para nueva tabla
 
