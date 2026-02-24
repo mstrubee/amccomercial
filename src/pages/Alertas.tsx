@@ -676,7 +676,7 @@ export default function Alertas() {
       {/* Form Dialog */}
       <AlertaFormDialog
         open={dialogOpen}
-        onClose={() => {setDialogOpen(false);setEditTarget(null);setCreateDefaults({});setPendingCompleteId(null);}}
+        onClose={() => {setDialogOpen(false);setEditTarget(null);setCreateDefaults({});}}
         onSubmit={handleSubmit}
         editTarget={editTarget}
         proyectos={proyectosList}
