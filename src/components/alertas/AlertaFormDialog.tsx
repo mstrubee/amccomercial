@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: AlertaInput & { id?: string }) => void;
+  onSubmit: (data: AlertaInput & { id?: string }) => void | Promise<void>;
   editTarget?: AlertaWithRelations | null;
   proyectos: { id: string; nombre: string; numero: number }[];
   empresas: Tables<"empresas">[];
@@ -128,12 +128,12 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
   const selectedCatProy = categoriasProyecto?.find(c => c.id === categoriaProyectoId);
   const showCategoriaComercial = proyectoId && empresaId && empresaId !== "none";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!proyectoId || !texto.trim() || !fechaSeguimiento) return;
     const clasificacionesList: ClasificacionSelection[] = clasificacionId
       ? [{ clasificacion_id: clasificacionId, subclasificacion_id: subclasificacionId || null }]
       : [];
-    onSubmit({
+    await onSubmit({
       ...(editTarget ? { id: editTarget.id } : {}),
       proyecto_id: proyectoId,
       empresa_id: empresaId && empresaId !== "none" ? empresaId : null,
