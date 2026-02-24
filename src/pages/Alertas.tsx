@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, Sparkles, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -63,7 +63,7 @@ export default function Alertas() {
   const deleteAlerta = useDeleteAlerta();
   const toggleCompletada = useToggleAlertaCompletada();
   const queryClient = useQueryClient();
-  const [generatingTitles, setGeneratingTitles] = useState(false);
+  
   const [detectingDuplicates, setDetectingDuplicates] = useState(false);
   const [duplicatesResult, setDuplicatesResult] = useState<{duplicates: any[];total_alertas: number;} | null>(null);
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
@@ -226,31 +226,6 @@ export default function Alertas() {
     return list;
   }, [alertas, activeTab, search, today, in7, in30, filterProyecto, filterClasificacion, sortDir, fechaDesde, fechaHasta]);
 
-  const handleGenerateTitles = async () => {
-    setGeneratingTitles(true);
-    let totalUpdated = 0;
-    try {
-      let remaining = 1;
-      while (remaining > 0) {
-        const { data, error } = await supabase.functions.invoke("generate-titulos", {
-          body: { batchSize: 30 }
-        });
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-        totalUpdated += data.updated || 0;
-        remaining = data.remaining || 0;
-        if (remaining > 0) {
-          toast.info(`Procesando títulos... ${totalUpdated} actualizados, ${remaining} restantes`);
-        }
-      }
-      toast.success(`${totalUpdated} títulos generados con IA`);
-      queryClient.invalidateQueries({ queryKey: ["alertas"] });
-    } catch (e: any) {
-      toast.error(e.message || "Error generando títulos");
-    } finally {
-      setGeneratingTitles(false);
-    }
-  };
 
   const handleDetectDuplicates = async (dryRun: boolean) => {
     setDetectingDuplicates(true);
@@ -329,10 +304,6 @@ export default function Alertas() {
           <p className="text-muted-foreground mt-1">Gestión y seguimiento de alertas por proyecto</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleGenerateTitles} disabled={generatingTitles}>
-            {generatingTitles ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
-            {generatingTitles ? "Generando..." : "Generar títulos IA"}
-          </Button>
           <Button variant="outline" size="sm" onClick={() => handleDetectDuplicates(true)} disabled={detectingDuplicates}>
             {detectingDuplicates ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Copy className="w-4 h-4 mr-1" />}
             {detectingDuplicates ? "Analizando..." : "Detectar duplicados IA"}
