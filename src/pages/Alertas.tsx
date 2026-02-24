@@ -277,10 +277,23 @@ export default function Alertas() {
     }
   };
 
-  const handleSubmit = (data: AlertaInput & {id?: string;}) => {
+  const handleSubmit = async (data: AlertaInput & {id?: string;}) => {
     if (data.empresa_id === "none") data.empresa_id = null;
     if (pendingCompleteId) {
-      toggleCompletada.mutate({ id: pendingCompleteId, completada: true });
+      const alertaToComplete = alertas?.find(a => a.id === pendingCompleteId);
+      let onBehalfOf: string | undefined;
+      if (alertaToComplete && user && alertaToComplete.usuario_responsable_id !== user.id && !isAdmin) {
+        const deleg = delegacionesActivas?.find(d => d.delegante_id === alertaToComplete.usuario_responsable_id);
+        if (deleg) {
+          const deleganteProfile = profiles?.find(p => p.user_id === deleg.delegante_id);
+          onBehalfOf = deleganteProfile?.display_name || deleganteProfile?.email || "";
+        }
+      }
+      await toggleCompletada.mutateAsync({
+        id: pendingCompleteId,
+        completada: true,
+        on_behalf_of: onBehalfOf,
+      });
       setPendingCompleteId(null);
     }
     if (data.id) {
