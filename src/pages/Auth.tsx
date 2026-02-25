@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import logoAmc from "@/assets/logo-amc.png";
+import { useThemeSettings } from "@/hooks/useThemeSettings";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
@@ -21,6 +22,8 @@ export default function Auth({ onLogin }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { data: theme } = useThemeSettings();
+  const logoSrc = theme?.theme_company_logo || logoAmc;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +52,7 @@ export default function Auth({ onLogin }: Props) {
         className="w-full max-w-sm space-y-6"
       >
         <div className="text-center">
-          <img src={logoAmc} alt="AMC" className="mx-auto w-12 h-12 rounded-xl object-cover mb-4" />
+          <img src={logoSrc} alt="Logo" className="mx-auto w-12 h-12 rounded-xl object-cover mb-4" />
           <h1 className="text-2xl font-bold text-foreground">AMC</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestión Comercial</p>
         </div>

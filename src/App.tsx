@@ -19,7 +19,7 @@ import Clientes from "@/pages/Clientes";
 import CategoriasPage from "@/pages/CategoriasPage";
 import Reporteria from "@/pages/Reporteria";
 import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
-import PersonalizacionPage from "@/pages/PersonalizacionPage";
+
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -53,7 +53,7 @@ function AppRoutes() {
         {isAdmin && <Route path="/estados-proyecto" element={<EstadosProyectoPage />} />}
         {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
         {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
-        {isAdmin && <Route path="/personalizacion" element={<PersonalizacionPage />} />}
+        
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlertaWidget />
