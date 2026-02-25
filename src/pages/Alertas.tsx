@@ -185,8 +185,14 @@ export default function Alertas() {
     if (activeTab === "7dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in7);else
     if (activeTab === "30dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in30);
 
-    if (filterProyecto !== "all") {
-      list = list.filter((a) => a.proyecto_id === filterProyecto);
+    if (filterProyecto !== "all" && proyectosRaw) {
+      const selectedName = proyectosRaw.find((p) => p.id === filterProyecto)?.nombre;
+      if (selectedName) {
+        const siblingIds = new Set(proyectosRaw.filter((p) => p.nombre === selectedName).map((p) => p.id));
+        list = list.filter((a) => siblingIds.has(a.proyecto_id));
+      } else {
+        list = list.filter((a) => a.proyecto_id === filterProyecto);
+      }
     }
 
     if (filterClasificacion.size > 0) {
