@@ -523,7 +523,7 @@ export default function Alertas() {
             <ArrowUpDown className="w-4 h-4 mr-1" />
             {sortDir === "asc" ? "Más antigua" : "Más reciente"}
           </Button>
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar proyecto, alerta, responsable o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
