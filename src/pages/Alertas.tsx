@@ -217,10 +217,18 @@ export default function Alertas() {
     if (search.trim()) {
       const s = search.toLowerCase();
       list = list.filter((a) =>
-      a.texto.toLowerCase().includes(s) ||
-      ((a as any).titulo || "").toLowerCase().includes(s) ||
-      a.proyectos?.nombre?.toLowerCase().includes(s) ||
-      a.empresas?.nombre?.toLowerCase().includes(s)
+        a.texto.toLowerCase().includes(s) ||
+        ((a as any).titulo || "").toLowerCase().includes(s) ||
+        a.proyectos?.nombre?.toLowerCase().includes(s) ||
+        a.empresas?.nombre?.toLowerCase().includes(s) ||
+        a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
+        a.responsable_profile?.email?.toLowerCase().includes(s) ||
+        proyectosRaw?.some(p =>
+          p.id === a.proyecto_id &&
+          p.proyecto_clientes?.some((pc: any) =>
+            pc.clientes?.nombre?.toLowerCase().includes(s)
+          )
+        )
       );
     }
 
@@ -230,7 +238,7 @@ export default function Alertas() {
     });
 
     return list;
-  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, filterClasificacion, sortDir, fechaDesde, fechaHasta]);
+  }, [alertas, activeTab, search, today, in7, in30, filterProyecto, filterClasificacion, sortDir, fechaDesde, fechaHasta, proyectosRaw]);
 
 
   const handleDetectDuplicates = async (dryRun: boolean) => {
@@ -507,7 +515,7 @@ export default function Alertas() {
           </Button>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Buscar alertas..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Buscar proyecto, alerta, responsable o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           {(filterProyecto !== "all" || filterClasificacion.size > 0 || fechaDesde || fechaHasta || search.trim()) && (
             <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive gap-1" onClick={() => { setFilterProyecto("all"); setFilterClasificacion(new Set()); setFechaDesde(undefined); setFechaHasta(undefined); setSearch(""); }}>
