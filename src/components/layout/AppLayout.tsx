@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import logoAmc from "@/assets/logo-amc.png";
+import { useThemeSettings } from "@/hooks/useThemeSettings";
 
 interface Props {
   children: React.ReactNode;
@@ -29,6 +30,13 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
   const [collapsed, setCollapsed] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const location = useLocation();
+  const { data: theme } = useThemeSettings();
+
+  const sidebarStyle: React.CSSProperties = {
+    ...(theme?.theme_sidebar_bg ? { backgroundColor: theme.theme_sidebar_bg } : {}),
+    ...(theme?.theme_sidebar_text ? { color: theme.theme_sidebar_text } : {}),
+  };
+  const accentBg = theme?.theme_accent_color || undefined;
 
   const allNavItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
@@ -50,6 +58,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/usuarios", label: "Usuarios", allowTipo1: false },
     { path: "/empresas", label: "Empresas", allowTipo1: false },
     { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false },
+    { path: "/personalizacion", label: "Personalización", allowTipo1: false },
   ];
 
   const adminSubItems = isAdmin
@@ -67,6 +76,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
         animate={{ width: collapsed ? 72 : 256 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
         className="relative flex flex-col bg-sidebar sidebar-glow border-r border-sidebar-border shrink-0"
+        style={sidebarStyle}
       >
         <div className="flex items-center gap-3 px-5 h-16 border-b border-sidebar-border">
           <img src={logoAmc} alt="AMC" className="w-8 h-8 rounded-lg object-cover shrink-0" />
@@ -93,8 +103,9 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )}
+                style={isActive && accentBg ? { backgroundColor: `${accentBg}33` } : undefined}
               >
-                <item.icon className={cn("w-5 h-5 shrink-0", isActive && "text-sidebar-primary")} />
+                <item.icon className={cn("w-5 h-5 shrink-0", isActive && "text-sidebar-primary")} style={isActive && accentBg ? { color: accentBg } : undefined} />
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="whitespace-nowrap">
