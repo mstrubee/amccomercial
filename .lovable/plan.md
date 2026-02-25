@@ -1,23 +1,22 @@
 
-## Fix: Dropdown selection clipping on left side
 
-### Problem
-When editing/selecting values in dropdown fields (like "Empresa"), the left edge of the selection highlight gets visually clipped. This happens because the scrollable form container has `pr-1` (right padding only) but no left padding, and `overflow-y-auto` causes horizontal clipping.
+## Corregir acceso a empresas para vcabrera@am-c.cl
 
-### Solution
-Add symmetric horizontal padding (`px-2`) to the scrollable form area so that dropdown selections and focus states have enough breathing room on both sides.
+### Problema
+La usuaria `vcabrera@am-c.cl` tiene configurado en sus permisos un filtro que restringe su visibilidad a solo 4 empresas (`empresas_visibles` contiene 4 IDs). Esto le impide ver y actuar sobre alertas/proyectos de otras empresas, lo cual explica los problemas que tuvo al intentar completar alertas delegadas.
 
-### Technical Details
+### Solución
+Actualizar el registro de `user_permissions` para esta usuaria, estableciendo `empresas_visibles` en `null`. Cuando este campo es `null`, el sistema interpreta que tiene acceso a **todas** las empresas (sin restricción).
 
-**File:** `src/components/alertas/AlertaFormDialog.tsx` (line 161)
+### Datos actuales
+- **Usuario:** Valeria Cabrera (vcabrera@am-c.cl)
+- **user_id:** `5552399d-2c75-4bed-a500-e88d3ee68f5e`
+- **empresas_visibles:** 4 empresas especificas (restringido)
+- **secciones_visibles:** `[proyectos, alertas]`
+- **dashboard_widgets:** `[graficos_estado, proyectos_recientes, alertas]`
+- **puede_editar:** true
 
-Change the scrollable container's classes from:
-```
-space-y-4 py-2 overflow-y-auto flex-1 min-h-0 pr-1
-```
-to:
-```
-space-y-4 py-2 overflow-y-auto flex-1 min-h-0 px-2
-```
+### Cambio a ejecutar
+Ejecutar un `UPDATE` en la tabla `user_permissions` para poner `empresas_visibles = null` donde `user_id = '5552399d-2c75-4bed-a500-e88d3ee68f5e'`.
 
-This adds `2px` of padding on both left and right sides, preventing the dropdown highlight from being clipped against the container edge.
+No se requieren cambios de código ni migraciones de esquema. Solo una actualización de datos.
