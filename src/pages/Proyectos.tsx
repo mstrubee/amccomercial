@@ -528,14 +528,6 @@ export default function Proyectos() {
           delay={0.08}
         />
         <KpiCard
-          title="Adjudicados"
-          value={String(kpiStats.adjudicados)}
-          subtitle={`${kpiStats.totalProyectos - kpiStats.adjudicados} en seguimiento`}
-          icon={TrendingUp}
-          variant="success"
-          delay={0.1}
-        />
-        <KpiCard
           title="Ganados"
           value={String(kpiStats.ganados)}
           subtitle="Proyectos ganados"
