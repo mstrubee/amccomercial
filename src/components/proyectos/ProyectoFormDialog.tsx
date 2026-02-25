@@ -30,6 +30,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: ProyectoInput) => void;
   onCreateAlertaFromCategoria?: (context: { proyecto_id: string; empresa_id: string; fecha: string }) => void;
+  onCompleteAlerta?: (alerta: AlertaWithRelations) => void;
   isLoading?: boolean;
   initialData?: ProyectoWithEmpresas;
   mode: "create" | "edit";
@@ -55,7 +56,7 @@ interface EmpresaRow {
   ganado_fecha: string | null;
 }
 
-export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCreateAlertaFromCategoria, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
+export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCreateAlertaFromCategoria, onCompleteAlerta, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -713,7 +714,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   const isOverdue = !a.completada && isBefore(new Date(a.fecha_seguimiento), today);
                   return (
                     <div key={a.id} className={cn("flex items-start gap-2 rounded-md border px-3 py-2 text-xs", a.completada ? "border-border bg-muted/30 opacity-60" : isOverdue ? "border-destructive/30 bg-destructive/5" : "border-border bg-card")}>
-                      {a.completada ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" /> : <Circle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", isOverdue ? "text-destructive" : "text-muted-foreground")} />}
+                      {a.completada ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" /> : <button type="button" onClick={(e) => { e.stopPropagation(); onCompleteAlerta?.(a); }} title="Completar alerta" className="p-0 bg-transparent border-none cursor-pointer hover:scale-110 transition-transform shrink-0 mt-0.5"><Circle className={cn("w-3.5 h-3.5", isOverdue ? "text-destructive" : "text-muted-foreground hover:text-emerald-600")} /></button>}
                       <div className="flex-1 min-w-0">
                         {a.titulo && <div className="font-semibold text-amber-700 text-[11px]">{a.titulo}</div>}
                         <div className={cn("truncate", a.completada && "line-through text-muted-foreground")}>{a.texto}</div>
