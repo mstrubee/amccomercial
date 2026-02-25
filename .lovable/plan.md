@@ -1,22 +1,51 @@
 
 
-## Corregir acceso a empresas para vcabrera@am-c.cl
+## Ampliar la busqueda en Central de Alertas
 
-### Problema
-La usuaria `vcabrera@am-c.cl` tiene configurado en sus permisos un filtro que restringe su visibilidad a solo 4 empresas (`empresas_visibles` contiene 4 IDs). Esto le impide ver y actuar sobre alertas/proyectos de otras empresas, lo cual explica los problemas que tuvo al intentar completar alertas delegadas.
+### Problema actual
+El campo de busqueda en la Central de Alertas solo filtra por texto de la alerta, titulo, nombre del proyecto y nombre de la empresa. No permite buscar por nombre del responsable ni por cliente vinculado al proyecto.
 
-### Solución
-Actualizar el registro de `user_permissions` para esta usuaria, estableciendo `empresas_visibles` en `null`. Cuando este campo es `null`, el sistema interpreta que tiene acceso a **todas** las empresas (sin restricción).
+### Solucion
+Extender el filtro de busqueda para incluir dos campos adicionales:
 
-### Datos actuales
-- **Usuario:** Valeria Cabrera (vcabrera@am-c.cl)
-- **user_id:** `5552399d-2c75-4bed-a500-e88d3ee68f5e`
-- **empresas_visibles:** 4 empresas especificas (restringido)
-- **secciones_visibles:** `[proyectos, alertas]`
-- **dashboard_widgets:** `[graficos_estado, proyectos_recientes, alertas]`
-- **puede_editar:** true
+1. **Responsable**: buscar por `display_name` o `email` del usuario responsable (datos ya disponibles en `responsable_profile` de cada alerta y en la lista `profiles`).
+2. **Cliente**: buscar por nombre del cliente vinculado al proyecto de la alerta (datos disponibles en `proyectosRaw` que ya incluye `proyecto_clientes`).
 
-### Cambio a ejecutar
-Ejecutar un `UPDATE` en la tabla `user_permissions` para poner `empresas_visibles = null` donde `user_id = '5552399d-2c75-4bed-a500-e88d3ee68f5e'`.
+### Detalles tecnicos
 
-No se requieren cambios de código ni migraciones de esquema. Solo una actualización de datos.
+**Archivo:** `src/pages/Alertas.tsx`
+
+**Cambio 1 - Ampliar logica de filtro (lineas 217-225):**
+
+Agregar al filtro de busqueda:
+- `a.responsable_profile?.display_name` y `a.responsable_profile?.email` para buscar por responsable
+- Cruzar `a.proyecto_id` con `proyectosRaw` para obtener los clientes vinculados y buscar por sus nombres
+
+```typescript
+if (search.trim()) {
+  const s = search.toLowerCase();
+  list = list.filter((a) =>
+    a.texto.toLowerCase().includes(s) ||
+    ((a as any).titulo || "").toLowerCase().includes(s) ||
+    a.proyectos?.nombre?.toLowerCase().includes(s) ||
+    a.empresas?.nombre?.toLowerCase().includes(s) ||
+    a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
+    a.responsable_profile?.email?.toLowerCase().includes(s) ||
+    proyectosRaw?.some(p => 
+      p.id === a.proyecto_id && 
+      p.proyecto_clientes?.some(pc => 
+        pc.clientes?.nombre?.toLowerCase().includes(s)
+      )
+    )
+  );
+}
+```
+
+**Cambio 2 - Actualizar placeholder del input (linea 510):**
+
+Cambiar el placeholder de `"Buscar alertas..."` a `"Buscar proyecto, alerta, responsable o cliente..."` para indicar al usuario las opciones de busqueda disponibles.
+
+**Cambio 3 - Actualizar dependencias del useMemo (linea 233):**
+
+Agregar `proyectosRaw` a las dependencias del `useMemo` del filtrado, ya que ahora se usa para buscar clientes. (Nota: `proyectosRaw` probablemente ya esta en las dependencias o se usa indirectamente; verificar y agregar si falta.)
+
