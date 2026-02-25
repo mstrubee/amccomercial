@@ -63,7 +63,7 @@ export default function Alertas() {
   const deleteAlerta = useDeleteAlerta();
   const toggleCompletada = useToggleAlertaCompletada();
   const queryClient = useQueryClient();
-  
+
   const [detectingDuplicates, setDetectingDuplicates] = useState(false);
   const [duplicatesResult, setDuplicatesResult] = useState<{duplicates: any[];total_alertas: number;} | null>(null);
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
@@ -119,7 +119,7 @@ export default function Alertas() {
           const f = JSON.parse(saved);
           if (f.search) setSearch(f.search);
           if (f.activeTab) setActiveTab(f.activeTab);
-          if (f.filterProyecto) { try { setFilterProyecto(new Set(JSON.parse(f.filterProyecto))); } catch {} }
+          if (f.filterProyecto) {try {setFilterProyecto(new Set(JSON.parse(f.filterProyecto)));} catch {}}
           if (f.filterClasificacion) {
             try {setFilterClasificacion(new Set(JSON.parse(f.filterClasificacion)));} catch {}
           }
@@ -188,7 +188,7 @@ export default function Alertas() {
     if (filterProyecto.size > 0 && proyectosRaw) {
       // Collect all sibling IDs for selected projects (projects sharing the same name)
       const allIds = new Set<string>();
-      filterProyecto.forEach(pid => {
+      filterProyecto.forEach((pid) => {
         const selectedName = proyectosRaw.find((p) => p.id === pid)?.nombre;
         if (selectedName) {
           proyectosRaw.filter((p) => p.nombre === selectedName).forEach((p) => allIds.add(p.id));
@@ -221,18 +221,18 @@ export default function Alertas() {
     if (search.trim()) {
       const s = search.toLowerCase();
       list = list.filter((a) =>
-        a.texto.toLowerCase().includes(s) ||
-        ((a as any).titulo || "").toLowerCase().includes(s) ||
-        a.proyectos?.nombre?.toLowerCase().includes(s) ||
-        a.empresas?.nombre?.toLowerCase().includes(s) ||
-        a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
-        a.responsable_profile?.email?.toLowerCase().includes(s) ||
-        proyectosRaw?.some(p =>
-          p.id === a.proyecto_id &&
-          p.proyecto_clientes?.some((pc: any) =>
-            pc.clientes?.nombre?.toLowerCase().includes(s)
-          )
-        )
+      a.texto.toLowerCase().includes(s) ||
+      ((a as any).titulo || "").toLowerCase().includes(s) ||
+      a.proyectos?.nombre?.toLowerCase().includes(s) ||
+      a.empresas?.nombre?.toLowerCase().includes(s) ||
+      a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
+      a.responsable_profile?.email?.toLowerCase().includes(s) ||
+      proyectosRaw?.some((p) =>
+      p.id === a.proyecto_id &&
+      p.proyecto_clientes?.some((pc: any) =>
+      pc.clientes?.nombre?.toLowerCase().includes(s)
+      )
+      )
       );
     }
 
@@ -273,19 +273,19 @@ export default function Alertas() {
   const handleSubmit = async (data: AlertaInput & {id?: string;}) => {
     if (data.empresa_id === "none") data.empresa_id = null;
     if (pendingCompleteId) {
-      const alertaToComplete = alertas?.find(a => a.id === pendingCompleteId);
+      const alertaToComplete = alertas?.find((a) => a.id === pendingCompleteId);
       let onBehalfOf: string | undefined;
       if (alertaToComplete && user && alertaToComplete.usuario_responsable_id !== user.id && !isAdmin) {
-        const deleg = delegacionesActivas?.find(d => d.delegante_id === alertaToComplete.usuario_responsable_id);
+        const deleg = delegacionesActivas?.find((d) => d.delegante_id === alertaToComplete.usuario_responsable_id);
         if (deleg) {
-          const deleganteProfile = profiles?.find(p => p.user_id === deleg.delegante_id);
+          const deleganteProfile = profiles?.find((p) => p.user_id === deleg.delegante_id);
           onBehalfOf = deleganteProfile?.display_name || deleganteProfile?.email || "";
         }
       }
       await toggleCompletada.mutateAsync({
         id: pendingCompleteId,
         completada: true,
-        on_behalf_of: onBehalfOf,
+        on_behalf_of: onBehalfOf
       });
       setPendingCompleteId(null);
     }
@@ -318,7 +318,7 @@ export default function Alertas() {
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Central de Alertas</h1>
+          <h1 className="text-3xl font-bold text-destructive bg-primary-foreground font-sans">Central de Alertas</h1>
           <p className="text-muted-foreground mt-1">Gestión y seguimiento de alertas por proyecto</p>
         </div>
         <div className="flex gap-2">
@@ -344,23 +344,23 @@ export default function Alertas() {
       </motion.div>
 
       {/* Delegation banner */}
-      {delegacionesActivas && delegacionesActivas.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+      {delegacionesActivas && delegacionesActivas.length > 0 &&
+      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
           <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px]">Delegación</Badge>
           <span className="text-amber-800 dark:text-amber-200">
             Puedes completar alertas a nombre de:{" "}
             {delegacionesActivas.map((d, i) => {
-              const p = profiles?.find((p) => p.user_id === d.delegante_id);
-              return (
-                <strong key={d.id}>
+            const p = profiles?.find((p) => p.user_id === d.delegante_id);
+            return (
+              <strong key={d.id}>
                   {p?.display_name || p?.email || d.delegante_id}
                   {i < delegacionesActivas.length - 1 ? ", " : ""}
-                </strong>
-              );
-            })}
+                </strong>);
+
+          })}
           </span>
         </div>
-      )}
+      }
 
       {/* KPIs — clickable filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -393,17 +393,17 @@ export default function Alertas() {
                       const isSelected = filterProyecto.has(p.id);
                       return (
                         <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => {
-                          setFilterProyecto(prev => {
+                          setFilterProyecto((prev) => {
                             const next = new Set(prev);
-                            if (next.has(p.id)) next.delete(p.id);
-                            else next.add(p.id);
+                            if (next.has(p.id)) next.delete(p.id);else
+                            next.add(p.id);
                             return next;
                           });
                         }}>
                           <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
                           #{p.numero} {p.nombre}
-                        </CommandItem>
-                      );
+                        </CommandItem>);
+
                     })}
                   </CommandGroup>
                 </CommandList>
@@ -527,12 +527,12 @@ export default function Alertas() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar proyecto, alerta, responsable o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
-          {(filterProyecto.size > 0 || filterClasificacion.size > 0 || fechaDesde || fechaHasta || search.trim()) && (
-            <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive gap-1" onClick={() => { setFilterProyecto(new Set()); setFilterClasificacion(new Set()); setFechaDesde(undefined); setFechaHasta(undefined); setSearch(""); }}>
+          {(filterProyecto.size > 0 || filterClasificacion.size > 0 || fechaDesde || fechaHasta || search.trim()) &&
+          <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive gap-1" onClick={() => {setFilterProyecto(new Set());setFilterClasificacion(new Set());setFechaDesde(undefined);setFechaHasta(undefined);setSearch("");}}>
               <RotateCcw className="w-3.5 h-3.5" />
               Limpiar filtros
             </Button>
-          )}
+          }
         </div>
       </div>
 
