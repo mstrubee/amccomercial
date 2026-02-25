@@ -1,51 +1,74 @@
 
 
-## Ampliar la busqueda en Central de Alertas
+## Personalización Visual desde Administración
 
-### Problema actual
-El campo de busqueda en la Central de Alertas solo filtra por texto de la alerta, titulo, nombre del proyecto y nombre de la empresa. No permite buscar por nombre del responsable ni por cliente vinculado al proyecto.
+### Resumen
+Agregar una nueva sección en el panel de Administración llamada **"Personalización"** donde el administrador pueda configurar:
+1. **Color del navbar (sidebar)** - Color de fondo personalizado
+2. **Tipografía de elementos seleccionados** - Familia de fuente para los items activos del menú y en general en el sistema
 
-### Solucion
-Extender el filtro de busqueda para incluir dos campos adicionales:
+Los valores se guardarán en la tabla `app_settings` (ya existente) y se aplicarán dinámicamente como CSS custom properties en toda la aplicación.
 
-1. **Responsable**: buscar por `display_name` o `email` del usuario responsable (datos ya disponibles en `responsable_profile` de cada alerta y en la lista `profiles`).
-2. **Cliente**: buscar por nombre del cliente vinculado al proyecto de la alerta (datos disponibles en `proyectosRaw` que ya incluye `proyecto_clientes`).
+### Detalles técnicos
 
-### Detalles tecnicos
+**1. Nueva página: `src/pages/PersonalizacionPage.tsx`**
 
-**Archivo:** `src/pages/Alertas.tsx`
+Formulario con:
+- Un color picker para el color de fondo del sidebar (`sidebar_bg_color`)
+- Un color picker para el color de texto del sidebar (`sidebar_text_color`) 
+- Un color picker para el color de acento/items activos (`sidebar_accent_color`)
+- Un selector de fuente (dropdown) con opciones: Inter (default), Roboto, Poppins, Montserrat, Open Sans, Lato
+- Vista previa en vivo de los cambios antes de guardar
+- Botón "Restaurar valores predeterminados"
 
-**Cambio 1 - Ampliar logica de filtro (lineas 217-225):**
+Usa `app_settings` con keys: `theme_sidebar_bg`, `theme_sidebar_text`, `theme_accent_color`, `theme_font_family`
 
-Agregar al filtro de busqueda:
-- `a.responsable_profile?.display_name` y `a.responsable_profile?.email` para buscar por responsable
-- Cruzar `a.proyecto_id` con `proyectosRaw` para obtener los clientes vinculados y buscar por sus nombres
+**2. Nuevo hook: `src/hooks/useThemeSettings.ts`**
 
-```typescript
-if (search.trim()) {
-  const s = search.toLowerCase();
-  list = list.filter((a) =>
-    a.texto.toLowerCase().includes(s) ||
-    ((a as any).titulo || "").toLowerCase().includes(s) ||
-    a.proyectos?.nombre?.toLowerCase().includes(s) ||
-    a.empresas?.nombre?.toLowerCase().includes(s) ||
-    a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
-    a.responsable_profile?.email?.toLowerCase().includes(s) ||
-    proyectosRaw?.some(p => 
-      p.id === a.proyecto_id && 
-      p.proyecto_clientes?.some(pc => 
-        pc.clientes?.nombre?.toLowerCase().includes(s)
-      )
-    )
-  );
-}
+- `useThemeSettings()` - query que lee las 4 keys de `app_settings` 
+- `useSaveThemeSetting()` - mutation para upsert un key/value
+- Al cargar, aplica las variables CSS dinámicamente en `document.documentElement.style`
+
+**3. Modificar `src/components/layout/AppLayout.tsx`**
+
+- Importar `useThemeSettings` y aplicar los estilos inline en el sidebar:
+  - `backgroundColor` desde `theme_sidebar_bg`
+  - `color` desde `theme_sidebar_text`
+  - Acento desde `theme_accent_color`
+- Aplicar la fuente globalmente via `document.documentElement.style.setProperty('--font-family', ...)`
+
+**4. Modificar `src/App.tsx`**
+
+- Importar `useThemeSettings` en `AppRoutes` para que los estilos se apliquen al cargar la app
+- Agregar ruta `/personalizacion` para admins
+
+**5. Modificar `src/components/layout/AppLayout.tsx` (navegación)**
+
+- Agregar `{ path: "/personalizacion", label: "Personalización", allowTipo1: false }` a `allAdminSubItems`
+
+**6. Modificar `src/index.css`**
+
+- Agregar importaciones de Google Fonts para las familias adicionales (Roboto, Poppins, Montserrat, Open Sans, Lato)
+- Usar `var(--custom-font, 'Inter')` en el body para que sea sobreescribible
+
+**7. Migración SQL**
+
+Insertar las filas iniciales en `app_settings` con valores por defecto (no se necesitan nuevas tablas ni políticas RLS ya que `app_settings` ya tiene las correctas para admins, y SELECT está permitido para todos los autenticados via la policy existente).
+
+Nota: Actualmente `app_settings` no tiene policy de SELECT para autenticados. Se necesitará agregar una policy `SELECT` para `authenticated` para que todos los usuarios puedan leer la configuración del tema.
+
+```sql
+-- Add read policy for all authenticated users
+CREATE POLICY "Authenticated can read app_settings" 
+  ON public.app_settings FOR SELECT 
+  TO authenticated 
+  USING (true);
+
+-- Insert default theme values
+INSERT INTO public.app_settings (key, value) VALUES
+  ('theme_sidebar_bg', ''),
+  ('theme_sidebar_text', ''),
+  ('theme_accent_color', ''),
+  ('theme_font_family', 'Inter')
+ON CONFLICT DO NOTHING;
 ```
-
-**Cambio 2 - Actualizar placeholder del input (linea 510):**
-
-Cambiar el placeholder de `"Buscar alertas..."` a `"Buscar proyecto, alerta, responsable o cliente..."` para indicar al usuario las opciones de busqueda disponibles.
-
-**Cambio 3 - Actualizar dependencias del useMemo (linea 233):**
-
-Agregar `proyectosRaw` a las dependencias del `useMemo` del filtrado, ya que ahora se usa para buscar clientes. (Nota: `proyectosRaw` probablemente ya esta en las dependencias o se usa indirectamente; verificar y agregar si falta.)
-
