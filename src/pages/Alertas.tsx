@@ -104,7 +104,7 @@ export default function Alertas() {
   const [treeRootId, setTreeRootId] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [showClasificaciones, setShowClasificaciones] = useState(false);
-  const [filterProyecto, setFilterProyecto] = useState<string>("all");
+  const [filterProyecto, setFilterProyecto] = useState<Set<string>>(new Set());
   const [filterClasificacion, setFilterClasificacion] = useState<Set<string>>(new Set());
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
@@ -119,7 +119,7 @@ export default function Alertas() {
           const f = JSON.parse(saved);
           if (f.search) setSearch(f.search);
           if (f.activeTab) setActiveTab(f.activeTab);
-          if (f.filterProyecto) setFilterProyecto(f.filterProyecto);
+          if (f.filterProyecto) { try { setFilterProyecto(new Set(JSON.parse(f.filterProyecto))); } catch {} }
           if (f.filterClasificacion) {
             try {setFilterClasificacion(new Set(JSON.parse(f.filterClasificacion)));} catch {}
           }
@@ -134,7 +134,7 @@ export default function Alertas() {
 
   const saveFiltersAndNavigate = (proyectoId: string, empresaId?: string | null) => {
     sessionStorage.setItem("alertas-filters", JSON.stringify({
-      search, activeTab, filterProyecto, filterClasificacion: JSON.stringify([...filterClasificacion]), sortDir,
+      search, activeTab, filterProyecto: JSON.stringify([...filterProyecto]), filterClasificacion: JSON.stringify([...filterClasificacion]), sortDir,
       fechaDesde: fechaDesde?.toISOString(),
       fechaHasta: fechaHasta?.toISOString()
     }));
@@ -185,14 +185,18 @@ export default function Alertas() {
     if (activeTab === "7dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in7);else
     if (activeTab === "30dias") list = list.filter((a) => !a.completada && !isOverdue(a) && parseLocalDate(a.fecha_seguimiento) <= in30);
 
-    if (filterProyecto !== "all" && proyectosRaw) {
-      const selectedName = proyectosRaw.find((p) => p.id === filterProyecto)?.nombre;
-      if (selectedName) {
-        const siblingIds = new Set(proyectosRaw.filter((p) => p.nombre === selectedName).map((p) => p.id));
-        list = list.filter((a) => siblingIds.has(a.proyecto_id));
-      } else {
-        list = list.filter((a) => a.proyecto_id === filterProyecto);
-      }
+    if (filterProyecto.size > 0 && proyectosRaw) {
+      // Collect all sibling IDs for selected projects (projects sharing the same name)
+      const allIds = new Set<string>();
+      filterProyecto.forEach(pid => {
+        const selectedName = proyectosRaw.find((p) => p.id === pid)?.nombre;
+        if (selectedName) {
+          proyectosRaw.filter((p) => p.nombre === selectedName).forEach((p) => allIds.add(p.id));
+        } else {
+          allIds.add(pid);
+        }
+      });
+      list = list.filter((a) => allIds.has(a.proyecto_id));
     }
 
     if (filterClasificacion.size > 0) {
@@ -373,8 +377,8 @@ export default function Alertas() {
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" role="combobox" className="w-[21rem] justify-between font-normal h-9 text-sm">
-                {filterProyecto !== "all" ?
-                `#${proyectosList.find((p) => p.id === filterProyecto)?.numero} ${proyectosList.find((p) => p.id === filterProyecto)?.nombre}` :
+                {filterProyecto.size > 0 ?
+                `Proyectos (${filterProyecto.size})` :
                 "Todos los proyectos"}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
@@ -385,16 +389,22 @@ export default function Alertas() {
                 <CommandList>
                   <CommandEmpty>Sin resultados.</CommandEmpty>
                   <CommandGroup>
-                    <CommandItem value="todos los proyectos" onSelect={() => setFilterProyecto("all")}>
-                      <Check className={cn("mr-2 h-4 w-4", filterProyecto === "all" ? "opacity-100" : "opacity-0")} />
-                      Todos los proyectos
-                    </CommandItem>
-                    {proyectosList.map((p) =>
-                    <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => setFilterProyecto(p.id)}>
-                        <Check className={cn("mr-2 h-4 w-4", filterProyecto === p.id ? "opacity-100" : "opacity-0")} />
-                        #{p.numero} {p.nombre}
-                      </CommandItem>
-                    )}
+                    {proyectosList.map((p) => {
+                      const isSelected = filterProyecto.has(p.id);
+                      return (
+                        <CommandItem key={p.id} value={`${p.numero} ${p.nombre}`} onSelect={() => {
+                          setFilterProyecto(prev => {
+                            const next = new Set(prev);
+                            if (next.has(p.id)) next.delete(p.id);
+                            else next.add(p.id);
+                            return next;
+                          });
+                        }}>
+                          <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                          #{p.numero} {p.nombre}
+                        </CommandItem>
+                      );
+                    })}
                   </CommandGroup>
                 </CommandList>
               </Command>
@@ -517,8 +527,8 @@ export default function Alertas() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Buscar proyecto, alerta, responsable o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
-          {(filterProyecto !== "all" || filterClasificacion.size > 0 || fechaDesde || fechaHasta || search.trim()) && (
-            <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive gap-1" onClick={() => { setFilterProyecto("all"); setFilterClasificacion(new Set()); setFechaDesde(undefined); setFechaHasta(undefined); setSearch(""); }}>
+          {(filterProyecto.size > 0 || filterClasificacion.size > 0 || fechaDesde || fechaHasta || search.trim()) && (
+            <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive gap-1" onClick={() => { setFilterProyecto(new Set()); setFilterClasificacion(new Set()); setFechaDesde(undefined); setFechaHasta(undefined); setSearch(""); }}>
               <RotateCcw className="w-3.5 h-3.5" />
               Limpiar filtros
             </Button>
