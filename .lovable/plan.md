@@ -1,74 +1,100 @@
 
 
-## Personalización Visual desde Administración
+## Personalización Avanzada en Ventana Flotante
 
 ### Resumen
-Agregar una nueva sección en el panel de Administración llamada **"Personalización"** donde el administrador pueda configurar:
-1. **Color del navbar (sidebar)** - Color de fondo personalizado
-2. **Tipografía de elementos seleccionados** - Familia de fuente para los items activos del menú y en general en el sistema
+Transformar la página de Personalización actual en un **diálogo flotante (Dialog)** accesible desde el menú de Administración, y agregar tres nuevas funcionalidades:
+1. **Importar fuentes personalizadas** (Google Fonts por URL)
+2. **Gestionar logo de la empresa** (subir, ver, editar, eliminar)
+3. **Color de fondo del sistema** (no solo sidebar)
+4. **Posición del widget flotante de alertas** (esquina configurable)
 
-Los valores se guardarán en la tabla `app_settings` (ya existente) y se aplicarán dinámicamente como CSS custom properties en toda la aplicación.
+---
+
+### Cambios planificados
+
+#### 1. Convertir PersonalizacionPage a Dialog flotante
+
+- Reemplazar la página `/personalizacion` con un **Dialog** que se abre desde el sidebar
+- En `AppLayout.tsx`, el item "Personalización" en lugar de navegar a una ruta, abrirá el diálogo directamente
+- Eliminar la ruta `/personalizacion` de `App.tsx`
+- El diálogo usará tabs para organizar las secciones: Colores, Tipografía, Logo, Alertas
+
+#### 2. Importar fuentes personalizadas
+
+- Agregar un campo de texto donde el admin puede pegar una URL de Google Fonts (ej: `https://fonts.googleapis.com/css2?family=Nunito...`)
+- Al guardar, se inyecta un `<link>` en el `<head>` del documento
+- Se guarda en `app_settings` con key `theme_custom_font_url`
+- El campo de fuente existente se mantiene pero se agregan las fuentes importadas como opciones adicionales
+- Nuevo key en `app_settings`: `theme_custom_font_url`
+
+#### 3. Logo de la empresa
+
+- Crear un bucket de storage público llamado `company-assets` para almacenar el logo
+- UI: mostrar el logo actual, botones para subir uno nuevo o eliminar
+- Guardar la URL del logo en `app_settings` con key `theme_company_logo`
+- Actualizar `AppLayout.tsx` y `Auth.tsx` para usar el logo personalizado (con fallback al logo AMC por defecto)
+
+#### 4. Color de fondo del sistema
+
+- Agregar un color picker para `theme_background_color`
+- Aplicar como CSS variable `--custom-bg` en el hook `useThemeSettings`
+- En `index.css`, el body usará `var(--custom-bg)` como override cuando esté definido
+
+#### 5. Posición del widget de alertas
+
+- Agregar un selector con 4 opciones: inferior-derecha (default), inferior-izquierda, superior-derecha, superior-izquierda
+- Guardar en `app_settings` con key `theme_alert_position`
+- El hook `useThemeSettings` expondrá este valor
+- `AlertaWidget.tsx` leerá la posición y aplicará las clases CSS correspondientes
+
+---
 
 ### Detalles técnicos
 
-**1. Nueva página: `src/pages/PersonalizacionPage.tsx`**
-
-Formulario con:
-- Un color picker para el color de fondo del sidebar (`sidebar_bg_color`)
-- Un color picker para el color de texto del sidebar (`sidebar_text_color`) 
-- Un color picker para el color de acento/items activos (`sidebar_accent_color`)
-- Un selector de fuente (dropdown) con opciones: Inter (default), Roboto, Poppins, Montserrat, Open Sans, Lato
-- Vista previa en vivo de los cambios antes de guardar
-- Botón "Restaurar valores predeterminados"
-
-Usa `app_settings` con keys: `theme_sidebar_bg`, `theme_sidebar_text`, `theme_accent_color`, `theme_font_family`
-
-**2. Nuevo hook: `src/hooks/useThemeSettings.ts`**
-
-- `useThemeSettings()` - query que lee las 4 keys de `app_settings` 
-- `useSaveThemeSetting()` - mutation para upsert un key/value
-- Al cargar, aplica las variables CSS dinámicamente en `document.documentElement.style`
-
-**3. Modificar `src/components/layout/AppLayout.tsx`**
-
-- Importar `useThemeSettings` y aplicar los estilos inline en el sidebar:
-  - `backgroundColor` desde `theme_sidebar_bg`
-  - `color` desde `theme_sidebar_text`
-  - Acento desde `theme_accent_color`
-- Aplicar la fuente globalmente via `document.documentElement.style.setProperty('--font-family', ...)`
-
-**4. Modificar `src/App.tsx`**
-
-- Importar `useThemeSettings` en `AppRoutes` para que los estilos se apliquen al cargar la app
-- Agregar ruta `/personalizacion` para admins
-
-**5. Modificar `src/components/layout/AppLayout.tsx` (navegación)**
-
-- Agregar `{ path: "/personalizacion", label: "Personalización", allowTipo1: false }` a `allAdminSubItems`
-
-**6. Modificar `src/index.css`**
-
-- Agregar importaciones de Google Fonts para las familias adicionales (Roboto, Poppins, Montserrat, Open Sans, Lato)
-- Usar `var(--custom-font, 'Inter')` en el body para que sea sobreescribible
-
-**7. Migración SQL**
-
-Insertar las filas iniciales en `app_settings` con valores por defecto (no se necesitan nuevas tablas ni políticas RLS ya que `app_settings` ya tiene las correctas para admins, y SELECT está permitido para todos los autenticados via la policy existente).
-
-Nota: Actualmente `app_settings` no tiene policy de SELECT para autenticados. Se necesitará agregar una policy `SELECT` para `authenticated` para que todos los usuarios puedan leer la configuración del tema.
-
+**Migración SQL:**
 ```sql
--- Add read policy for all authenticated users
-CREATE POLICY "Authenticated can read app_settings" 
-  ON public.app_settings FOR SELECT 
-  TO authenticated 
-  USING (true);
+-- Create public storage bucket for company logo
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('company-assets', 'company-assets', true);
 
--- Insert default theme values
-INSERT INTO public.app_settings (key, value) VALUES
-  ('theme_sidebar_bg', ''),
-  ('theme_sidebar_text', ''),
-  ('theme_accent_color', ''),
-  ('theme_font_family', 'Inter')
-ON CONFLICT DO NOTHING;
+-- RLS: anyone can read, only admins can upload/delete
+CREATE POLICY "Public read company-assets" ON storage.objects
+  FOR SELECT USING (bucket_id = 'company-assets');
+
+CREATE POLICY "Admins can upload company-assets" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'company-assets' 
+    AND has_role(auth.uid(), 'admin'::app_role)
+  );
+
+CREATE POLICY "Admins can delete company-assets" ON storage.objects
+  FOR DELETE USING (
+    bucket_id = 'company-assets' 
+    AND has_role(auth.uid(), 'admin'::app_role)
+  );
+
+CREATE POLICY "Admins can update company-assets" ON storage.objects
+  FOR UPDATE USING (
+    bucket_id = 'company-assets' 
+    AND has_role(auth.uid(), 'admin'::app_role)
+  );
 ```
+
+**Archivos a modificar:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/hooks/useThemeSettings.ts` | Agregar keys: `theme_company_logo`, `theme_custom_font_url`, `theme_background_color`, `theme_alert_position`. Aplicar CSS variables correspondientes e inyectar link de fuente. |
+| `src/pages/PersonalizacionPage.tsx` | Convertir a componente `PersonalizacionDialog` con tabs (Colores, Tipografía, Logo, Alertas). Agregar upload de logo, import de fuentes, color de fondo, y selector de posición de alertas. |
+| `src/components/layout/AppLayout.tsx` | Cambiar el link de Personalización por un botón que abre el Dialog. Usar logo personalizado con fallback. Pasar `isAdmin` para controlar visibilidad del botón de personalización dentro del diálogo. |
+| `src/App.tsx` | Eliminar ruta `/personalizacion`. |
+| `src/components/alertas/AlertaWidget.tsx` | Leer `theme_alert_position` del hook y aplicar posición dinámica (bottom-right, bottom-left, top-right, top-left). |
+| `src/pages/Auth.tsx` | Usar logo personalizado si existe (con fallback). |
+
+**Nuevas keys en `app_settings`:**
+- `theme_company_logo` - URL del logo subido
+- `theme_custom_font_url` - URL de Google Fonts personalizada
+- `theme_background_color` - Color de fondo del sistema
+- `theme_alert_position` - Posición del widget: `bottom-right` | `bottom-left` | `top-right` | `top-left`
+
