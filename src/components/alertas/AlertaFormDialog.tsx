@@ -165,9 +165,11 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
             <Popover open={proyectoPopoverOpen} onOpenChange={setProyectoPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                  {proyectoId
-                    ? `#${proyectos.find(p => p.id === proyectoId)?.numero} — ${proyectos.find(p => p.id === proyectoId)?.nombre}`
-                    : "Seleccionar proyecto"}
+                  <span className="truncate">
+                    {proyectoId
+                      ? `#${proyectos.find(p => p.id === proyectoId)?.numero} — ${proyectos.find(p => p.id === proyectoId)?.nombre}`
+                      : "Seleccionar proyecto"}
+                  </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
