@@ -364,7 +364,7 @@ export default function Alertas() {
         <div className="flex gap-2 items-center flex-wrap">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" role="combobox" className="w-56 justify-between font-normal h-9 text-sm">
+              <Button variant="outline" role="combobox" className="w-[21rem] justify-between font-normal h-9 text-sm">
                 {filterProyecto !== "all" ?
                 `#${proyectosList.find((p) => p.id === filterProyecto)?.numero} ${proyectosList.find((p) => p.id === filterProyecto)?.nombre}` :
                 "Todos los proyectos"}
