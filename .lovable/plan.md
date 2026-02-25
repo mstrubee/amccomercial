@@ -1,62 +1,23 @@
 
+## Fix: Dropdown selection clipping on left side
 
-## Correccion: Alerta no se completa en flujo "Completar y crear nueva"
+### Problem
+When editing/selecting values in dropdown fields (like "Empresa"), the left edge of the selection highlight gets visually clipped. This happens because the scrollable form container has `pr-1` (right padding only) but no left padding, and `overflow-y-auto` causes horizontal clipping.
 
-### Causa raiz
+### Solution
+Add symmetric horizontal padding (`px-2`) to the scrollable form area so that dropdown selections and focus states have enough breathing room on both sides.
 
-El problema NO es la condicion de carrera entre mutaciones (eso ya se corrigio con `mutateAsync`). El problema real es que `AlertaFormDialog` llama `onClose()` inmediatamente despues de `onSubmit()` sin esperar a que termine:
+### Technical Details
 
+**File:** `src/components/alertas/AlertaFormDialog.tsx` (line 161)
+
+Change the scrollable container's classes from:
 ```
-// AlertaFormDialog.tsx linea 131-149
-const handleSubmit = () => {
-  onSubmit({...data...});  // async, retorna Promise sin awaitar
-  onClose();               // se ejecuta de inmediato
-};
+space-y-4 py-2 overflow-y-auto flex-1 min-h-0 pr-1
 ```
-
-Y en `Alertas.tsx` linea 679, el `onClose` del dialog limpia `pendingCompleteId`:
+to:
 ```
-onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); setPendingCompleteId(null); }}
-```
-
-Entonces cuando el `handleSubmit` async finalmente evalua `if (pendingCompleteId)`, este ya es `null` y nunca ejecuta la completacion.
-
-### Solucion
-
-Dos cambios minimos:
-
-**1. `src/components/alertas/AlertaFormDialog.tsx` (linea 131)**
-
-Cambiar `handleSubmit` para que espere a que `onSubmit` termine antes de cerrar:
-
-```typescript
-const handleSubmit = async () => {
-  if (!proyectoId || !texto.trim() || !fechaSeguimiento) return;
-  // ... construir data igual que antes ...
-  await onSubmit({...data...});
-  onClose();
-};
+space-y-4 py-2 overflow-y-auto flex-1 min-h-0 px-2
 ```
 
-Y actualizar el tipo de `onSubmit` en Props (linea 22):
-```typescript
-onSubmit: (data: AlertaInput & { id?: string }) => void | Promise<void>;
-```
-
-**2. `src/pages/Alertas.tsx` (linea 679)**
-
-Mover `setPendingCompleteId(null)` fuera del `onClose` del dialog, ya que ahora se limpia dentro de `handleSubmit` (linea 297) despues del `await`:
-
-```typescript
-onClose={() => { setDialogOpen(false); setEditTarget(null); setCreateDefaults({}); }}
-```
-
-El `setPendingCompleteId(null)` ya existe en la linea 297 de `handleSubmit`, despues de la completacion exitosa. Para el caso donde el usuario cancela sin enviar, se limpia cuando se abre una nueva alerta o en el propio flujo.
-
-### Archivos a modificar
-
-| Archivo | Cambio |
-|---|---|
-| `src/components/alertas/AlertaFormDialog.tsx` | `handleSubmit` pasa a ser `async`, `onSubmit` type acepta `Promise<void>`, se usa `await onSubmit(...)` antes de `onClose()` |
-| `src/pages/Alertas.tsx` | Quitar `setPendingCompleteId(null)` del `onClose` del dialog para evitar limpieza prematura |
-
+This adds `2px` of padding on both left and right sides, preventing the dropdown highlight from being clipped against the container edge.
