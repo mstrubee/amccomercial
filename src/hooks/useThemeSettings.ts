@@ -7,6 +7,10 @@ const THEME_KEYS = [
   "theme_sidebar_text",
   "theme_accent_color",
   "theme_font_family",
+  "theme_custom_font_url",
+  "theme_company_logo",
+  "theme_background_color",
+  "theme_alert_position",
 ] as const;
 
 export type ThemeKey = (typeof THEME_KEYS)[number];
@@ -16,6 +20,10 @@ export interface ThemeSettings {
   theme_sidebar_text: string;
   theme_accent_color: string;
   theme_font_family: string;
+  theme_custom_font_url: string;
+  theme_company_logo: string;
+  theme_background_color: string;
+  theme_alert_position: string;
 }
 
 const DEFAULTS: ThemeSettings = {
@@ -23,6 +31,10 @@ const DEFAULTS: ThemeSettings = {
   theme_sidebar_text: "",
   theme_accent_color: "",
   theme_font_family: "Inter",
+  theme_custom_font_url: "",
+  theme_company_logo: "",
+  theme_background_color: "",
+  theme_alert_position: "bottom-right",
 };
 
 export function useThemeSettings() {
@@ -50,7 +62,14 @@ export function useThemeSettings() {
   // Apply CSS variables whenever data changes
   useEffect(() => {
     if (!query.data) return;
-    const { theme_sidebar_bg, theme_sidebar_text, theme_accent_color, theme_font_family } = query.data;
+    const {
+      theme_sidebar_bg,
+      theme_sidebar_text,
+      theme_accent_color,
+      theme_font_family,
+      theme_custom_font_url,
+      theme_background_color,
+    } = query.data;
     const root = document.documentElement;
 
     if (theme_sidebar_bg) {
@@ -71,8 +90,32 @@ export function useThemeSettings() {
       root.style.removeProperty("--custom-accent");
     }
 
+    if (theme_background_color) {
+      root.style.setProperty("--custom-bg", theme_background_color);
+      document.body.style.backgroundColor = theme_background_color;
+    } else {
+      root.style.removeProperty("--custom-bg");
+      document.body.style.removeProperty("background-color");
+    }
+
     const font = theme_font_family || "Inter";
     root.style.setProperty("--custom-font", `'${font}', system-ui, sans-serif`);
+
+    // Inject custom font URL
+    const existingLink = document.getElementById("custom-font-link");
+    if (theme_custom_font_url) {
+      if (existingLink) {
+        (existingLink as HTMLLinkElement).href = theme_custom_font_url;
+      } else {
+        const link = document.createElement("link");
+        link.id = "custom-font-link";
+        link.rel = "stylesheet";
+        link.href = theme_custom_font_url;
+        document.head.appendChild(link);
+      }
+    } else {
+      existingLink?.remove();
+    }
   }, [query.data]);
 
   return query;
@@ -83,7 +126,6 @@ export function useSaveThemeSetting() {
 
   return useMutation({
     mutationFn: async ({ key, value }: { key: ThemeKey; value: string }) => {
-      // Try update first, then insert if no rows updated
       const { data: existing } = await supabase
         .from("app_settings")
         .select("id")

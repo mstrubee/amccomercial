@@ -17,6 +17,7 @@ import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import CompleteAlertaDialog from "./CompleteAlertaDialog";
 import AlertaFormDialog from "./AlertaFormDialog";
+import { useThemeSettings } from "@/hooks/useThemeSettings";
 
 type WidgetFilter = "hoy" | "semana" | "mes";
 
@@ -33,6 +34,8 @@ export default function AlertaWidget() {
   const { user } = useAuth();
   const { data: categoriasComerciales } = useCategorias();
   const widgetQc = useQueryClient();
+  const { data: themeData } = useThemeSettings();
+  const alertPosition = themeData?.theme_alert_position || "bottom-right";
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
@@ -100,7 +103,12 @@ export default function AlertaWidget() {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-50 w-80">
+      <div className={cn("fixed z-50 w-80", {
+        "bottom-4 right-4": alertPosition === "bottom-right",
+        "bottom-4 left-4": alertPosition === "bottom-left",
+        "top-4 right-4": alertPosition === "top-right",
+        "top-4 left-4": alertPosition === "top-left",
+      })}>
         <motion.div layout className="bg-card border border-border rounded-xl shadow-lg overflow-hidden">
           <button
             onClick={() => setExpanded(!expanded)}

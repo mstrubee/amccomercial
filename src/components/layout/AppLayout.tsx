@@ -11,11 +11,13 @@ import {
   LogOut,
   Settings,
   ChevronDown,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import logoAmc from "@/assets/logo-amc.png";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
+import PersonalizacionDialog from "@/components/personalizacion/PersonalizacionDialog";
 
 interface Props {
   children: React.ReactNode;
@@ -29,6 +31,7 @@ interface Props {
 export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut, userEmail, canAccessSection }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [personalizacionOpen, setPersonalizacionOpen] = useState(false);
   const location = useLocation();
   const { data: theme } = useThemeSettings();
 
@@ -37,6 +40,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     ...(theme?.theme_sidebar_text ? { color: theme.theme_sidebar_text } : {}),
   };
   const accentBg = theme?.theme_accent_color || undefined;
+  const logoSrc = theme?.theme_company_logo || logoAmc;
 
   const allNavItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
@@ -45,7 +49,6 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/alertas", label: "Tareas y Alertas", icon: Bell, key: "alertas" },
   ];
 
-  // Filter nav items based on permissions
   const navItems = canAccessSection
     ? allNavItems.filter(item => canAccessSection(item.key))
     : allNavItems;
@@ -58,7 +61,6 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/usuarios", label: "Usuarios", allowTipo1: false },
     { path: "/empresas", label: "Empresas", allowTipo1: false },
     { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false },
-    { path: "/personalizacion", label: "Personalización", allowTipo1: false },
   ];
 
   const adminSubItems = isAdmin
@@ -79,7 +81,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
         style={sidebarStyle}
       >
         <div className="flex items-center gap-3 px-5 h-16 border-b border-sidebar-border">
-          <img src={logoAmc} alt="AMC" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+          <img src={logoSrc} alt="Logo" className="w-8 h-8 rounded-lg object-cover shrink-0" />
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
@@ -159,6 +161,18 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
                         </Link>
                       );
                     })}
+                    {/* Personalización button (admin only) */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => setPersonalizacionOpen(true)}
+                        className="w-full text-left block px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-accent-foreground"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Palette className="w-3.5 h-3.5" />
+                          Personalización
+                        </span>
+                      </button>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -201,6 +215,9 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
       <main className="flex-1 overflow-hidden">
         <div className="p-8 h-full overflow-auto">{children}</div>
       </main>
+
+      {/* Personalización Dialog */}
+      <PersonalizacionDialog open={personalizacionOpen} onOpenChange={setPersonalizacionOpen} />
     </div>
   );
 }
