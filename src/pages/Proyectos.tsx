@@ -868,6 +868,7 @@ export default function Proyectos() {
           isLoading={updateProyecto.isPending}
           isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => a.proyecto_id === editTarget.id)}
+          onCompleteAlerta={(a) => setAlertaCompleteTarget(a)}
           onCreateAlertaFromCategoria={(ctx) => {
             setAlertaCreateContext({ proyecto_id: ctx.proyecto_id, empresa_id: ctx.empresa_id, defaultTexto: `Seguimiento categoría` });
           }}
@@ -888,6 +889,7 @@ export default function Proyectos() {
           isLoading={updateProyecto.isPending}
           isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => editParentGroup.some(p => p.id === a.proyecto_id))}
+          onCompleteAlerta={(a) => setAlertaCompleteTarget(a)}
           onSubmit={async (data) => {
             const sharedFields = {
               nombre: data.nombre, region: data.region, direccion: data.direccion, comuna: data.comuna,
