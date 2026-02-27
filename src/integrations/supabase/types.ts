@@ -1043,6 +1043,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_activity_thresholds: {
+        Row: {
+          created_at: string
+          id: string
+          idle_minutes: number
+          offline_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idle_minutes?: number
+          offline_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idle_minutes?: number
+          offline_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_permissions: {
         Row: {
           created_at: string
