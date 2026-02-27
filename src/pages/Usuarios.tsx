@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,10 @@ import { toast } from "sonner";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useUserPermissions, useSavePermissions, ALL_SECTIONS, ALL_DASHBOARD_WIDGETS } from "@/hooks/usePermissions";
 import DelegacionesDialog from "@/components/usuarios/DelegacionesDialog";
+import ActivityThresholdsDialog from "@/components/usuarios/ActivityThresholdsDialog";
+import { useActivityThresholds, getActivityStatus, type ProfilePresence } from "@/hooks/useActivityThresholds";
+import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 interface UserRecord {
   id: string;
@@ -40,6 +44,30 @@ export default function Usuarios() {
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
   const [permissionsUser, setPermissionsUser] = useState<UserRecord | null>(null);
   const [delegacionesUser, setDelegacionesUser] = useState<UserRecord | null>(null);
+  const [thresholdsUser, setThresholdsUser] = useState<UserRecord | null>(null);
+  const [profiles, setProfiles] = useState<ProfilePresence[]>([]);
+  const { data: thresholds } = useActivityThresholds();
+  const qc = useQueryClient();
+
+  // Fetch profiles for activity column
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, email, last_seen_at, activity_status, current_section");
+      setProfiles((data as ProfilePresence[]) || []);
+    };
+    fetchProfiles();
+
+    const channel = supabase
+      .channel("usuarios-profiles-rt")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, () => {
+        fetchProfiles();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -98,6 +126,7 @@ export default function Usuarios() {
               <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nombre</th>
               <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Rol</th>
               <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Creado</th>
+              <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actividad</th>
               <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
@@ -115,8 +144,24 @@ export default function Usuarios() {
                   {u.roles.length === 0 && <span className="text-muted-foreground text-xs">Sin rol</span>}
                 </td>
                 <td className="px-5 py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("es-CL")}</td>
+                <td className="px-5 py-3">
+                  {(() => {
+                    const prof = profiles.find((p) => p.user_id === u.id);
+                    if (!prof) return <span className="text-xs text-muted-foreground">—</span>;
+                    const s = getActivityStatus(prof, thresholds);
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", s.color, s.pulse && "animate-pulse")} />
+                        <span className="text-xs text-muted-foreground truncate max-w-[140px]">{s.text}</span>
+                      </div>
+                    );
+                  })()}
+                </td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Umbrales de actividad" onClick={() => setThresholdsUser(u)}>
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Delegaciones" onClick={() => setDelegacionesUser(u)}>
                       <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
@@ -157,6 +202,14 @@ export default function Usuarios() {
         open={!!delegacionesUser}
         onOpenChange={(v) => !v && setDelegacionesUser(null)}
         user={delegacionesUser}
+      />
+
+      <ActivityThresholdsDialog
+        open={!!thresholdsUser}
+        onOpenChange={(v) => !v && setThresholdsUser(null)}
+        userId={thresholdsUser?.id || ""}
+        userName={thresholdsUser?.display_name || thresholdsUser?.email || ""}
+        current={thresholds?.find((t) => t.user_id === thresholdsUser?.id)}
       />
 
       <AlertDialog open={!!deleteUser} onOpenChange={(v) => !v && setDeleteUser(null)}>
