@@ -1,100 +1,89 @@
 
 
-## Personalización Avanzada en Ventana Flotante
+## Actividad de Usuarios con Umbrales Personalizables
 
 ### Resumen
-Transformar la página de Personalización actual en un **diálogo flotante (Dialog)** accesible desde el menú de Administración, y agregar tres nuevas funcionalidades:
-1. **Importar fuentes personalizadas** (Google Fonts por URL)
-2. **Gestionar logo de la empresa** (subir, ver, editar, eliminar)
-3. **Color de fondo del sistema** (no solo sidebar)
-4. **Posición del widget flotante de alertas** (esquina configurable)
+Agregar una columna "Actividad" a la tabla de usuarios que muestra el estado en tiempo real (Verde/Amarillo/Rojo) con umbrales de tiempo personalizables por usuario por el admin.
 
----
+### Lógica de estados
+
+| Estado | Color | Condición |
+|--------|-------|-----------|
+| Activo | Verde (pulsante) | Última interacción dentro de N minutos |
+| Inactivo | Amarillo | Sin actividad entre N y Y minutos |
+| Desconectado | Rojo | Sin actividad por más de Y minutos |
+
+Donde **N** (umbral idle) e **Y** (umbral offline) son configurables por usuario.
 
 ### Cambios planificados
 
-#### 1. Convertir PersonalizacionPage a Dialog flotante
+**1. Nueva tabla `user_activity_thresholds`**
 
-- Reemplazar la página `/personalizacion` con un **Dialog** que se abre desde el sidebar
-- En `AppLayout.tsx`, el item "Personalización" en lugar de navegar a una ruta, abrirá el diálogo directamente
-- Eliminar la ruta `/personalizacion` de `App.tsx`
-- El diálogo usará tabs para organizar las secciones: Colores, Tipografía, Logo, Alertas
+Almacena los umbrales personalizados por usuario:
+- `user_id` (uuid, unique, referencia a profiles.user_id)
+- `idle_minutes` (integer, default 5) -- N minutos para pasar a amarillo
+- `offline_minutes` (integer, default 15) -- Y minutos para pasar a rojo
 
-#### 2. Importar fuentes personalizadas
+RLS: admins pueden CRUD, usuarios autenticados pueden leer todos.
 
-- Agregar un campo de texto donde el admin puede pegar una URL de Google Fonts (ej: `https://fonts.googleapis.com/css2?family=Nunito...`)
-- Al guardar, se inyecta un `<link>` en el `<head>` del documento
-- Se guarda en `app_settings` con key `theme_custom_font_url`
-- El campo de fuente existente se mantiene pero se agregan las fuentes importadas como opciones adicionales
-- Nuevo key en `app_settings`: `theme_custom_font_url`
-
-#### 3. Logo de la empresa
-
-- Crear un bucket de storage público llamado `company-assets` para almacenar el logo
-- UI: mostrar el logo actual, botones para subir uno nuevo o eliminar
-- Guardar la URL del logo en `app_settings` con key `theme_company_logo`
-- Actualizar `AppLayout.tsx` y `Auth.tsx` para usar el logo personalizado (con fallback al logo AMC por defecto)
-
-#### 4. Color de fondo del sistema
-
-- Agregar un color picker para `theme_background_color`
-- Aplicar como CSS variable `--custom-bg` en el hook `useThemeSettings`
-- En `index.css`, el body usará `var(--custom-bg)` como override cuando esté definido
-
-#### 5. Posición del widget de alertas
-
-- Agregar un selector con 4 opciones: inferior-derecha (default), inferior-izquierda, superior-derecha, superior-izquierda
-- Guardar en `app_settings` con key `theme_alert_position`
-- El hook `useThemeSettings` expondrá este valor
-- `AlertaWidget.tsx` leerá la posición y aplicará las clases CSS correspondientes
-
----
-
-### Detalles técnicos
-
-**Migración SQL:**
 ```sql
--- Create public storage bucket for company logo
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('company-assets', 'company-assets', true);
+CREATE TABLE public.user_activity_thresholds (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  idle_minutes integer NOT NULL DEFAULT 5,
+  offline_minutes integer NOT NULL DEFAULT 15,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
--- RLS: anyone can read, only admins can upload/delete
-CREATE POLICY "Public read company-assets" ON storage.objects
-  FOR SELECT USING (bucket_id = 'company-assets');
+ALTER TABLE public.user_activity_thresholds ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can upload company-assets" ON storage.objects
-  FOR INSERT WITH CHECK (
-    bucket_id = 'company-assets' 
-    AND has_role(auth.uid(), 'admin'::app_role)
-  );
+CREATE POLICY "Admins can manage thresholds"
+  ON public.user_activity_thresholds FOR ALL
+  TO authenticated
+  USING (has_role(auth.uid(), 'admin'::app_role))
+  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
 
-CREATE POLICY "Admins can delete company-assets" ON storage.objects
-  FOR DELETE USING (
-    bucket_id = 'company-assets' 
-    AND has_role(auth.uid(), 'admin'::app_role)
-  );
-
-CREATE POLICY "Admins can update company-assets" ON storage.objects
-  FOR UPDATE USING (
-    bucket_id = 'company-assets' 
-    AND has_role(auth.uid(), 'admin'::app_role)
-  );
+CREATE POLICY "Authenticated can read thresholds"
+  ON public.user_activity_thresholds FOR SELECT
+  TO authenticated
+  USING (true);
 ```
 
-**Archivos a modificar:**
+**2. Modificar `src/pages/Usuarios.tsx`**
+
+- Agregar columna "Actividad" entre "Creado" y "Acciones"
+- Consultar `profiles` (para `last_seen_at`, `activity_status`, `current_section`) y `user_activity_thresholds` con realtime
+- Cada fila muestra un indicador circular de color + texto de estado
+- Suscribirse a cambios realtime en `profiles` para actualización instantánea
+- Agregar un botón de configuracion (icono reloj/settings) en cada fila que abre un diálogo para editar los umbrales N e Y del usuario
+
+**3. Nuevo componente `ActivityThresholdsDialog`**
+
+Diálogo flotante para que el admin configure los umbrales por usuario:
+- Input numérico para "Minutos para estado Inactivo (N)" (default 5)
+- Input numérico para "Minutos para estado Desconectado (Y)" (default 15)
+- Validación: Y debe ser mayor que N
+- Botón guardar que hace upsert en `user_activity_thresholds`
+- Botón "Restaurar valores predeterminados"
+
+**4. Hook `useActivityThresholds`**
+
+- Query para leer todos los umbrales (`user_activity_thresholds`)
+- Mutation para upsert umbrales de un usuario
+- Función helper `getActivityStatus(profile, thresholds)` que devuelve color/texto/pulse basado en los umbrales del usuario
+
+**5. Actualizar `FloatingUserStatus.tsx`**
+
+- Reutilizar la misma lógica de umbrales personalizados (leer `user_activity_thresholds`) para que el panel flotante también refleje los colores correctos por usuario
+
+### Archivos a crear/modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/hooks/useThemeSettings.ts` | Agregar keys: `theme_company_logo`, `theme_custom_font_url`, `theme_background_color`, `theme_alert_position`. Aplicar CSS variables correspondientes e inyectar link de fuente. |
-| `src/pages/PersonalizacionPage.tsx` | Convertir a componente `PersonalizacionDialog` con tabs (Colores, Tipografía, Logo, Alertas). Agregar upload de logo, import de fuentes, color de fondo, y selector de posición de alertas. |
-| `src/components/layout/AppLayout.tsx` | Cambiar el link de Personalización por un botón que abre el Dialog. Usar logo personalizado con fallback. Pasar `isAdmin` para controlar visibilidad del botón de personalización dentro del diálogo. |
-| `src/App.tsx` | Eliminar ruta `/personalizacion`. |
-| `src/components/alertas/AlertaWidget.tsx` | Leer `theme_alert_position` del hook y aplicar posición dinámica (bottom-right, bottom-left, top-right, top-left). |
-| `src/pages/Auth.tsx` | Usar logo personalizado si existe (con fallback). |
-
-**Nuevas keys en `app_settings`:**
-- `theme_company_logo` - URL del logo subido
-- `theme_custom_font_url` - URL de Google Fonts personalizada
-- `theme_background_color` - Color de fondo del sistema
-- `theme_alert_position` - Posición del widget: `bottom-right` | `bottom-left` | `top-right` | `top-left`
+| Migración SQL | Crear tabla `user_activity_thresholds` con RLS |
+| `src/hooks/useActivityThresholds.ts` | Nuevo hook para query/mutation de umbrales + función `getActivityStatus` |
+| `src/pages/Usuarios.tsx` | Agregar columna Actividad con indicador de color, botón config umbrales, realtime en profiles |
+| `src/components/usuarios/ActivityThresholdsDialog.tsx` | Nuevo diálogo para configurar N e Y por usuario |
+| `src/components/presence/FloatingUserStatus.tsx` | Usar umbrales personalizados en lugar de los 5 min hardcodeados |
 
