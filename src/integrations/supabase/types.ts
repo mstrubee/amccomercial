@@ -650,26 +650,35 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activity_status: string | null
           created_at: string
+          current_section: string | null
           display_name: string
           email: string
           id: string
+          last_seen_at: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          activity_status?: string | null
           created_at?: string
+          current_section?: string | null
           display_name?: string
           email: string
           id?: string
+          last_seen_at?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          activity_status?: string | null
           created_at?: string
+          current_section?: string | null
           display_name?: string
           email?: string
           id?: string
+          last_seen_at?: string | null
           updated_at?: string
           user_id?: string
         }

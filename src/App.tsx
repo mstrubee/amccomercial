@@ -14,6 +14,8 @@ import Usuarios from "@/pages/Usuarios";
 import Auth from "@/pages/Auth";
 import NotFound from "./pages/NotFound";
 import AlertaWidget from "@/components/alertas/AlertaWidget";
+import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
+import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import CargaMasiva from "@/pages/CargaMasiva";
 import Clientes from "@/pages/Clientes";
 import CategoriasPage from "@/pages/CategoriasPage";
@@ -26,6 +28,7 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
+  usePresenceHeartbeat(user?.id);
 
   if (loading) {
     return (
@@ -57,6 +60,7 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlertaWidget />
+      {isAdmin && <FloatingUserStatus />}
     </AppLayout>
   );
 }
