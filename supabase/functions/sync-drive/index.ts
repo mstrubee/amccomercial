@@ -228,7 +228,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { action, project_id, project_name } = await req.json();
+    const body = await req.json();
+    const { action, project_id, project_name, drive_folder_id: reqDriveFolderId } = body;
 
     if (action === "sync") {
       if (!project_id || !project_name) {
@@ -239,13 +240,10 @@ Deno.serve(async (req) => {
 
       const accessToken = await getAccessToken();
 
-      // 1. Find or create "AMC Repositorio" root
       const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
-      // 2. Find or create project subfolder under AMC Repositorio
       const projectFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
       console.log(`AMC Repositorio: ${amcRootId}, Project folder: ${projectFolderId}`);
 
-      // 3. Get project folders using service role to bypass RLS for updates
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
 
@@ -265,13 +263,48 @@ Deno.serve(async (req) => {
       const tree = buildTree(folders as ProjectFolder[]);
       const stats = { created: 0, updated: 0, skipped: 0 };
 
-      // 4. Sync recursively under project folder
       await syncRecursive(admin, accessToken, tree, projectFolderId, sharedDriveId, stats);
 
       console.log(`Sync complete: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped`);
 
       return new Response(
         JSON.stringify({ message: "Sincronización completada", ...stats }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "delete_folder") {
+      if (!reqDriveFolderId) throw new Error("drive_folder_id is required");
+
+      const accessToken = await getAccessToken();
+
+      // Delete folder from Drive (and all its contents)
+      const delResp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${reqDriveFolderId}?supportsAllDrives=true`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!delResp.ok && delResp.status !== 404) {
+        const errData = await delResp.json().catch(() => ({}));
+        console.error("Drive folder delete failed:", JSON.stringify(errData));
+        throw new Error(`Drive delete failed: ${(errData as any).error?.message || delResp.statusText}`);
+      }
+      if (delResp.status !== 204) {
+        await delResp.text();
+      }
+
+      // Clean up drive_files referencing this drive_folder_id
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+      await admin.from("drive_files").delete().eq("drive_folder_id", reqDriveFolderId);
+
+      console.log(`Deleted Drive folder: ${reqDriveFolderId}`);
+
+      return new Response(
+        JSON.stringify({ message: "Carpeta eliminada de Drive" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

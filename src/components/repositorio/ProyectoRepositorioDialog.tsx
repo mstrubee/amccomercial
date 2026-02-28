@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Folder, FolderPlus, Loader2, Check, X, FolderSync, ExternalLink } from "lucide-react";
+import { Folder, FolderPlus, Loader2, Check, X, FolderSync, ExternalLink, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -11,7 +12,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
 import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree } from "@/hooks/useProjectFolders";
-import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive } from "@/hooks/useDriveSync";
+import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue } from "@/hooks/useDriveSync";
 
 interface Props {
   projectId: string | null;
@@ -31,15 +32,27 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const getAuthUrl = useGetDriveAuthUrl();
   const syncDrive = useSyncDrive();
   const uploadToDrive = useUploadToDrive();
+  const deleteDriveFolder = useDeleteDriveFolder();
+  const { data: pendingCount } = usePendingSyncCount(projectId);
+  const processSyncQueue = useProcessSyncQueue();
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; driveFolderId?: string | null } | null>(null);
   const rootInputRef = useRef<HTMLInputElement>(null);
 
-  // Track whether we've already auto-synced for this dialog open
   const autoSyncedRef = useRef(false);
+
+  // Online detection — trigger sync queue when reconnecting
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log("Back online — processing sync queue");
+      processSyncQueue.mutate();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -47,7 +60,6 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     }
   }, [open]);
 
-  // Auto-sync when dialog opens and there are unsynced folders
   const triggerAutoSync = useCallback(async () => {
     if (!projectId || !driveStatus?.connected || syncDrive.isPending || autoSyncedRef.current) return;
     const hasUnsynced = (folders || []).some((f) => !f.drive_folder_id);
@@ -56,7 +68,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     try {
       await syncDrive.mutateAsync({ projectId, projectName });
     } catch {
-      // silent — user will see upload buttons missing for unsynced folders
+      // silent
     }
   }, [projectId, projectName, driveStatus?.connected, folders, syncDrive]);
 
@@ -88,9 +100,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     try {
       await createMutation.mutateAsync({ name, project_id: projectId, parent_id: parentId });
       toast.success("Carpeta creada");
-      // Auto-sync new folder to Drive
       if (driveStatus?.connected) {
-        autoSyncedRef.current = false; // allow re-sync
+        autoSyncedRef.current = false;
       }
     } catch (e: any) {
       toast.error("Error: " + e.message);
@@ -110,7 +121,16 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const handleDelete = async () => {
     if (!deleteTarget || !projectId) return;
     try {
-      await deleteMutation.mutateAsync({ id: deleteTarget, project_id: projectId });
+      // Delete from Drive if synced
+      if (deleteTarget.driveFolderId && driveStatus?.connected) {
+        try {
+          await deleteDriveFolder.mutateAsync({ driveFolderId: deleteTarget.driveFolderId });
+        } catch {
+          // Continue with local delete even if Drive delete fails
+          console.warn("Drive folder delete failed, continuing with local delete");
+        }
+      }
+      await deleteMutation.mutateAsync({ id: deleteTarget.id, project_id: projectId });
       toast.success("Carpeta eliminada");
     } catch (e: any) {
       toast.error("Error: " + e.message);
@@ -136,11 +156,15 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     }
   };
 
-  const handleUploadFile = async (driveFolderId: string, file: File) => {
+  const handleUploadFile = async (driveFolderId: string, file: File, projectFolderId: string) => {
     setUploadingFolderId(driveFolderId);
     try {
-      const result = await uploadToDrive.mutateAsync({ file, driveFolderId });
-      toast.success(`"${result.file_name}" subido exitosamente a Drive`);
+      const result = await uploadToDrive.mutateAsync({ file, driveFolderId, projectFolderId });
+      if (result.status === "synced") {
+        toast.success(`"${result.file_name}" subido exitosamente a Drive`);
+      } else {
+        toast.info(`"${result.file_name}" guardado en cola — se sincronizará automáticamente`);
+      }
     } catch (e: any) {
       if (e.message?.includes("NO_REFRESH_TOKEN")) {
         toast.error("Primero debes conectar Google Drive");
@@ -160,6 +184,12 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
             <DialogTitle className="flex items-center gap-2">
               <Folder className="w-5 h-5 text-amber-500" />
               Repositorio — {projectName}
+              {!!pendingCount && pendingCount > 0 && (
+                <Badge variant="secondary" className="gap-1 ml-2">
+                  <Clock className="w-3 h-3" />
+                  {pendingCount} pendiente{pendingCount > 1 ? "s" : ""}
+                </Badge>
+              )}
             </DialogTitle>
           </DialogHeader>
 
@@ -243,7 +273,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                     node={node}
                     level={0}
                     onRename={handleRename}
-                    onDelete={(id) => setDeleteTarget(id)}
+                    onDelete={(id, driveFolderId) => setDeleteTarget({ id, driveFolderId })}
                     onCreate={handleCreate}
                     onUpload={driveStatus?.connected ? handleUploadFile : undefined}
                     isUploading={uploadToDrive.isPending}
@@ -262,7 +292,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar carpeta?</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estás seguro de eliminar esta carpeta? Se eliminarán también todas sus subcarpetas y este proceso no se puede deshacer.
+              ¿Estás seguro de eliminar esta carpeta? Se eliminarán también todas sus subcarpetas{deleteTarget?.driveFolderId ? " y la carpeta correspondiente en Google Drive" : ""}. Este proceso no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

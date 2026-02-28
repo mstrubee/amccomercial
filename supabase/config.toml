@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.upload-to-drive]
 verify_jwt = false
+
+[functions.process-sync-queue]
+verify_jwt = false
+
+[functions.delete-drive-file]
+verify_jwt = false
+
+[functions.get-drive-view-url]
+verify_jwt = false
