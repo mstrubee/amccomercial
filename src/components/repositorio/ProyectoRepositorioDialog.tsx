@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { Folder, FolderPlus, Loader2, Check, X, FolderSync } from "lucide-react";
+import { Folder, FolderPlus, Loader2, Check, X, FolderSync, CloudUpload, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,8 +8,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
 import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree } from "@/hooks/useProjectFolders";
+import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive } from "@/hooks/useDriveSync";
 
 interface Props {
   projectId: string | null;
@@ -25,6 +27,9 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const updateMutation = useUpdateProjectFolder();
   const deleteMutation = useDeleteProjectFolder();
   const generateMutation = useGenerateFromTemplate();
+  const { data: driveStatus } = useDriveAuthStatus();
+  const getAuthUrl = useGetDriveAuthUrl();
+  const syncDrive = useSyncDrive();
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
@@ -88,6 +93,29 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     }
   };
 
+  const handleConnectDrive = async () => {
+    try {
+      const result = await getAuthUrl.mutateAsync();
+      window.open(result.auth_url, "_blank", "width=600,height=700");
+    } catch (e: any) {
+      toast.error("Error: " + e.message);
+    }
+  };
+
+  const handleSyncDrive = async () => {
+    if (!projectId) return;
+    try {
+      const result = await syncDrive.mutateAsync({ projectId, projectName });
+      toast.success(`${result.message} — ${result.created} creadas, ${result.skipped} existentes`);
+    } catch (e: any) {
+      if (e.message?.includes("NO_REFRESH_TOKEN")) {
+        toast.error("Primero debes conectar Google Drive");
+      } else {
+        toast.error("Error: " + e.message);
+      }
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -118,11 +146,50 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
             ) : (
               <div>
                 {canEdit && (
-                  <div className="flex gap-2 mb-3">
+                  <div className="flex gap-2 mb-3 flex-wrap">
                     <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setCreatingRoot(true)}>
                       <FolderPlus className="w-3.5 h-3.5" />
                       Nueva Carpeta Raíz
                     </Button>
+
+                    {driveStatus?.connected ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleSyncDrive}
+                        disabled={syncDrive.isPending}
+                      >
+                        {syncDrive.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CloudUpload className="w-3.5 h-3.5" />
+                        )}
+                        {syncDrive.isPending ? "Sincronizando..." : "Sincronizar con Drive"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleConnectDrive}
+                        disabled={getAuthUrl.isPending}
+                      >
+                        {getAuthUrl.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        )}
+                        Conectar Google Drive
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {syncDrive.isPending && (
+                  <div className="mb-3 space-y-1">
+                    <Progress value={undefined} className="h-1.5" />
+                    <p className="text-xs text-muted-foreground">Creando carpetas en Google Drive...</p>
                   </div>
                 )}
 

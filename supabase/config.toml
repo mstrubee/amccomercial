@@ -1,1 +1,7 @@
 project_id = "bprwbhvhuetjnmsjqfcm"
+
+[functions.sync-drive]
+verify_jwt = false
+
+[functions.google-auth-callback]
+verify_jwt = false
