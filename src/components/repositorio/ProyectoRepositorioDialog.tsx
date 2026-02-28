@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Folder, FolderPlus, Loader2, Check, X, FolderSync, CloudUpload, ExternalLink } from "lucide-react";
+import { Folder, FolderPlus, Loader2, Check, X, FolderSync, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,6 +38,34 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const rootInputRef = useRef<HTMLInputElement>(null);
 
+  // Track whether we've already auto-synced for this dialog open
+  const autoSyncedRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      autoSyncedRef.current = false;
+    }
+  }, [open]);
+
+  // Auto-sync when dialog opens and there are unsynced folders
+  const triggerAutoSync = useCallback(async () => {
+    if (!projectId || !driveStatus?.connected || syncDrive.isPending || autoSyncedRef.current) return;
+    const hasUnsynced = (folders || []).some((f) => !f.drive_folder_id);
+    if (!hasUnsynced || (folders || []).length === 0) return;
+    autoSyncedRef.current = true;
+    try {
+      await syncDrive.mutateAsync({ projectId, projectName });
+    } catch {
+      // silent — user will see upload buttons missing for unsynced folders
+    }
+  }, [projectId, projectName, driveStatus?.connected, folders, syncDrive]);
+
+  useEffect(() => {
+    if (open && !isLoading && folders) {
+      triggerAutoSync();
+    }
+  }, [open, isLoading, folders, triggerAutoSync]);
+
   useEffect(() => {
     if (creatingRoot) rootInputRef.current?.focus();
   }, [creatingRoot]);
@@ -60,6 +88,10 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     try {
       await createMutation.mutateAsync({ name, project_id: projectId, parent_id: parentId });
       toast.success("Carpeta creada");
+      // Auto-sync new folder to Drive
+      if (driveStatus?.connected) {
+        autoSyncedRef.current = false; // allow re-sync
+      }
     } catch (e: any) {
       toast.error("Error: " + e.message);
     }
@@ -101,20 +133,6 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
       window.open(result.auth_url, "_blank", "width=600,height=700");
     } catch (e: any) {
       toast.error("Error: " + e.message);
-    }
-  };
-
-  const handleSyncDrive = async () => {
-    if (!projectId) return;
-    try {
-      const result = await syncDrive.mutateAsync({ projectId, projectName });
-      toast.success(`${result.message} — ${result.created} creadas, ${result.skipped} existentes`);
-    } catch (e: any) {
-      if (e.message?.includes("NO_REFRESH_TOKEN")) {
-        toast.error("Primero debes conectar Google Drive");
-      } else {
-        toast.error("Error: " + e.message);
-      }
     }
   };
 
@@ -170,22 +188,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                       Nueva Carpeta Raíz
                     </Button>
 
-                    {driveStatus?.connected ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 text-xs"
-                        onClick={handleSyncDrive}
-                        disabled={syncDrive.isPending}
-                      >
-                        {syncDrive.isPending ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <CloudUpload className="w-3.5 h-3.5" />
-                        )}
-                        {syncDrive.isPending ? "Sincronizando..." : "Sincronizar con Drive"}
-                      </Button>
-                    ) : (
+                    {!driveStatus?.connected && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -207,7 +210,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                 {syncDrive.isPending && (
                   <div className="mb-3 space-y-1">
                     <Progress value={undefined} className="h-1.5" />
-                    <p className="text-xs text-muted-foreground">Creando carpetas en Google Drive...</p>
+                    <p className="text-xs text-muted-foreground">Sincronizando carpetas con Google Drive...</p>
                   </div>
                 )}
 
