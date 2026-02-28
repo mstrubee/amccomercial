@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,6 +34,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoRepositorioDialog";
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
@@ -79,6 +80,7 @@ export default function Proyectos() {
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
+  const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
@@ -699,6 +701,9 @@ export default function Proyectos() {
                               </Popover>
                             );
                           })()}
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
+                            <Folder className="w-3.5 h-3.5 text-amber-500" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
@@ -1106,6 +1111,15 @@ export default function Proyectos() {
 
       {/* Tree dialog */}
       <AlertaTreeDialog open={showTree} onClose={() => setShowTree(false)} rootAlertaId={treeRootId} />
+
+      {/* Repositorio del proyecto */}
+      <ProyectoRepositorioDialog
+        projectId={repositorioTarget?.id ?? null}
+        projectName={repositorioTarget?.name ?? ""}
+        open={!!repositorioTarget}
+        onOpenChange={(o) => !o && setRepositorioTarget(null)}
+        canEdit={isAdmin}
+      />
     </div>
     </>
   );

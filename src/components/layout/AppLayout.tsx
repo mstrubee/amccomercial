@@ -61,6 +61,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/usuarios", label: "Usuarios", allowTipo1: false },
     { path: "/empresas", label: "Empresas", allowTipo1: false },
     { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false },
+    { path: "/repositorio-tipo", label: "Repositorio Tipo", allowTipo1: false },
   ];
 
   const adminSubItems = isAdmin

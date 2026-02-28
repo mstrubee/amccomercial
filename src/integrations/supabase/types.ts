@@ -648,6 +648,38 @@ export type Database = {
         }
         Relationships: []
       }
+      folder_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          orden: number
+          parent_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          orden?: number
+          parent_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          orden?: number
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folder_templates_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "folder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           activity_status: string | null
@@ -683,6 +715,61 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      project_folders: {
+        Row: {
+          created_at: string
+          drive_folder_id: string | null
+          id: string
+          name: string
+          orden: number
+          parent_id: string | null
+          project_id: string
+          template_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          drive_folder_id?: string | null
+          id?: string
+          name: string
+          orden?: number
+          parent_id?: string | null
+          project_id: string
+          template_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          drive_folder_id?: string | null
+          id?: string
+          name?: string
+          orden?: number
+          parent_id?: string | null
+          project_id?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "project_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_folders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_folders_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "folder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       proyecto_captadores: {
         Row: {
