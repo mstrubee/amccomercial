@@ -40,10 +40,21 @@ async function getAccessToken(): Promise<string> {
 
   const data = await resp.json();
   if (!resp.ok) {
-    console.error("Token refresh failed:", JSON.stringify(data));
+    console.error("[UPLOAD] Token refresh failed:", JSON.stringify(data));
     throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
   }
   return data.access_token;
+}
+
+/** Verify a Drive folder exists and is accessible */
+async function verifyDriveFolder(accessToken: string, folderId: string): Promise<boolean> {
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=id,trashed`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) return false;
+  const data = await resp.json();
+  return !data.trashed;
 }
 
 async function uploadFileToDrive(
@@ -84,7 +95,7 @@ async function uploadFileToDrive(
 
   const uploadData = await uploadResp.json();
   if (!uploadResp.ok) {
-    console.error("Drive upload failed:", JSON.stringify(uploadData));
+    console.error("[UPLOAD] Drive upload failed:", JSON.stringify(uploadData));
     throw new Error(`Upload failed: ${uploadData.error?.message || "Unknown error"}`);
   }
   return { id: uploadData.id, name: uploadData.name || fileName };
@@ -133,7 +144,7 @@ Deno.serve(async (req) => {
     const fileBytes = new Uint8Array(await file.arrayBuffer());
     const storagePath = `${user.id}/${Date.now()}_${file.name}`;
 
-    console.log(`Uploading "${file.name}" (${file.size} bytes) — offline-first strategy`);
+    console.log(`[UPLOAD] "${file.name}" (${file.size} bytes) to folder ${driveFolderId} (project_folder: ${projectFolderId})`);
 
     // Step 1: Save to Supabase bucket
     const { error: storageErr } = await admin.storage
@@ -141,7 +152,7 @@ Deno.serve(async (req) => {
       .upload(storagePath, fileBytes, { contentType: file.type || "application/octet-stream" });
 
     if (storageErr) {
-      console.error("Storage upload failed:", storageErr.message);
+      console.error("[UPLOAD] Storage upload failed:", storageErr.message);
       throw new Error("Failed to save file to queue: " + storageErr.message);
     }
 
@@ -162,8 +173,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (pendingErr) {
-      console.error("pending_sync insert failed:", pendingErr.message);
-      // Clean up storage
+      console.error("[UPLOAD] pending_sync insert failed:", pendingErr.message);
       await admin.storage.from("drive-upload-queue").remove([storagePath]);
       throw new Error("Failed to register in queue");
     }
@@ -171,6 +181,27 @@ Deno.serve(async (req) => {
     // Step 3: Try immediate Drive upload
     try {
       const accessToken = await getAccessToken();
+
+      // Verify target folder exists before uploading
+      const folderOk = await verifyDriveFolder(accessToken, driveFolderId);
+      if (!folderOk) {
+        console.warn(`[UPLOAD] Drive folder ${driveFolderId} not found/trashed. File queued for retry after folder sync.`);
+        await admin
+          .from("pending_sync")
+          .update({ status: "failed", error_message: "DRIVE_FOLDER_NOT_FOUND", retry_count: 1 })
+          .eq("id", pendingRow.id);
+
+        return new Response(
+          JSON.stringify({
+            message: "Carpeta de destino no encontrada en Drive — archivo en cola",
+            file_name: file.name,
+            status: "folder_not_found",
+            pending_id: pendingRow.id,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const driveResult = await uploadFileToDrive(accessToken, file.name, fileBytes, file.type || "application/octet-stream", driveFolderId);
 
       // Success: save to drive_files, mark synced, remove from bucket
@@ -191,7 +222,7 @@ Deno.serve(async (req) => {
 
       await admin.storage.from("drive-upload-queue").remove([storagePath]);
 
-      console.log(`File synced immediately: ${driveResult.id}`);
+      console.log(`[UPLOAD] File synced immediately: ${driveResult.id}`);
 
       return new Response(
         JSON.stringify({
@@ -203,9 +234,8 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (driveErr: unknown) {
-      // Drive upload failed — file stays in queue for later processing
       const errMsg = driveErr instanceof Error ? driveErr.message : "Unknown";
-      console.warn(`Immediate Drive upload failed, queued for retry: ${errMsg}`);
+      console.warn(`[UPLOAD] Immediate Drive upload failed, queued for retry: ${errMsg}`);
 
       await admin
         .from("pending_sync")
@@ -224,7 +254,7 @@ Deno.serve(async (req) => {
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("upload-to-drive error:", message);
+    console.error("[UPLOAD] error:", message);
     return new Response(JSON.stringify({ error: message }), {
       status: message === "NO_REFRESH_TOKEN" ? 400 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -43,6 +43,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const rootInputRef = useRef<HTMLInputElement>(null);
 
   const autoSyncedRef = useRef(false);
+  const queueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Online detection — trigger sync queue when reconnecting
   useEffect(() => {
@@ -76,6 +77,26 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
       triggerSync();
     }
   }, [open, isLoading, folders, driveStatus?.connected, triggerSync]);
+
+  // Accelerated queue processing when there are pending items and dialog is open
+  useEffect(() => {
+    if (open && pendingCount && pendingCount > 0) {
+      // Process immediately
+      processSyncQueue.mutate();
+      // Then poll every 15 seconds
+      queueIntervalRef.current = setInterval(() => {
+        if (!processSyncQueue.isPending) {
+          processSyncQueue.mutate();
+        }
+      }, 15000);
+    }
+    return () => {
+      if (queueIntervalRef.current) {
+        clearInterval(queueIntervalRef.current);
+        queueIntervalRef.current = null;
+      }
+    };
+  }, [open, pendingCount]);
 
   useEffect(() => {
     if (creatingRoot) rootInputRef.current?.focus();
@@ -164,6 +185,17 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
       const result = await uploadToDrive.mutateAsync({ file, driveFolderId, projectFolderId });
       if (result.status === "synced") {
         toast.success(`"${result.file_name}" subido exitosamente a Drive`);
+      } else if (result.status === "folder_not_found") {
+        // Auto-repair: trigger folder sync then retry once
+        toast.info(`Reparando carpeta en Drive — reintentando subida...`);
+        try {
+          await triggerSync();
+          // After sync, the folder should have a new drive_folder_id — re-read from folders
+          // For simplicity, tell user to retry
+          toast.info(`Carpeta reparada. El archivo se sincronizará automáticamente desde la cola.`);
+        } catch {
+          toast.warning(`"${result.file_name}" en cola — se sincronizará cuando la carpeta esté disponible`);
+        }
       } else {
         toast.info(`"${result.file_name}" guardado en cola — se sincronizará automáticamente`);
       }

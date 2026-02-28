@@ -141,6 +141,30 @@ export function useGetDriveViewUrl() {
   });
 }
 
+export function usePendingFilesForFolder(projectFolderId: string | null) {
+  return useQuery({
+    queryKey: ["pending_files", projectFolderId],
+    enabled: !!projectFolderId,
+    refetchInterval: 10000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pending_sync" as any)
+        .select("*")
+        .eq("project_folder_id", projectFolderId!)
+        .in("status", ["pending", "failed", "uploading"])
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as Array<{
+        id: string;
+        file_name: string;
+        status: string;
+        retry_count: number;
+        error_message: string | null;
+      }>;
+    },
+  });
+}
+
 export function usePendingSyncCount(projectId: string | null) {
   return useQuery({
     queryKey: ["pending_sync_count", projectId],

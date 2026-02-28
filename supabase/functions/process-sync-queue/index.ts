@@ -41,6 +41,17 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+/** Verify a Drive folder exists */
+async function verifyDriveFolder(accessToken: string, folderId: string): Promise<boolean> {
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=id,trashed`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) return false;
+  const data = await resp.json();
+  return !data.trashed;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -68,13 +79,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Processing ${pending.length} pending sync items`);
+    console.log(`[QUEUE] Processing ${pending.length} pending sync items`);
 
     let accessToken: string;
     try {
       accessToken = await getAccessToken();
     } catch (e) {
-      console.error("Cannot get access token, skipping batch:", (e as Error).message);
+      console.error("[QUEUE] Cannot get access token, skipping batch:", (e as Error).message);
       return new Response(
         JSON.stringify({ error: "Cannot authenticate with Google", processed: 0 }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -86,6 +97,51 @@ Deno.serve(async (req) => {
 
     for (const item of pending) {
       try {
+        // Check if drive_folder_id is valid — if not, try to get updated one from project_folders
+        let targetFolderId = item.drive_folder_id;
+        
+        if (targetFolderId) {
+          const folderOk = await verifyDriveFolder(accessToken, targetFolderId);
+          if (!folderOk) {
+            console.log(`[QUEUE] Drive folder ${targetFolderId} not found for "${item.file_name}". Checking for updated folder ID...`);
+            // Try to get updated drive_folder_id from project_folders
+            const { data: folder } = await admin
+              .from("project_folders")
+              .select("drive_folder_id")
+              .eq("id", item.project_folder_id)
+              .single();
+            
+            if (folder?.drive_folder_id && folder.drive_folder_id !== targetFolderId) {
+              targetFolderId = folder.drive_folder_id;
+              console.log(`[QUEUE] Found updated folder ID: ${targetFolderId}`);
+              // Update pending_sync with new folder ID
+              await admin.from("pending_sync").update({ drive_folder_id: targetFolderId }).eq("id", item.id);
+              
+              // Re-verify the new folder
+              const newFolderOk = await verifyDriveFolder(accessToken, targetFolderId);
+              if (!newFolderOk) {
+                throw new Error("DRIVE_FOLDER_NOT_FOUND: Updated folder ID also invalid");
+              }
+            } else {
+              throw new Error("DRIVE_FOLDER_NOT_FOUND: No valid folder ID available");
+            }
+          }
+        } else {
+          // No drive_folder_id at all — try to get from project_folders
+          const { data: folder } = await admin
+            .from("project_folders")
+            .select("drive_folder_id")
+            .eq("id", item.project_folder_id)
+            .single();
+          
+          if (folder?.drive_folder_id) {
+            targetFolderId = folder.drive_folder_id;
+            await admin.from("pending_sync").update({ drive_folder_id: targetFolderId }).eq("id", item.id);
+          } else {
+            throw new Error("DRIVE_FOLDER_NOT_FOUND: Folder not yet synced to Drive");
+          }
+        }
+
         // Mark as uploading
         await admin.from("pending_sync").update({ status: "uploading" }).eq("id", item.id);
 
@@ -101,7 +157,7 @@ Deno.serve(async (req) => {
         const fileBytes = new Uint8Array(await fileData.arrayBuffer());
 
         // Upload to Drive
-        const metadata = { name: item.file_name, parents: [item.drive_folder_id] };
+        const metadata = { name: item.file_name, parents: [targetFolderId] };
         const boundary = "----SyncBoundary" + Date.now();
         const encoder = new TextEncoder();
         const metaPart = encoder.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`);
@@ -135,7 +191,7 @@ Deno.serve(async (req) => {
         await admin.from("drive_files").insert({
           project_folder_id: item.project_folder_id,
           drive_file_id: uploadData.id,
-          drive_folder_id: item.drive_folder_id,
+          drive_folder_id: targetFolderId,
           file_name: item.file_name,
           mime_type: item.mime_type,
           file_size: item.file_size,
@@ -149,11 +205,11 @@ Deno.serve(async (req) => {
 
         await admin.storage.from("drive-upload-queue").remove([item.storage_path]);
 
-        console.log(`Synced: ${item.file_name} -> ${uploadData.id}`);
+        console.log(`[QUEUE] Synced: ${item.file_name} -> ${uploadData.id}`);
         synced++;
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : "Unknown";
-        console.error(`Failed to sync ${item.file_name}: ${errMsg}`);
+        console.error(`[QUEUE] Failed to sync ${item.file_name}: ${errMsg}`);
         await admin
           .from("pending_sync")
           .update({
@@ -166,14 +222,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Queue processed: ${synced} synced, ${failed} failed`);
+    console.log(`[QUEUE] Processed: ${synced} synced, ${failed} failed`);
     return new Response(
       JSON.stringify({ message: "Queue processed", synced, failed, processed: pending.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("process-sync-queue error:", message);
+    console.error("[QUEUE] error:", message);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

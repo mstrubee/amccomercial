@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Check, X, Upload, Loader2, FileText, ExternalLink, Clock } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Check, X, Upload, Loader2, FileText, Clock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { useDriveFiles, useDeleteDriveFile, useGetDriveViewUrl } from "@/hooks/useDriveSync";
+import { useDriveFiles, useDeleteDriveFile, useGetDriveViewUrl, usePendingFilesForFolder } from "@/hooks/useDriveSync";
 import { toast } from "sonner";
 
 export interface TreeNode {
@@ -43,6 +43,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: files } = useDriveFiles(node.id);
+  const { data: pendingFiles } = usePendingFilesForFolder(node.id);
   const deleteDriveFile = useDeleteDriveFile();
   const getViewUrl = useGetDriveViewUrl();
 
@@ -104,7 +105,8 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   };
 
   const isBusyHere = isUploading && uploadingFolderId === node.drive_folder_id;
-  const hasChildren = node.children.length > 0 || creating || (files && files.length > 0);
+  const hasPending = pendingFiles && pendingFiles.length > 0;
+  const hasChildren = node.children.length > 0 || creating || (files && files.length > 0) || hasPending;
 
   return (
     <div>
@@ -229,7 +231,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
             />
           ))}
 
-          {/* Files list */}
+          {/* Synced files */}
           {files && files.length > 0 && (
             <div>
               {files.map((file) => (
@@ -241,6 +243,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
                 >
                   <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                   <span className="text-xs text-foreground truncate flex-1">{file.file_name}</span>
+                  <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
                   <span className="text-[10px] text-muted-foreground shrink-0">{formatFileSize(file.file_size)}</span>
                   {canEdit && (
                     <Button
@@ -256,6 +259,32 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
                       <Trash2 className="w-3 h-3 text-destructive/70" />
                     </Button>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pending files */}
+          {hasPending && (
+            <div>
+              {pendingFiles!.map((pf) => (
+                <div
+                  key={pf.id}
+                  className="flex items-center gap-1.5 py-1 px-2 rounded-md opacity-70"
+                  style={{ paddingLeft: `${(level + 1) * 20 + 8}px` }}
+                >
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate flex-1">{pf.file_name}</span>
+                  {pf.status === "uploading" ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-blue-400 shrink-0" />
+                  ) : pf.status === "failed" ? (
+                    <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                  ) : (
+                    <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                  )}
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {pf.status === "uploading" ? "Subiendo..." : pf.status === "failed" ? "Reintentando" : "En cola"}
+                  </span>
                 </div>
               ))}
             </div>
