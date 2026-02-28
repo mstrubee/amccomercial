@@ -60,23 +60,22 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     }
   }, [open]);
 
-  const triggerAutoSync = useCallback(async () => {
-    if (!projectId || !driveStatus?.connected || syncDrive.isPending || autoSyncedRef.current) return;
-    const hasUnsynced = (folders || []).some((f) => !f.drive_folder_id);
-    if (!hasUnsynced || (folders || []).length === 0) return;
-    autoSyncedRef.current = true;
+  const triggerSync = useCallback(async () => {
+    if (!projectId || !driveStatus?.connected || syncDrive.isPending) return;
     try {
       await syncDrive.mutateAsync({ projectId, projectName });
     } catch {
       // silent
     }
-  }, [projectId, projectName, driveStatus?.connected, folders, syncDrive]);
+  }, [projectId, projectName, driveStatus?.connected, syncDrive]);
 
+  // Auto-sync on dialog open (once)
   useEffect(() => {
-    if (open && !isLoading && folders) {
-      triggerAutoSync();
+    if (open && !isLoading && folders && !autoSyncedRef.current && driveStatus?.connected && (folders || []).length > 0) {
+      autoSyncedRef.current = true;
+      triggerSync();
     }
-  }, [open, isLoading, folders, triggerAutoSync]);
+  }, [open, isLoading, folders, driveStatus?.connected, triggerSync]);
 
   useEffect(() => {
     if (creatingRoot) rootInputRef.current?.focus();
@@ -90,6 +89,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     try {
       await generateMutation.mutateAsync({ projectId, projectName });
       toast.success("Repositorio generado desde plantilla");
+      // Trigger sync to create all folders in Drive
+      triggerSync();
     } catch (e: any) {
       toast.error("Error: " + e.message);
     }
@@ -100,9 +101,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     try {
       await createMutation.mutateAsync({ name, project_id: projectId, parent_id: parentId });
       toast.success("Carpeta creada");
-      if (driveStatus?.connected) {
-        autoSyncedRef.current = false;
-      }
+      // Trigger sync to create folder in Drive
+      triggerSync();
     } catch (e: any) {
       toast.error("Error: " + e.message);
     }
@@ -113,6 +113,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     try {
       await updateMutation.mutateAsync({ id, name: newName, project_id: projectId });
       toast.success("Carpeta renombrada");
+      // Trigger sync to rename folder in Drive
+      triggerSync();
     } catch (e: any) {
       toast.error("Error: " + e.message);
     }
