@@ -48,7 +48,7 @@ async function getAccessToken(): Promise<string> {
 
   const data = await resp.json();
   if (!resp.ok) {
-    console.error("Token refresh failed:", JSON.stringify(data));
+    console.error("[FOLDER_SYNC] Token refresh failed:", JSON.stringify(data));
     throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
   }
   return data.access_token;
@@ -72,7 +72,7 @@ async function findOrCreateFolder(
   const searchData = await searchResp.json();
   
   if (!searchResp.ok) {
-    console.error("Drive search failed:", JSON.stringify(searchData));
+    console.error("[FOLDER_SYNC] Drive search failed:", JSON.stringify(searchData));
     throw new Error(`Drive search failed: ${searchData.error?.message || 'Unknown'}`);
   }
   
@@ -95,9 +95,10 @@ async function findOrCreateFolder(
 
   const created = await createResp.json();
   if (!createResp.ok) {
-    console.error("Drive create failed:", JSON.stringify(created));
+    console.error("[FOLDER_SYNC] Drive create failed:", JSON.stringify(created));
     throw new Error(`Failed to create folder '${name}': ${created.error?.message || 'Unknown'}`);
   }
+  console.log(`[FOLDER_SYNC] Created folder "${name}" -> ${created.id}`);
   return created.id;
 }
 
@@ -137,18 +138,29 @@ async function renameDriveFolder(accessToken: string, folderId: string, newName:
   );
   const data = await resp.json();
   if (!resp.ok) {
-    console.error("Drive rename failed:", JSON.stringify(data));
+    console.error("[FOLDER_SYNC] Drive rename failed:", JSON.stringify(data));
   }
 }
 
-async function getDriveFolderName(accessToken: string, folderId: string): Promise<string | null> {
+/** Check if a Drive folder exists and return its name + parents. Returns null if not found/broken. */
+async function getDriveFolderInfo(
+  accessToken: string,
+  folderId: string
+): Promise<{ name: string; parents?: string[] } | null> {
   const resp = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=name`,
+    `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=name,parents,trashed`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  if (!resp.ok) return null;
+  if (!resp.ok) {
+    console.log(`[FOLDER_SYNC] Folder ${folderId} not accessible (status ${resp.status})`);
+    return null;
+  }
   const data = await resp.json();
-  return data.name || null;
+  if (data.trashed) {
+    console.log(`[FOLDER_SYNC] Folder ${folderId} is trashed`);
+    return null;
+  }
+  return { name: data.name || null, parents: data.parents || [] };
 }
 
 async function syncRecursive(
@@ -157,26 +169,54 @@ async function syncRecursive(
   nodes: ProjectFolder[],
   driveParentId: string,
   sharedDriveId: string,
-  stats: { created: number; updated: number; skipped: number }
+  stats: { created: number; updated: number; skipped: number; repaired: number }
 ) {
   for (const node of nodes) {
     let driveFolderId = node.drive_folder_id;
 
     if (!driveFolderId) {
+      // No drive_folder_id — create or find
       driveFolderId = await findOrCreateFolder(accessToken, node.name, driveParentId, sharedDriveId);
       await admin
         .from("project_folders")
         .update({ drive_folder_id: driveFolderId })
         .eq("id", node.id);
       stats.created++;
+      console.log(`[FOLDER_SYNC] Linked "${node.name}" (${node.id}) -> ${driveFolderId}`);
     } else {
-      // Check if name changed and update in Drive
-      const currentName = await getDriveFolderName(accessToken, driveFolderId);
-      if (currentName && currentName !== node.name) {
-        await renameDriveFolder(accessToken, driveFolderId, node.name);
-        stats.updated++;
+      // Has drive_folder_id — verify it's still valid and under the correct parent
+      const info = await getDriveFolderInfo(accessToken, driveFolderId);
+
+      if (!info) {
+        // Folder is broken/deleted/trashed — recreate under correct parent
+        console.log(`[FOLDER_SYNC] Broken folder detected for "${node.name}" (old: ${driveFolderId}). Repairing...`);
+        driveFolderId = await findOrCreateFolder(accessToken, node.name, driveParentId, sharedDriveId);
+        await admin
+          .from("project_folders")
+          .update({ drive_folder_id: driveFolderId })
+          .eq("id", node.id);
+        stats.repaired++;
+        console.log(`[FOLDER_SYNC] Repaired "${node.name}" -> ${driveFolderId}`);
       } else {
-        stats.skipped++;
+        // Folder exists — check if it's under the right parent
+        const isUnderCorrectParent = info.parents && info.parents.includes(driveParentId);
+
+        if (!isUnderCorrectParent) {
+          // Folder exists but under wrong parent — recreate under correct parent
+          console.log(`[FOLDER_SYNC] Folder "${node.name}" (${driveFolderId}) is under wrong parent. Expected parent: ${driveParentId}, actual: ${JSON.stringify(info.parents)}. Repairing...`);
+          driveFolderId = await findOrCreateFolder(accessToken, node.name, driveParentId, sharedDriveId);
+          await admin
+            .from("project_folders")
+            .update({ drive_folder_id: driveFolderId })
+            .eq("id", node.id);
+          stats.repaired++;
+        } else if (info.name !== node.name) {
+          // Name mismatch — rename in Drive
+          await renameDriveFolder(accessToken, driveFolderId, node.name);
+          stats.updated++;
+        } else {
+          stats.skipped++;
+        }
       }
     }
 
@@ -221,7 +261,7 @@ Deno.serve(async (req) => {
     // Verify user
     const { data: { user }, error: userErr } = await supabase.auth.getUser();
     if (userErr || !user) {
-      console.error("Auth error:", userErr?.message);
+      console.error("[FOLDER_SYNC] Auth error:", userErr?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -236,13 +276,13 @@ Deno.serve(async (req) => {
         throw new Error("project_id and project_name are required");
       }
 
-      console.log(`Starting sync for project: ${project_name} (${project_id})`);
+      console.log(`[FOLDER_SYNC] Starting sync for project: ${project_name} (${project_id})`);
 
       const accessToken = await getAccessToken();
 
       const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
       const projectFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
-      console.log(`AMC Repositorio: ${amcRootId}, Project folder: ${projectFolderId}`);
+      console.log(`[FOLDER_SYNC] AMC Repositorio: ${amcRootId}, Project folder: ${projectFolderId}`);
 
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
@@ -261,11 +301,11 @@ Deno.serve(async (req) => {
       }
 
       const tree = buildTree(folders as ProjectFolder[]);
-      const stats = { created: 0, updated: 0, skipped: 0 };
+      const stats = { created: 0, updated: 0, skipped: 0, repaired: 0 };
 
       await syncRecursive(admin, accessToken, tree, projectFolderId, sharedDriveId, stats);
 
-      console.log(`Sync complete: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped`);
+      console.log(`[FOLDER_SYNC] Sync complete: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped, ${stats.repaired} repaired`);
 
       return new Response(
         JSON.stringify({ message: "Sincronización completada", ...stats }),
@@ -289,7 +329,7 @@ Deno.serve(async (req) => {
 
       if (!delResp.ok && delResp.status !== 404) {
         const errData = await delResp.json().catch(() => ({}));
-        console.error("Drive folder delete failed:", JSON.stringify(errData));
+        console.error("[FOLDER_SYNC] Drive folder delete failed:", JSON.stringify(errData));
         throw new Error(`Drive delete failed: ${(errData as any).error?.message || delResp.statusText}`);
       }
       if (delResp.status !== 204) {
@@ -301,7 +341,7 @@ Deno.serve(async (req) => {
       const admin = createClient(supabaseUrl, serviceRoleKey);
       await admin.from("drive_files").delete().eq("drive_folder_id", reqDriveFolderId);
 
-      console.log(`Deleted Drive folder: ${reqDriveFolderId}`);
+      console.log(`[FOLDER_SYNC] Deleted Drive folder: ${reqDriveFolderId}`);
 
       return new Response(
         JSON.stringify({ message: "Carpeta eliminada de Drive" }),
@@ -312,7 +352,7 @@ Deno.serve(async (req) => {
     throw new Error("Invalid action");
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("sync-drive error:", message);
+    console.error("[FOLDER_SYNC] error:", message);
     return new Response(JSON.stringify({ error: message }), {
       status: message === "NO_REFRESH_TOKEN" ? 400 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
