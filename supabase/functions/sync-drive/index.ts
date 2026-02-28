@@ -206,9 +206,11 @@ Deno.serve(async (req) => {
 
       // 1. Find or create "AMC Repositorio" root
       const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
-      console.log(`AMC Repositorio folder: ${amcRootId}`);
+      // 2. Find or create project subfolder under AMC Repositorio
+      const projectFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
+      console.log(`AMC Repositorio: ${amcRootId}, Project folder: ${projectFolderId}`);
 
-      // 2. Get project folders using service role to bypass RLS for updates
+      // 3. Get project folders using service role to bypass RLS for updates
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
 
@@ -228,8 +230,8 @@ Deno.serve(async (req) => {
       const tree = buildTree(folders as ProjectFolder[]);
       const stats = { created: 0, skipped: 0 };
 
-      // 3. Sync recursively under AMC Repositorio
-      await syncRecursive(admin, accessToken, tree, amcRootId, sharedDriveId, stats);
+      // 4. Sync recursively under project folder
+      await syncRecursive(admin, accessToken, tree, projectFolderId, sharedDriveId, stats);
 
       console.log(`Sync complete: ${stats.created} created, ${stats.skipped} skipped`);
 
