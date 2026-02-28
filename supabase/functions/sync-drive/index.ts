@@ -123,13 +123,41 @@ function buildTree(flat: ProjectFolder[]): ProjectFolder[] {
   return roots;
 }
 
+async function renameDriveFolder(accessToken: string, folderId: string, newName: string) {
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: newName }),
+    }
+  );
+  const data = await resp.json();
+  if (!resp.ok) {
+    console.error("Drive rename failed:", JSON.stringify(data));
+  }
+}
+
+async function getDriveFolderName(accessToken: string, folderId: string): Promise<string | null> {
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=name`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  return data.name || null;
+}
+
 async function syncRecursive(
   admin: ReturnType<typeof createClient>,
   accessToken: string,
   nodes: ProjectFolder[],
   driveParentId: string,
   sharedDriveId: string,
-  stats: { created: number; skipped: number }
+  stats: { created: number; updated: number; skipped: number }
 ) {
   for (const node of nodes) {
     let driveFolderId = node.drive_folder_id;
@@ -142,7 +170,14 @@ async function syncRecursive(
         .eq("id", node.id);
       stats.created++;
     } else {
-      stats.skipped++;
+      // Check if name changed and update in Drive
+      const currentName = await getDriveFolderName(accessToken, driveFolderId);
+      if (currentName && currentName !== node.name) {
+        await renameDriveFolder(accessToken, driveFolderId, node.name);
+        stats.updated++;
+      } else {
+        stats.skipped++;
+      }
     }
 
     if (node.children && node.children.length > 0) {
@@ -228,12 +263,12 @@ Deno.serve(async (req) => {
       }
 
       const tree = buildTree(folders as ProjectFolder[]);
-      const stats = { created: 0, skipped: 0 };
+      const stats = { created: 0, updated: 0, skipped: 0 };
 
       // 4. Sync recursively under project folder
       await syncRecursive(admin, accessToken, tree, projectFolderId, sharedDriveId, stats);
 
-      console.log(`Sync complete: ${stats.created} created, ${stats.skipped} skipped`);
+      console.log(`Sync complete: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped`);
 
       return new Response(
         JSON.stringify({ message: "Sincronización completada", ...stats }),
