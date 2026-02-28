@@ -26,23 +26,61 @@ export function useGetDriveAuthUrl() {
   });
 }
 
+export function useGetProjectDriveId() {
+  return useMutation({
+    mutationFn: async ({ projectId, projectName }: { projectId: string; projectName: string }) => {
+      const { data, error } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "get_project_drive_id", project_id: projectId, project_name: projectName },
+      });
+      if (error) throw error;
+      return data as { drive_folder_id: string };
+    },
+  });
+}
+
+export function useReverseSyncDrive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, projectName }: { projectId: string; projectName: string }) => {
+      const { data, error } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "reverse_sync", project_id: projectId, project_name: projectName },
+      });
+      if (error) throw error;
+      return data as { message: string; folders_added: number; folders_removed: number; files_added: number; files_removed: number };
+    },
+    onSuccess: (_, { projectId }) => {
+      qc.invalidateQueries({ queryKey: ["project_folders", projectId] });
+      qc.invalidateQueries({ queryKey: ["drive_files"] });
+    },
+  });
+}
+
 export function useSyncDrive() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId, projectName }: { projectId: string; projectName: string }) => {
-      // First sync folders
+      // First sync folders (system -> Drive)
       const { data, error } = await supabase.functions.invoke("sync-drive", {
         body: { action: "sync", project_id: projectId, project_name: projectName },
       });
       if (error) throw error;
 
-      // Then repair any orphaned files (files pointing to old/trashed folders)
+      // Then repair any orphaned files
       try {
         await supabase.functions.invoke("sync-drive", {
           body: { action: "repair_orphaned_files", project_id: projectId },
         });
       } catch (e) {
         console.warn("[SYNC] Orphaned file repair failed (non-critical):", e);
+      }
+
+      // Then reverse sync (Drive -> system)
+      try {
+        await supabase.functions.invoke("sync-drive", {
+          body: { action: "reverse_sync", project_id: projectId, project_name: projectName },
+        });
+      } catch (e) {
+        console.warn("[SYNC] Reverse sync failed (non-critical):", e);
       }
 
       return data as { message: string; created: number; updated: number; skipped: number };
