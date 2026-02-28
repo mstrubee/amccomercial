@@ -1,136 +1,68 @@
 
 
-## Sistema de Repositorio de Carpetas Jerárquico
+## Mejoras de UX y Reglas de Negocio para el Repositorio
 
 ### Resumen
-Implementar un sistema de gestión de archivos con dos niveles: un "Repositorio Tipo" (plantilla maestra administrada por admins) y "Repositorios de Proyecto" (instancias independientes por proyecto). Incluye interfaz de árbol recursivo con operaciones CRUD.
+Aplicar 4 mejoras al sistema de repositorio: carpeta raiz automatica con nombre del proyecto, confirmacion de borrado mejorada, ordenamiento alfabetico A-Z, y estilo destructivo en el boton eliminar.
 
 ---
 
-### 1. Migración de Base de Datos
+### 1. Carpeta Raiz Automatica con Nombre del Proyecto
 
-**Tabla `folder_templates`** (Repositorio Tipo):
-- `id` (uuid, PK), `name` (text), `parent_id` (uuid, FK self-referencing, nullable)
-- `orden` (integer, default 0) para ordenar carpetas hermanas
-- RLS: admins CRUD, authenticated SELECT
+**Archivo:** `src/hooks/useProjectFolders.ts` (funcion `useGenerateFromTemplate`)
 
-**Tabla `project_folders`** (Repositorios de Proyecto):
-- `id` (uuid, PK), `name` (text), `project_id` (uuid, FK a proyectos.id)
-- `parent_id` (uuid, FK self-referencing, nullable)
-- `template_id` (uuid, FK a folder_templates.id, nullable)
-- `drive_folder_id` (text, nullable)
-- `orden` (integer, default 0)
-- RLS: authenticated SELECT, admins y tipo1 INSERT/UPDATE, admins DELETE
-- ON DELETE CASCADE en `project_id` para limpiar al eliminar proyecto
+Antes de insertar la estructura del template, crear primero una carpeta raiz con el nombre del proyecto. Todas las carpetas del template se insertan como hijas de esta carpeta raiz.
 
-```sql
-CREATE TABLE public.folder_templates (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  parent_id uuid REFERENCES public.folder_templates(id) ON DELETE CASCADE,
-  orden integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+Cambios:
+- La mutacion `useGenerateFromTemplate` ahora recibe `{ projectId, projectName }` en vez de solo `projectId`
+- Primero inserta una carpeta raiz con `name = projectName`, `parent_id = null`
+- Luego inserta el arbol del template como hijos de esa carpeta raiz
 
-CREATE TABLE public.project_folders (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  project_id uuid NOT NULL REFERENCES public.proyectos(id) ON DELETE CASCADE,
-  parent_id uuid REFERENCES public.project_folders(id) ON DELETE CASCADE,
-  template_id uuid REFERENCES public.folder_templates(id) ON SET NULL,
-  drive_folder_id text,
-  orden integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+**Archivo:** `src/components/repositorio/ProyectoRepositorioDialog.tsx`
+- Pasar `projectName` al llamar `generateMutation.mutateAsync({ projectId, projectName })`
+
+### 2. Confirmacion de Borrado Mejorada
+
+Los dialogs de confirmacion ya existen en ambos componentes. Solo se necesita actualizar el texto.
+
+**Archivos:** `ProyectoRepositorioDialog.tsx` y `RepositorioTipoPage.tsx`
+- Cambiar el texto de confirmacion a: "¿Estas seguro de eliminar esta carpeta? Se eliminaran tambien todas sus subcarpetas y este proceso no se puede deshacer."
+
+El borrado local ya esta garantizado por la arquitectura: `ProyectoRepositorioDialog` solo opera sobre `project_folders` y `RepositorioTipoPage` solo sobre `folder_templates`. No se requieren cambios adicionales.
+
+### 3. Ordenamiento Alfabetico A-Z
+
+**Archivos:** `src/hooks/useFolderTemplates.ts` y `src/hooks/useProjectFolders.ts`
+
+Cambiar las funciones `buildTree` y `buildProjectTree` para ordenar puramente por nombre alfabetico en vez de `orden` primero:
+
+```
+nodes.sort((a, b) => a.name.localeCompare(b.name));
 ```
 
-RLS policies para ambas tablas siguiendo el patrón existente (admins manage, authenticated read). Para `project_folders`, admins y tipo1 pueden insertar/actualizar, solo admins pueden eliminar.
+Esto aplica recursivamente en todos los niveles del arbol. Como las queries ya invalidan el cache al crear/renombrar, el arbol se refresca automaticamente en orden correcto.
+
+### 4. Estilo Destructivo en Boton Eliminar
+
+**Archivo:** `src/components/repositorio/FolderTreeNode.tsx`
+
+Cambiar el boton de eliminar para que el icono Trash2 tenga color rojo suave por defecto:
+
+```tsx
+<Trash2 className="w-3.5 h-3.5 text-destructive/70" />
+```
+
+Y agregar `hover:bg-destructive/10` al boton contenedor para reforzar visualmente.
 
 ---
 
-### 2. Hook `useFolderTemplates`
-
-Nuevo archivo: `src/hooks/useFolderTemplates.ts`
-
-- `useFolderTemplates()` - query que lee todas las `folder_templates` ordenadas
-- `useCreateFolderTemplate()` - mutation para crear carpeta
-- `useUpdateFolderTemplate()` - mutation para renombrar
-- `useDeleteFolderTemplate()` - mutation para eliminar (cascada automática por FK)
-- Helper `buildTree(flatList)` que convierte la lista plana en estructura de arbol anidada
-
-### 3. Hook `useProjectFolders`
-
-Nuevo archivo: `src/hooks/useProjectFolders.ts`
-
-- `useProjectFolders(projectId)` - query que lee carpetas de un proyecto
-- `useCreateProjectFolder()` - mutation para crear
-- `useUpdateProjectFolder()` - mutation para renombrar
-- `useDeleteProjectFolder()` - mutation para eliminar
-- `useGenerateFromTemplate(projectId)` - mutation que copia toda la estructura de `folder_templates` a `project_folders`, mapeando parent_ids correctamente y asignando `template_id`
-
----
-
-### 4. Componente `FolderTreeNode` (Recursivo)
-
-Nuevo archivo: `src/components/repositorio/FolderTreeNode.tsx`
-
-Componente reutilizable que renderiza un nodo de carpeta con:
-- Icono Folder/FolderOpen + ChevronRight rotable
-- Indentación visual por nivel (padding-left proporcional)
-- Botones inline: "Agregar Subcarpeta" (FolderPlus), "Renombrar" (Pencil), "Eliminar" (Trash2)
-- Renderizado recursivo de hijos
-- Usa Collapsible de shadcn para expandir/colapsar
-- Input inline para crear/renombrar (sin diálogo extra)
-
----
-
-### 5. Página "Repositorio Tipo" (Admin)
-
-Nuevo archivo: `src/pages/RepositorioTipoPage.tsx`
-
-- Titulo "Repositorio Tipo" con descripcion
-- Boton "Nueva Carpeta Raiz" en la parte superior
-- Arbol recursivo usando `FolderTreeNode` con datos de `folder_templates`
-- AlertDialog de confirmacion al eliminar con advertencia de borrado en cascada
-- Solo accesible por admins
-
-**Ruta**: `/repositorio-tipo` en `App.tsx` (admin only)
-
-**Sidebar**: Agregar "Repositorio Tipo" a `allAdminSubItems` en `AppLayout.tsx`
-
----
-
-### 6. Dialog "Repositorio del Proyecto"
-
-Nuevo archivo: `src/components/repositorio/ProyectoRepositorioDialog.tsx`
-
-Dialog que se abre desde la vista de proyectos (boton en cada grupo de proyecto):
-- Si el proyecto no tiene carpetas: muestra boton "Generar desde Repositorio Tipo"
-- Si ya tiene carpetas: muestra el arbol con las mismas funcionalidades CRUD
-- Los cambios solo afectan `project_folders` del proyecto seleccionado
-- Boton para abrir este dialog se agrega en la fila madre de cada grupo en Proyectos.tsx (icono Folder)
-
----
-
-### 7. Integración en Proyectos.tsx
-
-- Agregar un boton con icono `FolderKanban` en cada fila madre del listado de proyectos
-- Al hacer clic abre `ProyectoRepositorioDialog` pasando el `project_id` del primer proyecto del grupo
-- Estado `repositorioTarget` para controlar que proyecto tiene el dialog abierto
-
----
-
-### Archivos a crear/modificar
+### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| Migracion SQL | Crear tablas `folder_templates` y `project_folders` con RLS |
-| `src/hooks/useFolderTemplates.ts` | Nuevo - CRUD + buildTree helper |
-| `src/hooks/useProjectFolders.ts` | Nuevo - CRUD + generacion desde template |
-| `src/components/repositorio/FolderTreeNode.tsx` | Nuevo - componente recursivo de arbol |
-| `src/pages/RepositorioTipoPage.tsx` | Nuevo - pagina admin del repositorio tipo |
-| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Nuevo - dialog de repositorio por proyecto |
-| `src/App.tsx` | Agregar ruta `/repositorio-tipo` |
-| `src/components/layout/AppLayout.tsx` | Agregar "Repositorio Tipo" al menu admin |
-| `src/pages/Proyectos.tsx` | Agregar boton + dialog de repositorio por proyecto |
+| `src/hooks/useProjectFolders.ts` | `useGenerateFromTemplate` recibe projectName, crea carpeta raiz con nombre del proyecto |
+| `src/hooks/useFolderTemplates.ts` | Ordenar `buildTree` solo por nombre (A-Z) |
+| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Pasar projectName a generate, actualizar texto de confirmacion |
+| `src/pages/RepositorioTipoPage.tsx` | Actualizar texto de confirmacion de borrado |
+| `src/components/repositorio/FolderTreeNode.tsx` | Estilo rojo suave en boton/icono de eliminar |
 
