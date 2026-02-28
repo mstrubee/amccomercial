@@ -133,7 +133,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
               )}
 
               {canEdit && !isBusyHere && (
-                <div className="hidden group-hover:flex items-center gap-0.5 ml-auto">
+                <div className="flex items-center gap-0.5 ml-auto">
                   {node.drive_folder_id && onUpload && (
                     <Button
                       variant="ghost"
