@@ -1,164 +1,94 @@
 
+Objetivo de esta corrección: garantizar que cada archivo subido se refleje en Google Drive automáticamente, incluso si hay IDs de carpeta desactualizados o fallas temporales de la API.
 
-# Sincronizacion Bidireccional Resiliente con Google Drive
+Contexto validado en el código actual:
+- La subida de archivos usa `upload-to-drive` con estrategia offline-first (cola + intento inmediato).
+- Existe procesamiento de cola (`process-sync-queue`) y hay job activo cada 2 minutos.
+- El problema más probable está en la “salud” de `drive_folder_id`:
+  - Si una carpeta en Drive ya no existe/migró, `sync-drive` hoy no la repara correctamente.
+  - Además, tras el cambio de jerarquía `AMC Repositorio / [Proyecto] / ...`, carpetas antiguas pueden seguir apuntando a rutas previas.
+- Resultado: la app puede intentar subir a un `drive_folder_id` inválido o fuera de la ubicación esperada, y el usuario percibe que “no se reflejan” en Drive.
 
-## Resumen
+Plan de implementación
 
-Implementar un sistema robusto de sincronizacion de archivos entre el sistema AMC y Google Drive, con estrategia offline-first, cola de subida, visualizacion de archivos via metadata, y borrado sincronizado.
+1) Endurecer sincronización de carpetas para “autocuración”
+- Archivo: `supabase/functions/sync-drive/index.ts`
+- Cambios:
+  - Mejorar `syncRecursive` para que, cuando `drive_folder_id` exista pero falle la lectura (`getDriveFolderName` devuelve null/404), se trate como carpeta rota.
+  - En ese caso:
+    1. recrear/buscar carpeta por nombre bajo el padre correcto en Drive,
+    2. actualizar `project_folders.drive_folder_id`,
+    3. continuar recursión con el nuevo ID.
+  - Agregar verificación de padre esperado (no solo nombre): si la carpeta existe pero cuelga de otra ruta vieja, reubicarla (o recrearla y relinkear) para forzar la estructura correcta del proyecto.
+- Resultado esperado:
+  - IDs rotos o heredados de estructura antigua quedan reparados automáticamente.
 
----
+2) Validación previa de carpeta al subir archivo
+- Archivo: `supabase/functions/upload-to-drive/index.ts`
+- Cambios:
+  - Antes de subir archivo a Drive, validar que `drive_folder_id` de destino existe y es accesible.
+  - Si no existe:
+    - responder error controlado tipo `DRIVE_FOLDER_NOT_FOUND` (con mensaje claro),
+    - mantener archivo en cola (`pending_sync`) para no perderlo.
+- Resultado esperado:
+  - Nunca se “pierde” la subida por carpeta inválida.
+  - Queda trazabilidad en cola para recuperación automática.
 
-## 1. Cambios en Base de Datos
+3) Reparación automática al detectar carpeta inválida
+- Frontend: `src/components/repositorio/ProyectoRepositorioDialog.tsx` y/o `src/hooks/useDriveSync.ts`
+- Cambios:
+  - Si `upload-to-drive` responde `DRIVE_FOLDER_NOT_FOUND`, disparar `sync-drive` del proyecto y luego reintentar subida una vez automáticamente.
+  - Si el reintento también falla, mantener en cola y mostrar toast explícito: “archivo en cola, sincronización en curso”.
+- Resultado esperado:
+  - Flujo transparente para usuario: se autocorrige sin intervención manual en la mayoría de casos.
 
-### Tabla `pending_sync` (cola de subida)
-Registra archivos pendientes de sincronizar con Drive.
+4) Acelerar sincronización de cola cuando hay pendientes (no esperar solo cron)
+- Frontend: `ProyectoRepositorioDialog.tsx`
+- Cambios:
+  - Cuando `pendingCount > 0`, ejecutar `process-sync-queue` periódicamente mientras el diálogo está abierto (ej. cada 15–30s).
+  - Mantener el trigger actual al evento `online`.
+- Resultado esperado:
+  - Si falla el intento inmediato, la recuperación ocurre rápido, no solo cada 2 minutos.
 
-```text
-pending_sync
-- id (uuid, PK)
-- project_folder_id (uuid, FK -> project_folders)
-- drive_folder_id (text, nullable)
-- file_name (text)
-- file_size (bigint)
-- mime_type (text)
-- storage_path (text)        -- ruta en bucket Supabase
-- status (text)               -- 'pending' | 'uploading' | 'synced' | 'failed'
-- error_message (text, nullable)
-- retry_count (int, default 0)
-- created_by (uuid)
-- created_at (timestamptz)
-- synced_at (timestamptz, nullable)
-- drive_file_id (text, nullable)
-```
+5) Visibilidad de estado para evitar falsa percepción de “no subido”
+- Frontend: `FolderTreeNode.tsx` / `ProyectoRepositorioDialog.tsx`
+- Cambios:
+  - Mostrar indicador por archivo/carpeta cuando hay elementos pendientes/fallidos.
+  - Agregar mensaje más explícito de estado:
+    - “Sincronizado en Drive”
+    - “En cola de sincronización”
+    - “Reintentando subida”.
+- Resultado esperado:
+  - El usuario entiende si el archivo ya está en Drive o sigue en proceso.
 
-### Tabla `drive_files` (metadata de archivos en Drive)
-Cache de metadata para listar archivos sin consultar la API de Google.
+6) Diagnóstico y observabilidad
+- Backend functions (`upload-to-drive`, `process-sync-queue`, `sync-drive`)
+- Cambios:
+  - Estandarizar logs con prefijos: `[UPLOAD]`, `[QUEUE]`, `[FOLDER_SYNC]`.
+  - Incluir `project_folder_id`, `drive_folder_id`, `file_name`, motivo de error.
+- Resultado esperado:
+  - Diagnóstico rápido ante futuros casos.
 
-```text
-drive_files
-- id (uuid, PK)
-- project_folder_id (uuid, FK -> project_folders)
-- drive_file_id (text)        -- ID del archivo en Google Drive
-- drive_folder_id (text)
-- file_name (text)
-- mime_type (text)
-- file_size (bigint)
-- created_by (uuid)
-- created_at (timestamptz)
-- updated_at (timestamptz)
-```
+Criterios de aceptación (funcionales)
+1. Al crear carpeta en el sistema, aparece en Drive bajo `AMC Repositorio/[Proyecto]/...` automáticamente.
+2. Al subir 1 archivo en carpeta existente, aparece en Drive en menos de ~10s en condiciones normales.
+3. Si la carpeta destino en Drive fue borrada/movida, el sistema la repara y la subida termina reflejada en Drive.
+4. Si Google falla temporalmente, el archivo queda en cola y se sincroniza automáticamente al recuperarse.
+5. El usuario ve estado claro (sincronizado / en cola / reintentando).
 
-### Bucket de Supabase Storage
-Crear bucket privado `drive-upload-queue` para almacenar archivos temporalmente mientras se sincronizan.
+Riesgos y mitigaciones
+- Riesgo: mover carpetas existentes puede impactar rutas manuales en Drive.
+  - Mitigación: preferir estrategia “recrear + relink” solo cuando se detecte inconsistencia fuerte; log detallado.
+- Riesgo: reintentos agresivos aumentan llamadas API.
+  - Mitigación: intervalos moderados y límite de intentos existente (`MAX_RETRIES`).
 
-### Politicas RLS
-- Lectura de `drive_files` y `pending_sync`: usuarios autenticados
-- Insercion: admin y usuario_tipo_1
-- Eliminacion de `drive_files`: admin y usuario_tipo_1
-- Eliminacion de `pending_sync`: solo admin
+Validación end-to-end propuesta
+1. Proyecto con carpetas existentes:
+   - subir archivo y confirmar aparición en Drive en carpeta correcta.
+2. Simulación de carpeta rota:
+   - borrar carpeta en Drive manualmente, subir archivo, validar autocuración + reflejo.
+3. Simulación de fallo temporal:
+   - forzar error de subida (token/permiso temporal), confirmar cola + recuperación automática.
+4. Confirmar que listado local y enlaces de visualización siguen funcionando igual.
 
----
-
-## 2. Edge Functions
-
-### A. Modificar `upload-to-drive` (estrategia offline-first)
-
-Flujo actualizado:
-1. Recibir archivo via FormData
-2. Guardar archivo en bucket `drive-upload-queue`
-3. Registrar en tabla `pending_sync` con status `pending`
-4. Intentar subir a Google Drive inmediatamente
-5. Si exito: guardar `drive_file_id` en `drive_files`, marcar como `synced` en `pending_sync`, eliminar del bucket
-6. Si fallo (API Google caida, error de red): dejar en bucket con status `pending` para reintento posterior
-
-### B. Crear `process-sync-queue` (procesador de cola)
-
-Edge function que:
-1. Lee registros de `pending_sync` con status `pending` o `failed` (con retry_count < 5)
-2. Para cada uno, descarga el archivo del bucket y lo sube a Drive
-3. Si exito: actualiza `drive_files`, marca `synced`, elimina del bucket
-4. Si fallo: incrementa `retry_count`, guarda `error_message`
-
-Se ejecutara via cron job cada 2 minutos.
-
-### C. Crear `delete-drive-file`
-
-Edge function que:
-1. Recibe `drive_file_id` y `drive_files_id` (registro en DB)
-2. Llama a `DELETE` en Google Drive API
-3. Elimina el registro de `drive_files`
-
-### D. Modificar `sync-drive` (borrado de carpetas)
-
-Agregar soporte para cuando se elimina una carpeta del sistema:
-1. Recibir action `delete_folder` con `drive_folder_id`
-2. Llamar a `DELETE` en Google Drive API para eliminar la carpeta (y todo su contenido)
-3. Limpiar registros de `drive_files` asociados
-
-### E. Crear `get-drive-view-url`
-
-Edge function que:
-1. Recibe `drive_file_id`
-2. Usa la API de Google Drive para obtener `webContentLink` o `webViewLink`
-3. Retorna la URL temporal para que el navegador del usuario acceda directamente a Google
-
----
-
-## 3. Cambios en Frontend
-
-### A. Hook `useDriveSync.ts` - Nuevas funciones
-
-- `useUploadToDrive`: Modificar para guardar primero en bucket y luego intentar sync
-- `useDriveFiles(folderId)`: Query que lee de tabla `drive_files` para listar archivos
-- `useDeleteDriveFile()`: Mutation que llama a `delete-drive-file`
-- `useGetDriveViewUrl()`: Mutation que obtiene URL de visualizacion directa
-- `usePendingSyncCount()`: Query para mostrar indicador de archivos pendientes
-
-### B. Hook `useProjectFolders.ts` - Borrado sincronizado
-
-Modificar `useDeleteProjectFolder` para que, si la carpeta tiene `drive_folder_id`, tambien llame a `sync-drive` con action `delete_folder`.
-
-### C. Componente `FolderTreeNode.tsx`
-
-- Mostrar lista de archivos debajo de cada carpeta (usando `drive_files` de la DB)
-- Cada archivo muestra: nombre, tamano, icono segun tipo
-- Click en archivo: llama a `get-drive-view-url` y abre en nueva pestana
-- Boton de eliminar archivo: llama a `delete-drive-file`
-- Indicador visual de archivos pendientes de sync (icono de reloj o spinner)
-
-### D. Componente `ProyectoRepositorioDialog.tsx`
-
-- Mostrar badge/indicador de "X archivos pendientes de sincronizar"
-- Detectar reconexion online con `navigator.onLine` + evento `online` para disparar `process-sync-queue`
-
-### E. Detector de reconexion (en ProyectoRepositorioDialog o a nivel App)
-
-- Listener de evento `online` del navegador
-- Al detectar reconexion, llamar a `process-sync-queue` para procesar la cola
-
----
-
-## 4. Cron Job para Cola de Sincronizacion
-
-Configurar via `pg_cron` + `pg_net` un job que ejecute `process-sync-queue` cada 2 minutos para procesar archivos pendientes automaticamente, independientemente de si el usuario tiene la app abierta.
-
----
-
-## 5. Seguridad
-
-- Refresh token de Google se maneja via `app_settings` (ya implementado) con renovacion automatica en cada Edge Function
-- Archivos en bucket `drive-upload-queue` son privados, accesibles solo via service role
-- RLS en todas las tablas nuevas
-- Edge functions validan JWT del usuario
-
----
-
-## Secuencia de Implementacion
-
-1. Crear tablas `pending_sync` y `drive_files` + bucket + RLS
-2. Crear/modificar Edge Functions (upload-to-drive, process-sync-queue, delete-drive-file, get-drive-view-url, sync-drive)
-3. Actualizar hooks frontend (useDriveSync, useProjectFolders)
-4. Actualizar UI (FolderTreeNode con lista de archivos, preview, delete)
-5. Configurar cron job
-6. Agregar detector de reconexion online
-
+Se entregará en una sola iteración de código con foco en robustez de carpeta destino + reintentos automáticos inmediatos.
