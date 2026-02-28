@@ -37,6 +37,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const processSyncQueue = useProcessSyncQueue();
   const getProjectDriveId = useGetProjectDriveId();
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
+  const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  const driveLinkRef = useRef<HTMLAnchorElement>(null);
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
@@ -254,28 +256,34 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                     </Button>
 
                     {driveStatus?.connected && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 text-xs"
-                        disabled={getProjectDriveId.isPending}
-                        onClick={async () => {
-                          if (!projectId) return;
-                          try {
-                            const result = await getProjectDriveId.mutateAsync({ projectId, projectName });
-                            window.open(`https://drive.google.com/drive/folders/${result.drive_folder_id}`, "_blank");
-                          } catch (e: any) {
-                            toast.error("Error: " + e.message);
-                          }
-                        }}
-                      >
-                        {getProjectDriveId.isPending ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <ExternalLinkIcon className="w-3.5 h-3.5" />
-                        )}
-                        Ver en Google Drive
-                      </Button>
+                      <>
+                        <a ref={driveLinkRef} href={driveUrl || "#"} target="_blank" rel="noopener noreferrer" className="hidden" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs"
+                          disabled={getProjectDriveId.isPending}
+                          onClick={async () => {
+                            if (!projectId) return;
+                            try {
+                              const result = await getProjectDriveId.mutateAsync({ projectId, projectName });
+                              const url = `https://drive.google.com/drive/folders/${result.drive_folder_id}`;
+                              setDriveUrl(url);
+                              // Use a small timeout so the ref updates with the new href
+                              setTimeout(() => driveLinkRef.current?.click(), 50);
+                            } catch (e: any) {
+                              toast.error("Error: " + e.message);
+                            }
+                          }}
+                        >
+                          {getProjectDriveId.isPending ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ExternalLinkIcon className="w-3.5 h-3.5" />
+                          )}
+                          Ver en Google Drive
+                        </Button>
+                      </>
                     )}
 
                     {!driveStatus?.connected && (
