@@ -167,10 +167,16 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const sharedDriveId = Deno.env.get("GOOGLE_SHARED_DRIVE_ID");
+    let sharedDriveId = Deno.env.get("GOOGLE_SHARED_DRIVE_ID");
 
     if (!sharedDriveId) {
       throw new Error("GOOGLE_SHARED_DRIVE_ID not configured");
+    }
+
+    // Extract ID from URL if a full URL was provided
+    const folderMatch = sharedDriveId.match(/\/folders\/([^/?]+)/);
+    if (folderMatch) {
+      sharedDriveId = folderMatch[1];
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
