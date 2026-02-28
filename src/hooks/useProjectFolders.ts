@@ -34,7 +34,7 @@ export function buildProjectTree(flat: ProjectFolder[]): ProjectFolderTreeNode[]
   }
 
   const sort = (nodes: ProjectFolderTreeNode[]) => {
-    nodes.sort((a, b) => a.orden - b.orden || a.name.localeCompare(b.name));
+    nodes.sort((a, b) => a.name.localeCompare(b.name));
     nodes.forEach((n) => sort(n.children));
   };
   sort(roots);
@@ -104,7 +104,7 @@ export function useDeleteProjectFolder() {
 export function useGenerateFromTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (projectId: string) => {
+    mutationFn: async ({ projectId, projectName }: { projectId: string; projectName: string }) => {
       // Fetch all templates
       const { data: templates, error: tErr } = await supabase
         .from("folder_templates" as any)
@@ -116,7 +116,16 @@ export function useGenerateFromTemplate() {
       const typedTemplates = templates as unknown as FolderTemplate[];
       const tree = buildTree(typedTemplates);
 
-      // Insert recursively, mapping old IDs to new IDs
+      // Create root folder with project name
+      const { data: rootFolder, error: rootErr } = await supabase
+        .from("project_folders" as any)
+        .insert({ name: projectName, project_id: projectId, parent_id: null, orden: 0 } as any)
+        .select()
+        .single();
+      if (rootErr) throw rootErr;
+      const rootId = (rootFolder as any).id;
+
+      // Insert template tree under root folder
       const insertRecursive = async (nodes: FolderTreeNode[], parentId: string | null) => {
         for (const node of nodes) {
           const { data: inserted, error } = await supabase
@@ -137,8 +146,8 @@ export function useGenerateFromTemplate() {
         }
       };
 
-      await insertRecursive(tree, null);
+      await insertRecursive(tree, rootId);
     },
-    onSuccess: (_, projectId) => qc.invalidateQueries({ queryKey: ["project_folders", projectId] }),
+    onSuccess: (_, { projectId }) => qc.invalidateQueries({ queryKey: ["project_folders", projectId] }),
   });
 }

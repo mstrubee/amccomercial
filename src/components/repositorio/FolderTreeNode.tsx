@@ -129,11 +129,11 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 hover:text-destructive"
+                    className="h-6 w-6 hover:bg-destructive/10"
                     title="Eliminar"
                     onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5 text-destructive/70" />
                   </Button>
                 </div>
               )}

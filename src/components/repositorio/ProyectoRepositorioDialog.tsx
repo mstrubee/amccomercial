@@ -41,7 +41,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const handleGenerate = async () => {
     if (!projectId) return;
     try {
-      await generateMutation.mutateAsync(projectId);
+      await generateMutation.mutateAsync({ projectId, projectName });
       toast.success("Repositorio generado desde plantilla");
     } catch (e: any) {
       toast.error("Error: " + e.message);
@@ -171,7 +171,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar carpeta?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará la carpeta y todas sus subcarpetas. Esta acción solo afecta a este proyecto.
+              ¿Estás seguro de eliminar esta carpeta? Se eliminarán también todas sus subcarpetas y este proceso no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
