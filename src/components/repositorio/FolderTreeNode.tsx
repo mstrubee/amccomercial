@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Check, X } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Check, X, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -9,6 +9,7 @@ export interface TreeNode {
   id: string;
   name: string;
   children: TreeNode[];
+  drive_folder_id?: string | null;
 }
 
 interface Props {
@@ -17,10 +18,13 @@ interface Props {
   onRename: (id: string, newName: string) => void;
   onDelete: (id: string) => void;
   onCreate: (parentId: string, name: string) => void;
+  onUpload?: (driveFolderId: string, file: File) => void;
+  isUploading?: boolean;
+  uploadingFolderId?: string | null;
   canEdit?: boolean;
 }
 
-export default function FolderTreeNode({ node, level, onRename, onDelete, onCreate, canEdit = true }: Props) {
+export default function FolderTreeNode({ node, level, onRename, onDelete, onCreate, onUpload, isUploading, uploadingFolderId, canEdit = true }: Props) {
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState(node.name);
@@ -28,6 +32,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   const [newName, setNewName] = useState("");
   const renameRef = useRef<HTMLInputElement>(null);
   const createRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (renaming) renameRef.current?.focus();
@@ -55,10 +60,26 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
     }
   };
 
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && node.drive_folder_id && onUpload) {
+      onUpload(node.drive_folder_id, file);
+    }
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const isBusyHere = isUploading && uploadingFolderId === node.drive_folder_id;
   const hasChildren = node.children.length > 0 || creating;
 
   return (
     <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
       <Collapsible open={open} onOpenChange={setOpen}>
         <div
           className={cn(
@@ -106,8 +127,25 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
           ) : (
             <>
               <span className="text-sm text-foreground ml-1 flex-1 truncate">{node.name}</span>
-              {canEdit && (
+
+              {isBusyHere && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto shrink-0" />
+              )}
+
+              {canEdit && !isBusyHere && (
                 <div className="hidden group-hover:flex items-center gap-0.5 ml-auto">
+                  {node.drive_folder_id && onUpload && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      title="Subir archivo a Drive"
+                      disabled={isUploading}
+                      onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                    >
+                      <Upload className="w-3.5 h-3.5 text-blue-500" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -150,6 +188,9 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
               onRename={onRename}
               onDelete={onDelete}
               onCreate={onCreate}
+              onUpload={onUpload}
+              isUploading={isUploading}
+              uploadingFolderId={uploadingFolderId}
               canEdit={canEdit}
             />
           ))}

@@ -11,7 +11,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
 import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree } from "@/hooks/useProjectFolders";
-import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive } from "@/hooks/useDriveSync";
+import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive } from "@/hooks/useDriveSync";
 
 interface Props {
   projectId: string | null;
@@ -30,6 +30,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const { data: driveStatus } = useDriveAuthStatus();
   const getAuthUrl = useGetDriveAuthUrl();
   const syncDrive = useSyncDrive();
+  const uploadToDrive = useUploadToDrive();
+  const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
@@ -113,6 +115,22 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
       } else {
         toast.error("Error: " + e.message);
       }
+    }
+  };
+
+  const handleUploadFile = async (driveFolderId: string, file: File) => {
+    setUploadingFolderId(driveFolderId);
+    try {
+      const result = await uploadToDrive.mutateAsync({ file, driveFolderId });
+      toast.success(`"${result.file_name}" subido exitosamente a Drive`);
+    } catch (e: any) {
+      if (e.message?.includes("NO_REFRESH_TOKEN")) {
+        toast.error("Primero debes conectar Google Drive");
+      } else {
+        toast.error("Error al subir: " + e.message);
+      }
+    } finally {
+      setUploadingFolderId(null);
     }
   };
 
@@ -224,6 +242,9 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                     onRename={handleRename}
                     onDelete={(id) => setDeleteTarget(id)}
                     onCreate={handleCreate}
+                    onUpload={driveStatus?.connected ? handleUploadFile : undefined}
+                    isUploading={uploadToDrive.isPending}
+                    uploadingFolderId={uploadingFolderId}
                     canEdit={canEdit}
                   />
                 ))}
