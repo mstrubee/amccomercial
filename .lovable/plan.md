@@ -1,89 +1,136 @@
 
 
-## Actividad de Usuarios con Umbrales Personalizables
+## Sistema de Repositorio de Carpetas Jerárquico
 
 ### Resumen
-Agregar una columna "Actividad" a la tabla de usuarios que muestra el estado en tiempo real (Verde/Amarillo/Rojo) con umbrales de tiempo personalizables por usuario por el admin.
+Implementar un sistema de gestión de archivos con dos niveles: un "Repositorio Tipo" (plantilla maestra administrada por admins) y "Repositorios de Proyecto" (instancias independientes por proyecto). Incluye interfaz de árbol recursivo con operaciones CRUD.
 
-### Lógica de estados
+---
 
-| Estado | Color | Condición |
-|--------|-------|-----------|
-| Activo | Verde (pulsante) | Última interacción dentro de N minutos |
-| Inactivo | Amarillo | Sin actividad entre N y Y minutos |
-| Desconectado | Rojo | Sin actividad por más de Y minutos |
+### 1. Migración de Base de Datos
 
-Donde **N** (umbral idle) e **Y** (umbral offline) son configurables por usuario.
+**Tabla `folder_templates`** (Repositorio Tipo):
+- `id` (uuid, PK), `name` (text), `parent_id` (uuid, FK self-referencing, nullable)
+- `orden` (integer, default 0) para ordenar carpetas hermanas
+- RLS: admins CRUD, authenticated SELECT
 
-### Cambios planificados
-
-**1. Nueva tabla `user_activity_thresholds`**
-
-Almacena los umbrales personalizados por usuario:
-- `user_id` (uuid, unique, referencia a profiles.user_id)
-- `idle_minutes` (integer, default 5) -- N minutos para pasar a amarillo
-- `offline_minutes` (integer, default 15) -- Y minutos para pasar a rojo
-
-RLS: admins pueden CRUD, usuarios autenticados pueden leer todos.
+**Tabla `project_folders`** (Repositorios de Proyecto):
+- `id` (uuid, PK), `name` (text), `project_id` (uuid, FK a proyectos.id)
+- `parent_id` (uuid, FK self-referencing, nullable)
+- `template_id` (uuid, FK a folder_templates.id, nullable)
+- `drive_folder_id` (text, nullable)
+- `orden` (integer, default 0)
+- RLS: authenticated SELECT, admins y tipo1 INSERT/UPDATE, admins DELETE
+- ON DELETE CASCADE en `project_id` para limpiar al eliminar proyecto
 
 ```sql
-CREATE TABLE public.user_activity_thresholds (
+CREATE TABLE public.folder_templates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL UNIQUE,
-  idle_minutes integer NOT NULL DEFAULT 5,
-  offline_minutes integer NOT NULL DEFAULT 15,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  name text NOT NULL,
+  parent_id uuid REFERENCES public.folder_templates(id) ON DELETE CASCADE,
+  orden integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
-ALTER TABLE public.user_activity_thresholds ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Admins can manage thresholds"
-  ON public.user_activity_thresholds FOR ALL
-  TO authenticated
-  USING (has_role(auth.uid(), 'admin'::app_role))
-  WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
-
-CREATE POLICY "Authenticated can read thresholds"
-  ON public.user_activity_thresholds FOR SELECT
-  TO authenticated
-  USING (true);
+CREATE TABLE public.project_folders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  project_id uuid NOT NULL REFERENCES public.proyectos(id) ON DELETE CASCADE,
+  parent_id uuid REFERENCES public.project_folders(id) ON DELETE CASCADE,
+  template_id uuid REFERENCES public.folder_templates(id) ON SET NULL,
+  drive_folder_id text,
+  orden integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 ```
 
-**2. Modificar `src/pages/Usuarios.tsx`**
+RLS policies para ambas tablas siguiendo el patrón existente (admins manage, authenticated read). Para `project_folders`, admins y tipo1 pueden insertar/actualizar, solo admins pueden eliminar.
 
-- Agregar columna "Actividad" entre "Creado" y "Acciones"
-- Consultar `profiles` (para `last_seen_at`, `activity_status`, `current_section`) y `user_activity_thresholds` con realtime
-- Cada fila muestra un indicador circular de color + texto de estado
-- Suscribirse a cambios realtime en `profiles` para actualización instantánea
-- Agregar un botón de configuracion (icono reloj/settings) en cada fila que abre un diálogo para editar los umbrales N e Y del usuario
+---
 
-**3. Nuevo componente `ActivityThresholdsDialog`**
+### 2. Hook `useFolderTemplates`
 
-Diálogo flotante para que el admin configure los umbrales por usuario:
-- Input numérico para "Minutos para estado Inactivo (N)" (default 5)
-- Input numérico para "Minutos para estado Desconectado (Y)" (default 15)
-- Validación: Y debe ser mayor que N
-- Botón guardar que hace upsert en `user_activity_thresholds`
-- Botón "Restaurar valores predeterminados"
+Nuevo archivo: `src/hooks/useFolderTemplates.ts`
 
-**4. Hook `useActivityThresholds`**
+- `useFolderTemplates()` - query que lee todas las `folder_templates` ordenadas
+- `useCreateFolderTemplate()` - mutation para crear carpeta
+- `useUpdateFolderTemplate()` - mutation para renombrar
+- `useDeleteFolderTemplate()` - mutation para eliminar (cascada automática por FK)
+- Helper `buildTree(flatList)` que convierte la lista plana en estructura de arbol anidada
 
-- Query para leer todos los umbrales (`user_activity_thresholds`)
-- Mutation para upsert umbrales de un usuario
-- Función helper `getActivityStatus(profile, thresholds)` que devuelve color/texto/pulse basado en los umbrales del usuario
+### 3. Hook `useProjectFolders`
 
-**5. Actualizar `FloatingUserStatus.tsx`**
+Nuevo archivo: `src/hooks/useProjectFolders.ts`
 
-- Reutilizar la misma lógica de umbrales personalizados (leer `user_activity_thresholds`) para que el panel flotante también refleje los colores correctos por usuario
+- `useProjectFolders(projectId)` - query que lee carpetas de un proyecto
+- `useCreateProjectFolder()` - mutation para crear
+- `useUpdateProjectFolder()` - mutation para renombrar
+- `useDeleteProjectFolder()` - mutation para eliminar
+- `useGenerateFromTemplate(projectId)` - mutation que copia toda la estructura de `folder_templates` a `project_folders`, mapeando parent_ids correctamente y asignando `template_id`
+
+---
+
+### 4. Componente `FolderTreeNode` (Recursivo)
+
+Nuevo archivo: `src/components/repositorio/FolderTreeNode.tsx`
+
+Componente reutilizable que renderiza un nodo de carpeta con:
+- Icono Folder/FolderOpen + ChevronRight rotable
+- Indentación visual por nivel (padding-left proporcional)
+- Botones inline: "Agregar Subcarpeta" (FolderPlus), "Renombrar" (Pencil), "Eliminar" (Trash2)
+- Renderizado recursivo de hijos
+- Usa Collapsible de shadcn para expandir/colapsar
+- Input inline para crear/renombrar (sin diálogo extra)
+
+---
+
+### 5. Página "Repositorio Tipo" (Admin)
+
+Nuevo archivo: `src/pages/RepositorioTipoPage.tsx`
+
+- Titulo "Repositorio Tipo" con descripcion
+- Boton "Nueva Carpeta Raiz" en la parte superior
+- Arbol recursivo usando `FolderTreeNode` con datos de `folder_templates`
+- AlertDialog de confirmacion al eliminar con advertencia de borrado en cascada
+- Solo accesible por admins
+
+**Ruta**: `/repositorio-tipo` en `App.tsx` (admin only)
+
+**Sidebar**: Agregar "Repositorio Tipo" a `allAdminSubItems` en `AppLayout.tsx`
+
+---
+
+### 6. Dialog "Repositorio del Proyecto"
+
+Nuevo archivo: `src/components/repositorio/ProyectoRepositorioDialog.tsx`
+
+Dialog que se abre desde la vista de proyectos (boton en cada grupo de proyecto):
+- Si el proyecto no tiene carpetas: muestra boton "Generar desde Repositorio Tipo"
+- Si ya tiene carpetas: muestra el arbol con las mismas funcionalidades CRUD
+- Los cambios solo afectan `project_folders` del proyecto seleccionado
+- Boton para abrir este dialog se agrega en la fila madre de cada grupo en Proyectos.tsx (icono Folder)
+
+---
+
+### 7. Integración en Proyectos.tsx
+
+- Agregar un boton con icono `FolderKanban` en cada fila madre del listado de proyectos
+- Al hacer clic abre `ProyectoRepositorioDialog` pasando el `project_id` del primer proyecto del grupo
+- Estado `repositorioTarget` para controlar que proyecto tiene el dialog abierto
+
+---
 
 ### Archivos a crear/modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| Migración SQL | Crear tabla `user_activity_thresholds` con RLS |
-| `src/hooks/useActivityThresholds.ts` | Nuevo hook para query/mutation de umbrales + función `getActivityStatus` |
-| `src/pages/Usuarios.tsx` | Agregar columna Actividad con indicador de color, botón config umbrales, realtime en profiles |
-| `src/components/usuarios/ActivityThresholdsDialog.tsx` | Nuevo diálogo para configurar N e Y por usuario |
-| `src/components/presence/FloatingUserStatus.tsx` | Usar umbrales personalizados en lugar de los 5 min hardcodeados |
+| Migracion SQL | Crear tablas `folder_templates` y `project_folders` con RLS |
+| `src/hooks/useFolderTemplates.ts` | Nuevo - CRUD + buildTree helper |
+| `src/hooks/useProjectFolders.ts` | Nuevo - CRUD + generacion desde template |
+| `src/components/repositorio/FolderTreeNode.tsx` | Nuevo - componente recursivo de arbol |
+| `src/pages/RepositorioTipoPage.tsx` | Nuevo - pagina admin del repositorio tipo |
+| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Nuevo - dialog de repositorio por proyecto |
+| `src/App.tsx` | Agregar ruta `/repositorio-tipo` |
+| `src/components/layout/AppLayout.tsx` | Agregar "Repositorio Tipo" al menu admin |
+| `src/pages/Proyectos.tsx` | Agregar boton + dialog de repositorio por proyecto |
 
