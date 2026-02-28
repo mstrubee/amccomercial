@@ -1,0 +1,1 @@
+ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_key_unique UNIQUE (key);

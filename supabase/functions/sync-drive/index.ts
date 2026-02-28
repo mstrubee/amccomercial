@@ -14,7 +14,6 @@ interface ProjectFolder {
   children?: ProjectFolder[];
 }
 
-// Refresh the access token using the stored refresh token
 async function getAccessToken(): Promise<string> {
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
@@ -49,19 +48,18 @@ async function getAccessToken(): Promise<string> {
 
   const data = await resp.json();
   if (!resp.ok) {
-    throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
+    console.error("Token refresh failed:", JSON.stringify(data));
+    throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
   }
   return data.access_token;
 }
 
-// Find or create a folder in Google Drive
 async function findOrCreateFolder(
   accessToken: string,
   name: string,
   parentId: string | null,
   sharedDriveId: string
 ): Promise<string> {
-  // Search for existing folder
   let query = `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   if (parentId) {
     query += ` and '${parentId}' in parents`;
@@ -72,11 +70,16 @@ async function findOrCreateFolder(
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   const searchData = await searchResp.json();
+  
+  if (!searchResp.ok) {
+    console.error("Drive search failed:", JSON.stringify(searchData));
+    throw new Error(`Drive search failed: ${searchData.error?.message || 'Unknown'}`);
+  }
+  
   if (searchData.files?.length > 0) {
     return searchData.files[0].id;
   }
 
-  // Create folder
   const createResp = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
     method: "POST",
     headers: {
@@ -92,12 +95,12 @@ async function findOrCreateFolder(
 
   const created = await createResp.json();
   if (!createResp.ok) {
-    throw new Error(`Failed to create folder '${name}': ${JSON.stringify(created)}`);
+    console.error("Drive create failed:", JSON.stringify(created));
+    throw new Error(`Failed to create folder '${name}': ${created.error?.message || 'Unknown'}`);
   }
   return created.id;
 }
 
-// Build tree from flat list
 function buildTree(flat: ProjectFolder[]): ProjectFolder[] {
   const map = new Map<string, ProjectFolder>();
   const roots: ProjectFolder[] = [];
@@ -120,9 +123,8 @@ function buildTree(flat: ProjectFolder[]): ProjectFolder[] {
   return roots;
 }
 
-// Recursively sync folders
 async function syncRecursive(
-  supabase: ReturnType<typeof createClient>,
+  admin: ReturnType<typeof createClient>,
   accessToken: string,
   nodes: ProjectFolder[],
   driveParentId: string,
@@ -133,10 +135,8 @@ async function syncRecursive(
     let driveFolderId = node.drive_folder_id;
 
     if (!driveFolderId) {
-      // Create in Drive
       driveFolderId = await findOrCreateFolder(accessToken, node.name, driveParentId, sharedDriveId);
-      // Save to DB
-      await supabase
+      await admin
         .from("project_folders")
         .update({ drive_folder_id: driveFolderId })
         .eq("id", node.id);
@@ -146,7 +146,7 @@ async function syncRecursive(
     }
 
     if (node.children && node.children.length > 0) {
-      await syncRecursive(supabase, accessToken, node.children, driveFolderId, sharedDriveId, stats);
+      await syncRecursive(admin, accessToken, node.children, driveFolderId, sharedDriveId, stats);
     }
   }
 }
@@ -178,9 +178,9 @@ Deno.serve(async (req) => {
     });
 
     // Verify user
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      console.error("Auth error:", userErr?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -189,30 +189,24 @@ Deno.serve(async (req) => {
 
     const { action, project_id, project_name } = await req.json();
 
-    if (action === "get_auth_url") {
-      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      if (!clientId) throw new Error("GOOGLE_CLIENT_ID not configured");
-
-      const redirectUri = `${supabaseUrl}/functions/v1/sync-drive`;
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent`;
-
-      return new Response(JSON.stringify({ auth_url: authUrl }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     if (action === "sync") {
       if (!project_id || !project_name) {
         throw new Error("project_id and project_name are required");
       }
 
+      console.log(`Starting sync for project: ${project_name} (${project_id})`);
+
       const accessToken = await getAccessToken();
 
       // 1. Find or create "AMC Repositorio" root
       const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
+      console.log(`AMC Repositorio folder: ${amcRootId}`);
 
-      // 2. Get project folders
-      const { data: folders, error: fErr } = await supabase
+      // 2. Get project folders using service role to bypass RLS for updates
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: folders, error: fErr } = await admin
         .from("project_folders")
         .select("id, name, parent_id, drive_folder_id")
         .eq("project_id", project_id)
@@ -220,7 +214,7 @@ Deno.serve(async (req) => {
 
       if (fErr) throw fErr;
       if (!folders || folders.length === 0) {
-        return new Response(JSON.stringify({ message: "No folders to sync", created: 0, skipped: 0 }), {
+        return new Response(JSON.stringify({ message: "No hay carpetas para sincronizar", created: 0, skipped: 0 }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -229,7 +223,9 @@ Deno.serve(async (req) => {
       const stats = { created: 0, skipped: 0 };
 
       // 3. Sync recursively under AMC Repositorio
-      await syncRecursive(supabase, accessToken, tree, amcRootId, sharedDriveId, stats);
+      await syncRecursive(admin, accessToken, tree, amcRootId, sharedDriveId, stats);
+
+      console.log(`Sync complete: ${stats.created} created, ${stats.skipped} skipped`);
 
       return new Response(
         JSON.stringify({ message: "Sincronización completada", ...stats }),
@@ -247,6 +243,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-// Handle OAuth callback (GET request from Google)
-// This is handled by the same function - when Google redirects back with ?code=...

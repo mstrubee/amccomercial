@@ -15,59 +15,76 @@ Deno.serve(async (req) => {
 
   // Handle OAuth callback (GET with ?code=)
   if (req.method === "GET" && url.searchParams.has("code")) {
-    const code = url.searchParams.get("code")!;
-    const clientId = Deno.env.get("GOOGLE_CLIENT_ID")!;
-    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const redirectUri = `${supabaseUrl}/functions/v1/google-auth-callback`;
+    try {
+      const code = url.searchParams.get("code")!;
+      const clientId = Deno.env.get("GOOGLE_CLIENT_ID")!;
+      const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const redirectUri = `${supabaseUrl}/functions/v1/google-auth-callback`;
 
-    // Exchange code for tokens
-    const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        grant_type: "authorization_code",
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    const tokenData = await tokenResp.json();
-    if (!tokenResp.ok) {
-      return new Response(`<html><body><h2>Error</h2><pre>${JSON.stringify(tokenData)}</pre></body></html>`, {
-        status: 400,
-        headers: { "Content-Type": "text/html" },
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+        }),
       });
-    }
 
-    // Store refresh token in app_settings
-    const admin = createClient(supabaseUrl, serviceRoleKey);
-    const { error } = await admin.from("app_settings").upsert(
-      { key: "google_refresh_token", value: tokenData.refresh_token },
-      { onConflict: "key" }
-    );
+      const tokenData = await tokenResp.json();
+      if (!tokenResp.ok) {
+        console.error("Token exchange failed:", JSON.stringify(tokenData));
+        return new Response(`<html><body><h2>Error</h2><pre>${JSON.stringify(tokenData)}</pre></body></html>`, {
+          status: 400,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
 
-    if (error) {
-      return new Response(`<html><body><h2>Error guardando token</h2><pre>${error.message}</pre></body></html>`, {
+      if (!tokenData.refresh_token) {
+        console.error("No refresh_token in response:", JSON.stringify(tokenData));
+        return new Response(`<html><body><h2>Error: No refresh token received</h2><p>Try revoking app access in your Google account and retry.</p></body></html>`, {
+          status: 400,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+      const { error } = await admin.from("app_settings").upsert(
+        { key: "google_refresh_token", value: tokenData.refresh_token },
+        { onConflict: "key" }
+      );
+
+      if (error) {
+        console.error("Error saving token:", error.message);
+        return new Response(`<html><body><h2>Error guardando token</h2><pre>${error.message}</pre></body></html>`, {
+          status: 500,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      return new Response(
+        `<html><body style="font-family:sans-serif;text-align:center;padding:60px">
+          <h2 style="color:#16a34a">✅ Google Drive conectado exitosamente</h2>
+          <p>Puedes cerrar esta ventana y volver a la aplicación.</p>
+          <script>setTimeout(() => window.close(), 3000)</script>
+        </body></html>`,
+        { headers: { "Content-Type": "text/html" } }
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error("OAuth callback error:", message);
+      return new Response(`<html><body><h2>Error</h2><pre>${message}</pre></body></html>`, {
         status: 500,
         headers: { "Content-Type": "text/html" },
       });
     }
-
-    return new Response(
-      `<html><body style="font-family:sans-serif;text-align:center;padding:60px">
-        <h2 style="color:#16a34a">✅ Google Drive conectado exitosamente</h2>
-        <p>Puedes cerrar esta ventana y volver a la aplicación.</p>
-        <script>setTimeout(() => window.close(), 3000)</script>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
   }
 
-  // POST: get auth URL
+  // POST: get auth URL or check status
   if (req.method === "POST") {
     try {
       const authHeader = req.headers.get("Authorization");
@@ -84,9 +101,9 @@ Deno.serve(async (req) => {
         global: { headers: { Authorization: authHeader } },
       });
 
-      const token = authHeader.replace("Bearer ", "");
-      const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
-      if (claimsErr || !claimsData?.claims) {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !user) {
+        console.error("Auth error:", userErr?.message);
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -123,6 +140,7 @@ Deno.serve(async (req) => {
       throw new Error("Invalid action");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
+      console.error("google-auth-callback POST error:", message);
       return new Response(JSON.stringify({ error: message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
