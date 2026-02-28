@@ -1,94 +1,81 @@
 
-Objetivo de esta corrección: garantizar que cada archivo subido se refleje en Google Drive automáticamente, incluso si hay IDs de carpeta desactualizados o fallas temporales de la API.
 
-Contexto validado en el código actual:
-- La subida de archivos usa `upload-to-drive` con estrategia offline-first (cola + intento inmediato).
-- Existe procesamiento de cola (`process-sync-queue`) y hay job activo cada 2 minutos.
-- El problema más probable está en la “salud” de `drive_folder_id`:
-  - Si una carpeta en Drive ya no existe/migró, `sync-drive` hoy no la repara correctamente.
-  - Además, tras el cambio de jerarquía `AMC Repositorio / [Proyecto] / ...`, carpetas antiguas pueden seguir apuntando a rutas previas.
-- Resultado: la app puede intentar subir a un `drive_folder_id` inválido o fuera de la ubicación esperada, y el usuario percibe que “no se reflejan” en Drive.
+# Dos Mejoras al Repositorio de Proyectos
 
-Plan de implementación
+## Funcionalidad 1: Boton "Mostrar en Google Drive"
 
-1) Endurecer sincronización de carpetas para “autocuración”
-- Archivo: `supabase/functions/sync-drive/index.ts`
-- Cambios:
-  - Mejorar `syncRecursive` para que, cuando `drive_folder_id` exista pero falle la lectura (`getDriveFolderName` devuelve null/404), se trate como carpeta rota.
-  - En ese caso:
-    1. recrear/buscar carpeta por nombre bajo el padre correcto en Drive,
-    2. actualizar `project_folders.drive_folder_id`,
-    3. continuar recursión con el nuevo ID.
-  - Agregar verificación de padre esperado (no solo nombre): si la carpeta existe pero cuelga de otra ruta vieja, reubicarla (o recrearla y relinkear) para forzar la estructura correcta del proyecto.
-- Resultado esperado:
-  - IDs rotos o heredados de estructura antigua quedan reparados automáticamente.
+Agregar un boton en el dialogo del repositorio que abra directamente la carpeta del proyecto en Google Drive en una nueva pestana.
 
-2) Validación previa de carpeta al subir archivo
-- Archivo: `supabase/functions/upload-to-drive/index.ts`
-- Cambios:
-  - Antes de subir archivo a Drive, validar que `drive_folder_id` de destino existe y es accesible.
-  - Si no existe:
-    - responder error controlado tipo `DRIVE_FOLDER_NOT_FOUND` (con mensaje claro),
-    - mantener archivo en cola (`pending_sync`) para no perderlo.
-- Resultado esperado:
-  - Nunca se “pierde” la subida por carpeta inválida.
-  - Queda trazabilidad en cola para recuperación automática.
+### Cambios
+- **`ProyectoRepositorioDialog.tsx`**: Agregar boton "Ver en Google Drive" en la barra de acciones (junto a "Nueva Carpeta Raiz"). Al hacer clic, abre `https://drive.google.com/drive/folders/{drive_folder_id}` en nueva pestana. Solo visible cuando Drive esta conectado y el proyecto tiene carpetas sincronizadas.
+- Para obtener el `drive_folder_id` de la carpeta raiz del proyecto en Drive, se usara la informacion que ya devuelve `sync-drive` (la carpeta `AMC Repositorio / [Proyecto]`). Se agregara un nuevo hook o se reutilizara la logica existente para guardar ese ID.
 
-3) Reparación automática al detectar carpeta inválida
-- Frontend: `src/components/repositorio/ProyectoRepositorioDialog.tsx` y/o `src/hooks/useDriveSync.ts`
-- Cambios:
-  - Si `upload-to-drive` responde `DRIVE_FOLDER_NOT_FOUND`, disparar `sync-drive` del proyecto y luego reintentar subida una vez automáticamente.
-  - Si el reintento también falla, mantener en cola y mostrar toast explícito: “archivo en cola, sincronización en curso”.
-- Resultado esperado:
-  - Flujo transparente para usuario: se autocorrige sin intervención manual en la mayoría de casos.
+### Enfoque tecnico
+- Agregar una nueva accion `get_project_drive_url` en `sync-drive` que busque la carpeta `AMC Repositorio / [Nombre Proyecto]` y devuelva su ID.
+- Alternativamente (mas simple): durante el sync actual, guardar el `drive_folder_id` del proyecto raiz en `app_settings` o en la propia tabla `project_folders` como carpeta con `parent_id = null`. Ya que las carpetas raiz del proyecto en `project_folders` tienen `parent_id = null`, se puede buscar la primera carpeta raiz con `drive_folder_id` para construir la URL del padre (la carpeta del proyecto en Drive).
+- Enfoque mas directo: agregar accion `get_project_folder` al edge function que devuelva el ID de la carpeta del proyecto en Drive, o simplemente construir la URL desde el frontend usando la logica de `findOrCreateFolder`.
 
-4) Acelerar sincronización de cola cuando hay pendientes (no esperar solo cron)
-- Frontend: `ProyectoRepositorioDialog.tsx`
-- Cambios:
-  - Cuando `pendingCount > 0`, ejecutar `process-sync-queue` periódicamente mientras el diálogo está abierto (ej. cada 15–30s).
-  - Mantener el trigger actual al evento `online`.
-- Resultado esperado:
-  - Si falla el intento inmediato, la recuperación ocurre rápido, no solo cada 2 minutos.
+**Solucion elegida**: Usar la carpeta raiz del proyecto en Drive. Durante el sync, ya se crea `AMC Repositorio / [Proyecto]`. Se agregara una columna o se buscara por nombre. Lo mas simple: agregar una consulta rapida al edge function `sync-drive` con action `get_project_drive_id` que retorne el ID de la carpeta del proyecto en Drive.
 
-5) Visibilidad de estado para evitar falsa percepción de “no subido”
-- Frontend: `FolderTreeNode.tsx` / `ProyectoRepositorioDialog.tsx`
-- Cambios:
-  - Mostrar indicador por archivo/carpeta cuando hay elementos pendientes/fallidos.
-  - Agregar mensaje más explícito de estado:
-    - “Sincronizado en Drive”
-    - “En cola de sincronización”
-    - “Reintentando subida”.
-- Resultado esperado:
-  - El usuario entiende si el archivo ya está en Drive o sigue en proceso.
+---
 
-6) Diagnóstico y observabilidad
-- Backend functions (`upload-to-drive`, `process-sync-queue`, `sync-drive`)
-- Cambios:
-  - Estandarizar logs con prefijos: `[UPLOAD]`, `[QUEUE]`, `[FOLDER_SYNC]`.
-  - Incluir `project_folder_id`, `drive_folder_id`, `file_name`, motivo de error.
-- Resultado esperado:
-  - Diagnóstico rápido ante futuros casos.
+## Funcionalidad 2: Sincronizacion Bidireccional (Drive hacia Sistema)
 
-Criterios de aceptación (funcionales)
-1. Al crear carpeta en el sistema, aparece en Drive bajo `AMC Repositorio/[Proyecto]/...` automáticamente.
-2. Al subir 1 archivo en carpeta existente, aparece en Drive en menos de ~10s en condiciones normales.
-3. Si la carpeta destino en Drive fue borrada/movida, el sistema la repara y la subida termina reflejada en Drive.
-4. Si Google falla temporalmente, el archivo queda en cola y se sincroniza automáticamente al recuperarse.
-5. El usuario ve estado claro (sincronizado / en cola / reintentando).
+Cuando se agregan o eliminan archivos/carpetas directamente en Google Drive, estos cambios deben reflejarse en el sistema al abrir el repositorio o sincronizar.
 
-Riesgos y mitigaciones
-- Riesgo: mover carpetas existentes puede impactar rutas manuales en Drive.
-  - Mitigación: preferir estrategia “recrear + relink” solo cuando se detecte inconsistencia fuerte; log detallado.
-- Riesgo: reintentos agresivos aumentan llamadas API.
-  - Mitigación: intervalos moderados y límite de intentos existente (`MAX_RETRIES`).
+### Cambios en Backend
 
-Validación end-to-end propuesta
-1. Proyecto con carpetas existentes:
-   - subir archivo y confirmar aparición en Drive en carpeta correcta.
-2. Simulación de carpeta rota:
-   - borrar carpeta en Drive manualmente, subir archivo, validar autocuración + reflejo.
-3. Simulación de fallo temporal:
-   - forzar error de subida (token/permiso temporal), confirmar cola + recuperación automática.
-4. Confirmar que listado local y enlaces de visualización siguen funcionando igual.
+**`sync-drive/index.ts`** - Agregar accion `reverse_sync`:
 
-Se entregará en una sola iteración de código con foco en robustez de carpeta destino + reintentos automáticos inmediatos.
+1. **Importar carpetas de Drive al sistema**:
+   - Para cada carpeta del proyecto en `project_folders` que tenga `drive_folder_id`, listar las subcarpetas en Drive usando la API (`files.list` con `mimeType=folder` y `parents`).
+   - Comparar con las carpetas en `project_folders`:
+     - Si una carpeta existe en Drive pero NO en `project_folders`, crearla en la DB.
+     - Si una carpeta existe en `project_folders` pero su `drive_folder_id` ya no existe en Drive (fue eliminada), eliminarla de la DB.
+
+2. **Importar archivos de Drive al sistema**:
+   - Para cada carpeta del proyecto, listar archivos (no carpetas) en Drive.
+   - Comparar con `drive_files`:
+     - Si un archivo existe en Drive pero NO en `drive_files`, insertarlo en la tabla `drive_files`.
+     - Si un archivo existe en `drive_files` pero ya no existe en Drive, eliminarlo de la DB.
+
+3. **Orden de ejecucion**:
+   - Primero ejecutar el sync normal (sistema hacia Drive).
+   - Luego ejecutar el reverse sync (Drive hacia sistema).
+
+### Cambios en Frontend
+
+**`ProyectoRepositorioDialog.tsx`**:
+- Despues del sync normal, llamar automaticamente al reverse sync.
+- El boton de sincronizacion manual (si se agrega) tambien disparara ambos sentidos.
+
+**`useDriveSync.ts`**:
+- Modificar `useSyncDrive` para que el sync incluya la fase inversa automaticamente (o como paso adicional despues del sync principal).
+
+### Detalle tecnico del reverse sync
+
+```text
+Para cada project_folder con drive_folder_id:
+  1. GET Drive API: listar hijos del drive_folder_id
+     - Separar en carpetas y archivos
+  
+  2. CARPETAS encontradas en Drive:
+     - Si drive_folder_id no existe en project_folders -> INSERT en project_folders
+     - Recursion: procesar subcarpetas de la nueva carpeta
+  
+  3. ARCHIVOS encontrados en Drive:
+     - Si drive_file_id no existe en drive_files -> INSERT en drive_files
+  
+  4. LIMPIEZA de registros huerfanos:
+     - drive_files donde drive_file_id ya no existe en Drive -> DELETE de drive_files
+     - project_folders donde drive_folder_id ya no existe en Drive -> DELETE de project_folders
+```
+
+### Secuencia de implementacion
+
+1. Agregar accion `get_project_drive_id` al edge function `sync-drive`
+2. Agregar accion `reverse_sync` al edge function `sync-drive`
+3. Agregar boton "Ver en Google Drive" en `ProyectoRepositorioDialog.tsx`
+4. Modificar el flujo de sync en el frontend para incluir reverse sync automatico
+5. Actualizar `useDriveSync.ts` con los nuevos hooks necesarios
+
