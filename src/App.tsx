@@ -21,6 +21,7 @@ import Clientes from "@/pages/Clientes";
 import CategoriasPage from "@/pages/CategoriasPage";
 import Reporteria from "@/pages/Reporteria";
 import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
+import RepositorioTipoPage from "@/pages/RepositorioTipoPage";
 
 import { Loader2 } from "lucide-react";
 
@@ -54,6 +55,7 @@ function AppRoutes() {
         {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
         {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
         {isAdmin && <Route path="/estados-proyecto" element={<EstadosProyectoPage />} />}
+        {isAdmin && <Route path="/repositorio-tipo" element={<RepositorioTipoPage />} />}
         {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
         {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
         
