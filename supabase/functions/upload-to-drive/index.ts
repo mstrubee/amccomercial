@@ -46,13 +46,56 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+async function uploadFileToDrive(
+  accessToken: string,
+  fileName: string,
+  fileBytes: Uint8Array,
+  mimeType: string,
+  driveFolderId: string
+): Promise<{ id: string; name: string }> {
+  const metadata = { name: fileName, parents: [driveFolderId] };
+  const boundary = "----LovableBoundary" + Date.now();
+  const metaPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
+  const filePart = `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
+  const endPart = `\r\n--${boundary}--`;
+
+  const encoder = new TextEncoder();
+  const metaBytes = encoder.encode(metaPart);
+  const filePartBytes = encoder.encode(filePart);
+  const endBytes = encoder.encode(endPart);
+
+  const body = new Uint8Array(metaBytes.length + filePartBytes.length + fileBytes.length + endBytes.length);
+  body.set(metaBytes, 0);
+  body.set(filePartBytes, metaBytes.length);
+  body.set(fileBytes, metaBytes.length + filePartBytes.length);
+  body.set(endBytes, metaBytes.length + filePartBytes.length + fileBytes.length);
+
+  const uploadResp = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+
+  const uploadData = await uploadResp.json();
+  if (!uploadResp.ok) {
+    console.error("Drive upload failed:", JSON.stringify(uploadData));
+    throw new Error(`Upload failed: ${uploadData.error?.message || "Unknown error"}`);
+  }
+  return { id: uploadData.id, name: uploadData.name || fileName };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -63,9 +106,12 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
+    const admin = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: { user }, error: userErr } = await supabase.auth.getUser();
     if (userErr || !user) {
@@ -75,74 +121,107 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Parse multipart form data
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const driveFolderId = formData.get("drive_folder_id") as string | null;
+    const projectFolderId = formData.get("project_folder_id") as string | null;
 
-    if (!file) {
-      throw new Error("No file provided");
-    }
-    if (!driveFolderId) {
-      throw new Error("No drive_folder_id provided");
-    }
+    if (!file) throw new Error("No file provided");
+    if (!driveFolderId) throw new Error("No drive_folder_id provided");
+    if (!projectFolderId) throw new Error("No project_folder_id provided");
 
-    console.log(`Uploading "${file.name}" (${file.size} bytes) to Drive folder ${driveFolderId}`);
-
-    const accessToken = await getAccessToken();
-
-    // Build multipart upload for Google Drive API
-    const metadata = {
-      name: file.name,
-      parents: [driveFolderId],
-    };
-
-    const boundary = "----LovableBoundary" + Date.now();
     const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const storagePath = `${user.id}/${Date.now()}_${file.name}`;
 
-    const metaPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
-    const filePart = `--${boundary}\r\nContent-Type: ${file.type || "application/octet-stream"}\r\n\r\n`;
-    const endPart = `\r\n--${boundary}--`;
+    console.log(`Uploading "${file.name}" (${file.size} bytes) — offline-first strategy`);
 
-    const encoder = new TextEncoder();
-    const metaBytes = encoder.encode(metaPart);
-    const filePartBytes = encoder.encode(filePart);
-    const endBytes = encoder.encode(endPart);
+    // Step 1: Save to Supabase bucket
+    const { error: storageErr } = await admin.storage
+      .from("drive-upload-queue")
+      .upload(storagePath, fileBytes, { contentType: file.type || "application/octet-stream" });
 
-    const body = new Uint8Array(metaBytes.length + filePartBytes.length + fileBytes.length + endBytes.length);
-    body.set(metaBytes, 0);
-    body.set(filePartBytes, metaBytes.length);
-    body.set(fileBytes, metaBytes.length + filePartBytes.length);
-    body.set(endBytes, metaBytes.length + filePartBytes.length + fileBytes.length);
-
-    const uploadResp = await fetch(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": `multipart/related; boundary=${boundary}`,
-        },
-        body,
-      }
-    );
-
-    const uploadData = await uploadResp.json();
-    if (!uploadResp.ok) {
-      console.error("Drive upload failed:", JSON.stringify(uploadData));
-      throw new Error(`Upload failed: ${uploadData.error?.message || "Unknown error"}`);
+    if (storageErr) {
+      console.error("Storage upload failed:", storageErr.message);
+      throw new Error("Failed to save file to queue: " + storageErr.message);
     }
 
-    console.log(`File uploaded successfully: ${uploadData.id}`);
-
-    return new Response(
-      JSON.stringify({
-        message: "Archivo subido exitosamente",
-        file_id: uploadData.id,
+    // Step 2: Register in pending_sync
+    const { data: pendingRow, error: pendingErr } = await admin
+      .from("pending_sync")
+      .insert({
+        project_folder_id: projectFolderId,
+        drive_folder_id: driveFolderId,
         file_name: file.name,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+        file_size: file.size,
+        mime_type: file.type || "application/octet-stream",
+        storage_path: storagePath,
+        status: "pending",
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (pendingErr) {
+      console.error("pending_sync insert failed:", pendingErr.message);
+      // Clean up storage
+      await admin.storage.from("drive-upload-queue").remove([storagePath]);
+      throw new Error("Failed to register in queue");
+    }
+
+    // Step 3: Try immediate Drive upload
+    try {
+      const accessToken = await getAccessToken();
+      const driveResult = await uploadFileToDrive(accessToken, file.name, fileBytes, file.type || "application/octet-stream", driveFolderId);
+
+      // Success: save to drive_files, mark synced, remove from bucket
+      await admin.from("drive_files").insert({
+        project_folder_id: projectFolderId,
+        drive_file_id: driveResult.id,
+        drive_folder_id: driveFolderId,
+        file_name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        file_size: file.size,
+        created_by: user.id,
+      });
+
+      await admin
+        .from("pending_sync")
+        .update({ status: "synced", drive_file_id: driveResult.id, synced_at: new Date().toISOString() })
+        .eq("id", pendingRow.id);
+
+      await admin.storage.from("drive-upload-queue").remove([storagePath]);
+
+      console.log(`File synced immediately: ${driveResult.id}`);
+
+      return new Response(
+        JSON.stringify({
+          message: "Archivo subido exitosamente",
+          file_id: driveResult.id,
+          file_name: file.name,
+          status: "synced",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } catch (driveErr: unknown) {
+      // Drive upload failed — file stays in queue for later processing
+      const errMsg = driveErr instanceof Error ? driveErr.message : "Unknown";
+      console.warn(`Immediate Drive upload failed, queued for retry: ${errMsg}`);
+
+      await admin
+        .from("pending_sync")
+        .update({ status: "failed", error_message: errMsg, retry_count: 1 })
+        .eq("id", pendingRow.id);
+
+      return new Response(
+        JSON.stringify({
+          message: "Archivo guardado en cola de sincronización",
+          file_name: file.name,
+          status: "pending",
+          pending_id: pendingRow.id,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("upload-to-drive error:", message);

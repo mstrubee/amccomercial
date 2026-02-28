@@ -600,6 +600,53 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_files: {
+        Row: {
+          created_at: string
+          created_by: string
+          drive_file_id: string
+          drive_folder_id: string | null
+          file_name: string
+          file_size: number
+          id: string
+          mime_type: string
+          project_folder_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          drive_file_id: string
+          drive_folder_id?: string | null
+          file_name: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          project_folder_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          drive_file_id?: string
+          drive_folder_id?: string | null
+          file_name?: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          project_folder_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drive_files_project_folder_id_fkey"
+            columns: ["project_folder_id"]
+            isOneToOne: false
+            referencedRelation: "project_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       empresas: {
         Row: {
           created_at: string
@@ -676,6 +723,65 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "folder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pending_sync: {
+        Row: {
+          created_at: string
+          created_by: string
+          drive_file_id: string | null
+          drive_folder_id: string | null
+          error_message: string | null
+          file_name: string
+          file_size: number
+          id: string
+          mime_type: string
+          project_folder_id: string
+          retry_count: number
+          status: string
+          storage_path: string
+          synced_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          drive_file_id?: string | null
+          drive_folder_id?: string | null
+          error_message?: string | null
+          file_name: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          project_folder_id: string
+          retry_count?: number
+          status?: string
+          storage_path: string
+          synced_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          drive_file_id?: string | null
+          drive_folder_id?: string | null
+          error_message?: string | null
+          file_name?: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          project_folder_id?: string
+          retry_count?: number
+          status?: string
+          storage_path?: string
+          synced_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_sync_project_folder_id_fkey"
+            columns: ["project_folder_id"]
+            isOneToOne: false
+            referencedRelation: "project_folders"
             referencedColumns: ["id"]
           },
         ]
