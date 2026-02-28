@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.google-auth-callback]
 verify_jwt = false
+
+[functions.upload-to-drive]
+verify_jwt = false

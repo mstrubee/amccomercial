@@ -42,3 +42,32 @@ export function useSyncDrive() {
     },
   });
 }
+
+export function useUploadToDrive() {
+  return useMutation({
+    mutationFn: async ({ file, driveFolderId }: { file: File; driveFolderId: string }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("drive_folder_id", driveFolderId);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("No session");
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const resp = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/upload-to-drive`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error || "Upload failed");
+      return result as { message: string; file_id: string; file_name: string };
+    },
+  });
+}
