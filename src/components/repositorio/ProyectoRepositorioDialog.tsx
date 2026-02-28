@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Folder, FolderPlus, Loader2, Check, X, FolderSync, ExternalLink, Clock } from "lucide-react";
+import { Folder, FolderPlus, Loader2, Check, X, FolderSync, ExternalLink, Clock, ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
 import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree } from "@/hooks/useProjectFolders";
-import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue } from "@/hooks/useDriveSync";
+import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue, useGetProjectDriveId } from "@/hooks/useDriveSync";
 
 interface Props {
   projectId: string | null;
@@ -35,6 +35,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const deleteDriveFolder = useDeleteDriveFolder();
   const { data: pendingCount } = usePendingSyncCount(projectId);
   const processSyncQueue = useProcessSyncQueue();
+  const getProjectDriveId = useGetProjectDriveId();
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
 
   const [creatingRoot, setCreatingRoot] = useState(false);
@@ -251,6 +252,31 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                       <FolderPlus className="w-3.5 h-3.5" />
                       Nueva Carpeta Raíz
                     </Button>
+
+                    {driveStatus?.connected && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        disabled={getProjectDriveId.isPending}
+                        onClick={async () => {
+                          if (!projectId) return;
+                          try {
+                            const result = await getProjectDriveId.mutateAsync({ projectId, projectName });
+                            window.open(`https://drive.google.com/drive/folders/${result.drive_folder_id}`, "_blank");
+                          } catch (e: any) {
+                            toast.error("Error: " + e.message);
+                          }
+                        }}
+                      >
+                        {getProjectDriveId.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ExternalLinkIcon className="w-3.5 h-3.5" />
+                        )}
+                        Ver en Google Drive
+                      </Button>
+                    )}
 
                     {!driveStatus?.connected && (
                       <Button

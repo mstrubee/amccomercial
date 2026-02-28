@@ -467,6 +467,161 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === "get_project_drive_id") {
+      if (!project_id || !project_name) throw new Error("project_id and project_name are required");
+
+      const accessToken = await getAccessToken();
+      const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
+      const projectDriveFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
+
+      return new Response(
+        JSON.stringify({ drive_folder_id: projectDriveFolderId }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "reverse_sync") {
+      if (!project_id || !project_name) throw new Error("project_id and project_name are required");
+
+      console.log(`[REVERSE_SYNC] Starting reverse sync for project: ${project_name} (${project_id})`);
+
+      const accessToken = await getAccessToken();
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      // Get the project root folder in Drive
+      const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
+      const projectDriveFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
+
+      // Get all project folders from DB
+      const { data: dbFolders } = await admin
+        .from("project_folders")
+        .select("id, name, parent_id, drive_folder_id")
+        .eq("project_id", project_id);
+
+      if (!dbFolders) throw new Error("Could not read project folders");
+
+      const stats = { folders_added: 0, folders_removed: 0, files_added: 0, files_removed: 0 };
+
+      // Helper: list children of a Drive folder
+      async function listDriveChildren(parentDriveId: string): Promise<Array<{ id: string; name: string; mimeType: string; size?: string }>> {
+        const items: Array<{ id: string; name: string; mimeType: string; size?: string }> = [];
+        let pageToken: string | undefined;
+        do {
+          const q = `'${parentDriveId}' in parents and trashed=false`;
+          let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${sharedDriveId}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=100`;
+          if (pageToken) url += `&pageToken=${pageToken}`;
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+          const data = await resp.json();
+          if (data.files) items.push(...data.files);
+          pageToken = data.nextPageToken;
+        } while (pageToken);
+        return items;
+      }
+
+      // Process folders recursively: sync Drive folders into DB
+      async function reverseSyncFolder(driveFolderId: string, dbParentId: string | null) {
+        const driveChildren = await listDriveChildren(driveFolderId);
+        const driveFolders = driveChildren.filter(c => c.mimeType === "application/vnd.google-apps.folder");
+        const driveFiles = driveChildren.filter(c => c.mimeType !== "application/vnd.google-apps.folder");
+
+        // Get DB folders under this parent
+        const dbChildFolders = dbFolders!.filter(f => f.parent_id === dbParentId);
+        // Get DB files for folders that map to this drive folder
+        const dbFolderForThis = dbFolders!.find(f => f.drive_folder_id === driveFolderId);
+
+        // --- FOLDERS: Import from Drive ---
+        for (const df of driveFolders) {
+          const existing = dbFolders!.find(f => f.drive_folder_id === df.id);
+          if (!existing) {
+            // New folder in Drive not in DB — create it
+            const { data: inserted } = await admin
+              .from("project_folders")
+              .insert({ name: df.name, project_id, parent_id: dbParentId, drive_folder_id: df.id, orden: 0 })
+              .select("id, name, parent_id, drive_folder_id")
+              .single();
+            if (inserted) {
+              dbFolders!.push(inserted);
+              stats.folders_added++;
+              console.log(`[REVERSE_SYNC] Added folder from Drive: "${df.name}"`);
+              // Recurse into the new folder
+              await reverseSyncFolder(df.id, inserted.id);
+            }
+          } else {
+            // Already exists — recurse
+            await reverseSyncFolder(df.id, existing.id);
+          }
+        }
+
+        // --- FOLDERS: Remove from DB if deleted in Drive ---
+        for (const dbChild of dbChildFolders) {
+          if (dbChild.drive_folder_id) {
+            const stillInDrive = driveFolders.some(df => df.id === dbChild.drive_folder_id);
+            if (!stillInDrive) {
+              // Folder was deleted from Drive — remove from DB (cascade: files + subfolders)
+              console.log(`[REVERSE_SYNC] Removing folder "${dbChild.name}" (deleted from Drive)`);
+              // Delete drive_files for this folder
+              await admin.from("drive_files").delete().eq("project_folder_id", dbChild.id);
+              // Delete pending_sync for this folder
+              await admin.from("pending_sync").delete().eq("project_folder_id", dbChild.id);
+              // Delete the folder record
+              await admin.from("project_folders").delete().eq("id", dbChild.id);
+              stats.folders_removed++;
+            }
+          }
+        }
+
+        // --- FILES: Import from Drive ---
+        // Only process files if we have a DB folder matching this drive folder
+        const targetDbFolderId = dbFolderForThis?.id || (dbParentId ? undefined : undefined);
+        if (dbFolderForThis) {
+          // Get existing drive_files for this project folder
+          const { data: existingFiles } = await admin
+            .from("drive_files")
+            .select("id, drive_file_id")
+            .eq("project_folder_id", dbFolderForThis.id);
+
+          const existingFileIds = new Set((existingFiles || []).map(f => f.drive_file_id));
+
+          for (const df of driveFiles) {
+            if (!existingFileIds.has(df.id)) {
+              await admin.from("drive_files").insert({
+                project_folder_id: dbFolderForThis.id,
+                drive_file_id: df.id,
+                drive_folder_id: driveFolderId,
+                file_name: df.name,
+                mime_type: df.mimeType || "application/octet-stream",
+                file_size: parseInt(df.size || "0", 10),
+                created_by: user!.id,
+              });
+              stats.files_added++;
+              console.log(`[REVERSE_SYNC] Added file from Drive: "${df.name}"`);
+            }
+          }
+
+          // --- FILES: Remove from DB if deleted in Drive ---
+          const driveFileIds = new Set(driveFiles.map(f => f.id));
+          for (const ef of (existingFiles || [])) {
+            if (!driveFileIds.has(ef.drive_file_id)) {
+              await admin.from("drive_files").delete().eq("id", ef.id);
+              stats.files_removed++;
+              console.log(`[REVERSE_SYNC] Removed file (deleted from Drive)`);
+            }
+          }
+        }
+      }
+
+      // Start reverse sync from the project root folder
+      await reverseSyncFolder(projectDriveFolderId, null);
+
+      console.log(`[REVERSE_SYNC] Complete: +${stats.folders_added}/-${stats.folders_removed} folders, +${stats.files_added}/-${stats.files_removed} files`);
+
+      return new Response(
+        JSON.stringify({ message: "Sincronización inversa completada", ...stats }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error("Invalid action");
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
