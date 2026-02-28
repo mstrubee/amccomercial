@@ -163,6 +163,55 @@ async function getDriveFolderInfo(
   return { name: data.name || null, parents: data.parents || [] };
 }
 
+/** Move files from an old Drive folder to a new one and update drive_files records */
+async function migrateFilesToNewFolder(
+  admin: ReturnType<typeof createClient>,
+  accessToken: string,
+  oldFolderId: string,
+  newFolderId: string,
+  projectFolderId: string
+) {
+  // Get drive_files records pointing to the old folder
+  const { data: files } = await admin
+    .from("drive_files")
+    .select("id, drive_file_id, file_name")
+    .eq("project_folder_id", projectFolderId)
+    .eq("drive_folder_id", oldFolderId);
+
+  if (!files || files.length === 0) return;
+
+  console.log(`[FOLDER_SYNC] Migrating ${files.length} file(s) from ${oldFolderId} to ${newFolderId}`);
+
+  for (const file of files) {
+    try {
+      // Try to move file in Drive (remove old parent, add new parent)
+      const moveResp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file.drive_file_id}?addParents=${newFolderId}&removeParents=${oldFolderId}&supportsAllDrives=true`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        }
+      );
+
+      if (moveResp.ok) {
+        // Update drive_files record
+        await admin.from("drive_files").update({ drive_folder_id: newFolderId }).eq("id", file.id);
+        console.log(`[FOLDER_SYNC] Moved file "${file.file_name}" to new folder`);
+      } else {
+        // File might be trashed/inaccessible — just update the DB record so it doesn't point to dead folder
+        const errText = await moveResp.text();
+        console.log(`[FOLDER_SYNC] Could not move file "${file.file_name}" (status ${moveResp.status}): ${errText}. Updating DB record.`);
+        await admin.from("drive_files").update({ drive_folder_id: newFolderId }).eq("id", file.id);
+      }
+    } catch (e) {
+      console.error(`[FOLDER_SYNC] Error migrating file "${file.file_name}":`, (e as Error).message);
+    }
+  }
+
+  // Also update any pending_sync records pointing to old folder
+  await admin.from("pending_sync").update({ drive_folder_id: newFolderId }).eq("drive_folder_id", oldFolderId);
+}
+
 async function syncRecursive(
   admin: ReturnType<typeof createClient>,
   accessToken: string,
@@ -173,6 +222,7 @@ async function syncRecursive(
 ) {
   for (const node of nodes) {
     let driveFolderId = node.drive_folder_id;
+    const oldDriveFolderId = driveFolderId; // Keep reference for file migration
 
     if (!driveFolderId) {
       // No drive_folder_id — create or find
@@ -195,6 +245,10 @@ async function syncRecursive(
           .from("project_folders")
           .update({ drive_folder_id: driveFolderId })
           .eq("id", node.id);
+        // Migrate existing files from old folder to new folder
+        if (oldDriveFolderId && oldDriveFolderId !== driveFolderId) {
+          await migrateFilesToNewFolder(admin, accessToken, oldDriveFolderId, driveFolderId, node.id);
+        }
         stats.repaired++;
         console.log(`[FOLDER_SYNC] Repaired "${node.name}" -> ${driveFolderId}`);
       } else {
@@ -202,16 +256,17 @@ async function syncRecursive(
         const isUnderCorrectParent = info.parents && info.parents.includes(driveParentId);
 
         if (!isUnderCorrectParent) {
-          // Folder exists but under wrong parent — recreate under correct parent
-          console.log(`[FOLDER_SYNC] Folder "${node.name}" (${driveFolderId}) is under wrong parent. Expected parent: ${driveParentId}, actual: ${JSON.stringify(info.parents)}. Repairing...`);
+          console.log(`[FOLDER_SYNC] Folder "${node.name}" (${driveFolderId}) is under wrong parent. Repairing...`);
           driveFolderId = await findOrCreateFolder(accessToken, node.name, driveParentId, sharedDriveId);
           await admin
             .from("project_folders")
             .update({ drive_folder_id: driveFolderId })
             .eq("id", node.id);
+          if (oldDriveFolderId && oldDriveFolderId !== driveFolderId) {
+            await migrateFilesToNewFolder(admin, accessToken, oldDriveFolderId, driveFolderId, node.id);
+          }
           stats.repaired++;
         } else if (info.name !== node.name) {
-          // Name mismatch — rename in Drive
           await renameDriveFolder(accessToken, driveFolderId, node.name);
           stats.updated++;
         } else {
@@ -309,6 +364,69 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ message: "Sincronización completada", ...stats }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "repair_orphaned_files") {
+      if (!project_id) throw new Error("project_id is required");
+
+      console.log(`[FOLDER_SYNC] Repairing orphaned files for project ${project_id}`);
+      const accessToken = await getAccessToken();
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      // Get all project folders with their current drive_folder_id
+      const { data: folders } = await admin
+        .from("project_folders")
+        .select("id, drive_folder_id")
+        .eq("project_id", project_id);
+
+      if (!folders) throw new Error("No folders found");
+
+      let repaired = 0;
+      for (const folder of folders) {
+        if (!folder.drive_folder_id) continue;
+
+        // Find drive_files for this project_folder that have a different (old) drive_folder_id
+        const { data: orphaned } = await admin
+          .from("drive_files")
+          .select("id, drive_file_id, file_name, drive_folder_id")
+          .eq("project_folder_id", folder.id)
+          .neq("drive_folder_id", folder.drive_folder_id);
+
+        if (!orphaned || orphaned.length === 0) continue;
+
+        for (const file of orphaned) {
+          try {
+            // Try to move the file in Drive
+            const moveResp = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${file.drive_file_id}?addParents=${folder.drive_folder_id}&removeParents=${file.drive_folder_id}&supportsAllDrives=true`,
+              {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              }
+            );
+
+            if (moveResp.ok) {
+              await admin.from("drive_files").update({ drive_folder_id: folder.drive_folder_id }).eq("id", file.id);
+              console.log(`[FOLDER_SYNC] Moved orphaned file "${file.file_name}" to correct folder`);
+              repaired++;
+            } else {
+              // File may be inaccessible — just update the DB record
+              console.log(`[FOLDER_SYNC] Could not move "${file.file_name}" in Drive, updating DB only`);
+              await admin.from("drive_files").update({ drive_folder_id: folder.drive_folder_id }).eq("id", file.id);
+              repaired++;
+            }
+          } catch (e) {
+            console.error(`[FOLDER_SYNC] Error repairing file "${file.file_name}":`, (e as Error).message);
+          }
+        }
+      }
+
+      console.log(`[FOLDER_SYNC] Repaired ${repaired} orphaned file(s)`);
+      return new Response(
+        JSON.stringify({ message: "Archivos huérfanos reparados", repaired }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

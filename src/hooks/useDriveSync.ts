@@ -30,14 +30,26 @@ export function useSyncDrive() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId, projectName }: { projectId: string; projectName: string }) => {
+      // First sync folders
       const { data, error } = await supabase.functions.invoke("sync-drive", {
         body: { action: "sync", project_id: projectId, project_name: projectName },
       });
       if (error) throw error;
+
+      // Then repair any orphaned files (files pointing to old/trashed folders)
+      try {
+        await supabase.functions.invoke("sync-drive", {
+          body: { action: "repair_orphaned_files", project_id: projectId },
+        });
+      } catch (e) {
+        console.warn("[SYNC] Orphaned file repair failed (non-critical):", e);
+      }
+
       return data as { message: string; created: number; updated: number; skipped: number };
     },
     onSuccess: (_, { projectId }) => {
       qc.invalidateQueries({ queryKey: ["project_folders", projectId] });
+      qc.invalidateQueries({ queryKey: ["drive_files"] });
     },
   });
 }
