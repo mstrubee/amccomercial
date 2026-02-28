@@ -138,7 +138,7 @@ export default function RepositorioTipoPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar carpeta?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará la carpeta y todas sus subcarpetas de forma permanente. No afectará carpetas ya generadas en proyectos.
+              ¿Estás seguro de eliminar esta carpeta? Se eliminarán también todas sus subcarpetas y este proceso no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

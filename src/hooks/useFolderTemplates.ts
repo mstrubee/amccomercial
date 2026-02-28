@@ -30,7 +30,7 @@ export function buildTree(flat: FolderTemplate[]): FolderTreeNode[] {
   }
 
   const sort = (nodes: FolderTreeNode[]) => {
-    nodes.sort((a, b) => a.orden - b.orden || a.name.localeCompare(b.name));
+    nodes.sort((a, b) => a.name.localeCompare(b.name));
     nodes.forEach((n) => sort(n.children));
   };
   sort(roots);
