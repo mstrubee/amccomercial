@@ -229,59 +229,72 @@ export function useMessages(options: UseMessagesOptions = {}) {
     },
   });
 
-  // Create conversation (optionally linked to project/company context)
+  // Create or join conversation: 1 project + 1 empresa = 1 chat (group)
   const createConversation = useMutation({
     mutationFn: async ({
-      otherUserId,
+      otherUserIds,
       projectId: pid,
       empresaId: eid,
     }: {
-      otherUserId: string;
+      otherUserIds: string[];
       projectId?: string | null;
       empresaId?: string | null;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      const { data: myParticipations } = await supabase
-        .from("conversation_participants")
-        .select("conversation_id")
-        .eq("user_id", user.id);
+      // Look for an existing conversation with the same project+empresa
+      let existingConvId: string | null = null;
 
-      if (myParticipations?.length) {
-        const cIds = myParticipations.map((p) => p.conversation_id);
-        const { data: otherParticipations } = await supabase
-          .from("conversation_participants")
-          .select("conversation_id")
-          .eq("user_id", otherUserId)
-          .in("conversation_id", cIds);
+      if (pid) {
+        const query = (supabase as any)
+          .from("conversations")
+          .select("id")
+          .eq("project_id", pid);
 
-        if (otherParticipations?.length) {
-          const candidateIds = otherParticipations.map((op) => op.conversation_id);
-          const { data: candidateConversations } = await (supabase as any)
-            .from("conversations")
-            .select("id, project_id, empresa_id")
-            .in("id", candidateIds);
+        if (eid) {
+          query.eq("empresa_id", eid);
+        } else {
+          query.is("empresa_id", null);
+        }
 
-          const match = (candidateConversations || []).find((conv: any) => {
-            const projectMatches = (conv.project_id ?? null) === (pid ?? null);
-            const empresaMatches = (conv.empresa_id ?? null) === (eid ?? null);
-            return projectMatches && empresaMatches;
-          });
-
-          if (match) return match.id as string;
+        const { data: existingConvs } = await query.limit(1);
+        if (existingConvs?.length) {
+          existingConvId = existingConvs[0].id;
         }
       }
 
+      if (existingConvId) {
+        // Add current user + selected users as participants if not already in
+        const { data: existingParts } = await supabase
+          .from("conversation_participants")
+          .select("user_id")
+          .eq("conversation_id", existingConvId);
+
+        const existingUserIds = new Set((existingParts || []).map((p) => p.user_id));
+        const allUserIds = [user.id, ...otherUserIds];
+        const newParticipants = allUserIds.filter((uid) => !existingUserIds.has(uid));
+
+        if (newParticipants.length > 0) {
+          await supabase.from("conversation_participants").insert(
+            newParticipants.map((uid) => ({ conversation_id: existingConvId!, user_id: uid }))
+          );
+        }
+
+        return existingConvId;
+      }
+
+      // No existing conversation — create a new one
       const convId = crypto.randomUUID();
       const insertData: any = { id: convId, project_id: pid ?? null, empresa_id: eid ?? null };
 
       const { error: convError } = await (supabase as any).from("conversations").insert(insertData);
       if (convError) throw convError;
 
-      const { error: partError } = await supabase.from("conversation_participants").insert([
-        { conversation_id: convId, user_id: user.id },
-        { conversation_id: convId, user_id: otherUserId },
-      ]);
+      const allUserIds = [user.id, ...otherUserIds];
+      const uniqueUserIds = [...new Set(allUserIds)];
+      const { error: partError } = await supabase.from("conversation_participants").insert(
+        uniqueUserIds.map((uid) => ({ conversation_id: convId, user_id: uid }))
+      );
       if (partError) throw partError;
 
       return convId;
