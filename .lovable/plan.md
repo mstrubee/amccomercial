@@ -1,43 +1,74 @@
 
 
-## Diagnostico y correccion: archivos de Drive no aparecen en el sistema
+## Correccion: archivos subidos en Drive no aparecen en el sistema (reverse_sync)
 
-### Problema identificado
+### Problema encontrado
 
-Despues de analizar el codigo del `reverse_sync` en la Edge Function `sync-drive`, encontre dos problemas:
+Despues de analizar el codigo y los logs, identifique un bug critico en la logica de limpieza de archivos del `reverse_sync`:
 
-1. **Archivos en la carpeta raiz del proyecto en Drive son invisibles**: Cuando alguien sube un archivo directamente a la carpeta del proyecto en Drive (ej: `AMC Repositorio / casa Vale 2 /`), el sistema no los detecta porque no hay ninguna carpeta en la base de datos cuyo `drive_folder_id` coincida con el ID de la carpeta raiz del proyecto en Drive. La logica actual solo procesa archivos cuando encuentra una carpeta DB que coincida (linea 577: `if (dbFolderForThis)`).
+**Bug en la limpieza de archivos (lineas 604-612)**: Cuando se escanea una carpeta de Drive, el codigo obtiene TODOS los archivos de la BD para ese `project_folder_id`, pero luego los compara solo contra los archivos de la carpeta de Drive ACTUAL. Si un archivo fue subido desde el sistema (y tiene un `drive_folder_id` diferente por migracion/reparacion), seria eliminado incorrectamente de la BD porque no aparece en la lista de archivos de la carpeta de Drive que se esta escaneando.
 
-2. **Falta de logging diagnostico**: El reverse_sync no informa cuantos archivos y carpetas esta escaneando en cada nivel, lo que dificulta diagnosticar si el problema es que no encuentra archivos o que no los puede asociar a una carpeta.
+Ademas, hay un problema con los archivos nuevos: cuando la carpeta de Drive escaneada tiene `0 files`, el bloque completo de archivos se salta (condicion `driveFiles.length > 0`), lo cual significa que NO se ejecuta la limpieza de archivos eliminados en carpetas vacias de Drive.
 
 ### Solucion
 
-#### 1. Edge Function `sync-drive` - Mejorar reverse_sync
+#### Archivo: `supabase/functions/sync-drive/index.ts`
 
-- Agregar logging detallado mostrando cantidad de items encontrados en cada carpeta de Drive escaneada
-- Para archivos en la carpeta raiz del proyecto en Drive (donde `dbFolderForThis` es `null` y `dbParentId` es `null`), usar un fallback: buscar la carpeta DB que tenga el mismo `dbParentId` (es decir, buscar por `parent_id` en vez de `drive_folder_id`) 
-- Mas especificamente: cuando `dbFolderForThis` es null pero estamos dentro de una recursion con un `dbParentId` conocido, usar ese `dbParentId` como `project_folder_id` para los archivos
+**1. Corregir la limpieza de archivos para filtrar por `drive_folder_id`**
 
-#### 2. Edge Function `sync-drive` - Corregir la asociacion de archivos
-
-Cambiar la logica de la linea 576-577 para que cuando `dbFolderForThis` sea null pero `dbParentId` no sea null, use `dbParentId` como fallback:
+La consulta de archivos existentes debe incluir el filtro `drive_folder_id = driveFolderId` para solo comparar archivos que pertenecen a la carpeta de Drive que se esta escaneando:
 
 ```text
 Antes:
-  const dbFolderForThis = dbFolders.find(f => f.drive_folder_id === driveFolderId);
-  if (dbFolderForThis) { ... }
+  const { data: existingFiles } = await admin
+    .from("drive_files")
+    .select("id, drive_file_id")
+    .eq("project_folder_id", targetFolderId);
 
 Despues:
-  const dbFolderForThis = dbFolders.find(f => f.drive_folder_id === driveFolderId);
-  const targetFolderId = dbFolderForThis?.id || dbParentId;
-  if (targetFolderId) { ... usa targetFolderId en vez de dbFolderForThis.id ... }
+  const { data: existingFiles } = await admin
+    .from("drive_files")
+    .select("id, drive_file_id")
+    .eq("project_folder_id", targetFolderId)
+    .eq("drive_folder_id", driveFolderId);
 ```
 
-Esto resuelve el caso raiz: cuando `driveFolderId` es el folder del proyecto en Drive, `dbFolderForThis` sera null, pero si alguna carpeta raiz del sistema coincide por jerarquia, los archivos se asociaran correctamente.
+**2. Separar la logica de agregar archivos de la logica de limpiar archivos**
 
-**Nota**: Para el caso especifico de archivos subidos directamente a la carpeta del proyecto en Drive (no dentro de ninguna subcarpeta), estos NO tienen una carpeta DB equivalente. El sistema no mostraria estos archivos porque la estructura del repositorio del proyecto solo contiene carpetas creadas por el usuario. Esto es un comportamiento esperado dado el diseno actual -- los archivos deben estar dentro de alguna subcarpeta.
+Actualmente ambas estan dentro del bloque `if (targetFolderId && driveFiles.length > 0)`. La limpieza de archivos eliminados en Drive debe ejecutarse incluso cuando `driveFiles.length === 0` (carpeta vacia en Drive = todos los archivos fueron borrados):
 
-### Archivos a modificar
+```text
+// Agregar archivos nuevos (solo si hay archivos en Drive)
+if (targetFolderId && driveFiles.length > 0) {
+  // ... insertar archivos nuevos ...
+}
 
-- `supabase/functions/sync-drive/index.ts`: Mejorar logging y fallback en `reverseSyncFolder`
+// Limpiar archivos eliminados en Drive (siempre que haya una carpeta DB mapeada)
+if (targetFolderId) {
+  const { data: existingFiles } = await admin
+    .from("drive_files")
+    .select("id, drive_file_id")
+    .eq("project_folder_id", targetFolderId)
+    .eq("drive_folder_id", driveFolderId);
+  
+  const driveFileIds = new Set(driveFiles.map(f => f.id));
+  for (const ef of (existingFiles || [])) {
+    if (!driveFileIds.has(ef.drive_file_id)) {
+      await admin.from("drive_files").delete().eq("id", ef.id);
+      stats.files_removed++;
+    }
+  }
+}
+```
+
+**3. Agregar logging adicional para diagnostico**
+
+Agregar log cuando se detectan archivos ya existentes (skip) para confirmar que el sistema los ve correctamente.
+
+### Resumen de cambios
+
+- Solo se modifica: `supabase/functions/sync-drive/index.ts`
+- Se corrige el filtro de limpieza para evitar eliminar archivos de otras carpetas de Drive
+- Se separa la logica de insercion y limpieza de archivos
+- Se mantiene todo el comportamiento existente de sincronizacion de carpetas
 
