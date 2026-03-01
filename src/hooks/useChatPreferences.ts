@@ -13,7 +13,7 @@ export interface ChatPreferences {
 }
 
 // Generate simple notification sounds using Web Audio API
-function createBeepSound(type: SoundOption): (() => void) {
+export function createBeepSound(type: SoundOption): (() => void) {
   return () => {
     try {
       const ctx = new AudioContext();
