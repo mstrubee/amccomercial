@@ -41,7 +41,7 @@ export default function FloatingUserStatus() {
   }).length;
 
   return (
-    <div className="fixed bottom-[52px] left-4 z-50">
+    <div className="relative">
       <AnimatePresence>
         {open && (
           <motion.div
@@ -49,7 +49,7 @@ export default function FloatingUserStatus() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="mb-2 w-72 bg-card border border-border rounded-xl shadow-lg overflow-hidden"
+            className="absolute bottom-full mb-2 left-0 w-72 bg-card border border-border rounded-xl shadow-lg overflow-hidden"
           >
             <div className="px-4 py-3 border-b border-border">
               <h3 className="text-sm font-semibold text-card-foreground">
