@@ -41,6 +41,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   const renameRef = useRef<HTMLInputElement>(null);
   const createRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const viewLinkRef = useRef<HTMLAnchorElement>(null);
 
   const { data: files } = useDriveFiles(node.id);
   const { data: pendingFiles } = usePendingFilesForFolder(node.id);
@@ -86,16 +87,11 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
       toast.error("No se encontró el ID del archivo. Intenta nuevamente.");
       return;
     }
-
     const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(driveFileId)}/view?usp=sharing`;
-    const newTab = window.open(viewUrl, "_blank", "noopener,noreferrer");
-
-    if (!newTab) {
-      toast.error("Tu navegador bloqueó la apertura de pestañas. Habilita popups para este sitio.");
-      return;
+    if (viewLinkRef.current) {
+      viewLinkRef.current.href = viewUrl;
+      viewLinkRef.current.click();
     }
-
-    newTab.opener = null;
   };
 
   const handleDeleteFile = async (driveFileId: string, driveFilesId: string, fileName: string) => {
@@ -113,6 +109,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
 
   return (
     <div>
+      <a ref={viewLinkRef} href="#" target="_blank" rel="noopener noreferrer" className="hidden" />
       <input
         ref={fileInputRef}
         type="file"
