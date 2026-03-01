@@ -82,16 +82,23 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   };
 
   const handleViewFile = async (driveFileId: string) => {
+    const newTab = window.open("", "_blank", "noopener,noreferrer");
+    if (!newTab) {
+      toast.error("Tu navegador bloqueó la apertura de pestañas. Habilita popups para este sitio.");
+      return;
+    }
+    newTab.opener = null;
     try {
       const result = await getViewUrl.mutateAsync({ driveFileId });
       const viewUrl = result.web_view_link;
       if (viewUrl) {
-        const w = window.open(viewUrl, "_blank", "noopener,noreferrer");
-        if (w) w.opener = null;
+        newTab.location.href = viewUrl;
       } else {
+        newTab.close();
         toast.error("No se pudo obtener el enlace de visualización del archivo");
       }
     } catch (e: any) {
+      newTab.close();
       toast.error("Error: " + e.message);
     }
   };
