@@ -73,7 +73,12 @@ export default function FloatingChat() {
   };
 
   const handleSend = () => {
-    if (!messageText.trim() || !activeConversationId) return;
+    if (!activeConversationId) {
+      toast.info("Primero selecciona o crea una conversación");
+      return;
+    }
+    if (!messageText.trim()) return;
+
     sendMessage.mutate(
       { conversationId: activeConversationId, content: messageText.trim() },
       { onError: (err: any) => toast.error("Error al enviar: " + (err?.message || "Intenta nuevamente")) }
@@ -82,9 +87,15 @@ export default function FloatingChat() {
   };
 
   const handleNewConversation = (otherUserId: string) => {
-    createConversation.mutate(otherUserId);
-    setView("chat");
-    setSearchUser("");
+    createConversation.mutate(otherUserId, {
+      onSuccess: () => {
+        setView("chat");
+        setSearchUser("");
+      },
+      onError: (err: any) => {
+        toast.error("No se pudo crear la conversación: " + (err?.message || "Intenta nuevamente"));
+      },
+    });
   };
 
   const handleBack = () => {
@@ -296,15 +307,16 @@ export default function FloatingChat() {
                             handleSend();
                           }
                         }}
-                        placeholder="Escribe un mensaje..."
+                        placeholder={activeConversationId ? "Escribe un mensaje..." : "Selecciona o crea una conversación"}
                         className="h-8 text-sm flex-1"
                         autoFocus
+                        disabled={!activeConversationId || createConversation.isPending}
                       />
                       <Button
                         type="button"
                         size="sm"
                         className="h-8 w-8 p-0 shrink-0"
-                        disabled={!messageText.trim() || sendMessage.isPending}
+                        disabled={!activeConversationId || !messageText.trim() || sendMessage.isPending || createConversation.isPending}
                         onClick={handleSend}
                       >
                         <Send className="w-3.5 h-3.5" />

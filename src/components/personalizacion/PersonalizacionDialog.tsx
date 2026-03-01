@@ -26,6 +26,9 @@ const POSITION_OPTIONS = [
   { value: "top-left", label: "Superior izquierda" },
 ];
 
+const FLOATING_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
+type FloatingCorner = (typeof FLOATING_CORNERS)[number];
+
 const DEFAULTS: ThemeSettings = {
   theme_sidebar_bg: "",
   theme_sidebar_text: "",
@@ -50,6 +53,9 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
   const [dirty, setDirty] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const floatingPreviewRef = useRef<HTMLDivElement>(null);
+  const [isDraggingFloating, setIsDraggingFloating] = useState(false);
+  const [floatingDragPosition, setFloatingDragPosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (settings) {
@@ -62,6 +68,68 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
     setLocal((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
   };
+
+  const getFloatingCornerPosition = (corner: FloatingCorner) => {
+    const leftInset = 44;
+    const rightInset = 12;
+    const topInset = 12;
+    const bottomInset = 12;
+
+    return {
+      left: corner.endsWith("left") ? leftInset : undefined,
+      right: corner.endsWith("right") ? rightInset : undefined,
+      top: corner.startsWith("top") ? topInset : undefined,
+      bottom: corner.startsWith("bottom") ? bottomInset : undefined,
+    };
+  };
+
+  const updateFloatingDragFromPointer = (clientX: number, clientY: number) => {
+    const preview = floatingPreviewRef.current;
+    if (!preview) return;
+
+    const rect = preview.getBoundingClientRect();
+    const bubbleSize = 38;
+
+    const x = Math.max(0, Math.min(clientX - rect.left - bubbleSize / 2, rect.width - bubbleSize));
+    const y = Math.max(0, Math.min(clientY - rect.top - bubbleSize / 2, rect.height - bubbleSize));
+
+    setFloatingDragPosition({ x, y });
+  };
+
+  useEffect(() => {
+    if (!isDraggingFloating) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      updateFloatingDragFromPointer(event.clientX, event.clientY);
+    };
+
+    const handlePointerUp = () => {
+      const preview = floatingPreviewRef.current;
+      if (!preview || !floatingDragPosition) {
+        setIsDraggingFloating(false);
+        setFloatingDragPosition(null);
+        return;
+      }
+
+      const rect = preview.getBoundingClientRect();
+      const centerX = floatingDragPosition.x + 19;
+      const centerY = floatingDragPosition.y + 19;
+      const horizontal: "left" | "right" = centerX < rect.width / 2 ? "left" : "right";
+      const vertical: "top" | "bottom" = centerY < rect.height / 2 ? "top" : "bottom";
+      update("theme_floating_position", `${vertical}-${horizontal}` as FloatingCorner);
+
+      setIsDraggingFloating(false);
+      setFloatingDragPosition(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [isDraggingFloating, floatingDragPosition]);
 
   const handleSave = async () => {
     try {
@@ -299,45 +367,57 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
             <TabsContent value="flotantes" className="space-y-4">
               <div className="space-y-3">
                 <Label className="text-sm">Posición de botones flotantes (Chat y Usuarios)</Label>
-                <p className="text-[11px] text-muted-foreground">Haz clic en la esquina donde deseas posicionar los botones flotantes. Aplica para todos los usuarios.</p>
-                {/* Visual position picker */}
-                <div className="relative w-full aspect-[16/10] border border-border rounded-lg bg-muted/30 overflow-hidden">
-                  {/* Mini sidebar mock */}
-                  <div className="absolute left-0 top-0 bottom-0 w-10 bg-muted/60 border-r border-border" />
-                  {/* Corner buttons */}
-                  {(["top-left", "top-right", "bottom-left", "bottom-right"] as const).map((pos) => {
+                <p className="text-[11px] text-muted-foreground">Arrastra el botón de muestra y suéltalo en la esquina deseada. Aplica para todos los usuarios.</p>
+
+                <div
+                  ref={floatingPreviewRef}
+                  className="relative w-full aspect-[16/10] border border-border rounded-lg bg-muted/30 overflow-hidden select-none"
+                >
+                  <div className="absolute left-0 top-0 bottom-0 w-8 bg-muted/60 border-r border-border" />
+
+                  {FLOATING_CORNERS.map((pos) => {
                     const isSelected = (local.theme_floating_position || "bottom-left") === pos;
-                    const posStyles: Record<string, string> = {
-                      "top-left": "top-2 left-12",
-                      "top-right": "top-2 right-2",
-                      "bottom-left": "bottom-2 left-12",
-                      "bottom-right": "bottom-2 right-2",
-                    };
-                    const posLabels: Record<string, string> = {
-                      "top-left": "Sup. izq.",
-                      "top-right": "Sup. der.",
-                      "bottom-left": "Inf. izq.",
-                      "bottom-right": "Inf. der.",
-                    };
+                    const styles = getFloatingCornerPosition(pos);
+
                     return (
                       <button
                         key={pos}
+                        type="button"
                         onClick={() => update("theme_floating_position", pos)}
-                        className={`absolute ${posStyles[pos]} flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all text-[10px] font-medium ${
+                        className={`absolute w-6 h-6 rounded-full border transition-all ${
                           isSelected
-                            ? "bg-primary text-primary-foreground shadow-md scale-110 ring-2 ring-primary/30"
-                            : "bg-card text-muted-foreground border border-border hover:bg-secondary hover:text-foreground"
+                            ? "bg-primary border-primary ring-2 ring-primary/30"
+                            : "bg-card border-border hover:bg-secondary"
                         }`}
-                      >
-                        <span className="w-3 h-3 rounded-full bg-current opacity-60" />
-                        <span className="w-3 h-3 rounded-full bg-current opacity-40" />
-                        <span className="ml-1">{posLabels[pos]}</span>
-                      </button>
+                        style={styles}
+                        aria-label={`Mover flotantes a ${pos}`}
+                      />
                     );
                   })}
-                  {/* Center label */}
+
+                  <button
+                    type="button"
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      setIsDraggingFloating(true);
+                      updateFloatingDragFromPointer(event.clientX, event.clientY);
+                    }}
+                    className="absolute w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg cursor-grab active:cursor-grabbing flex items-center justify-center"
+                    style={
+                      isDraggingFloating && floatingDragPosition
+                        ? { left: floatingDragPosition.x, top: floatingDragPosition.y }
+                        : getFloatingCornerPosition((local.theme_floating_position || "bottom-left") as FloatingCorner)
+                    }
+                    aria-label="Arrastrar botones flotantes"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
+                    </span>
+                  </button>
+
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-xs text-muted-foreground/50">Vista previa</span>
+                    <span className="text-xs text-muted-foreground/50">Drag & drop</span>
                   </div>
                 </div>
               </div>
