@@ -665,7 +665,7 @@ export default function FloatingChat() {
                 <div className="flex flex-col h-full">
                   <div className="px-3 pt-3 pb-2 space-y-2 border-b border-border bg-muted/10">
                     <div className="grid gap-2 relative">
-                      <label className="text-[11px] text-muted-foreground">Sección (proyecto)</label>
+                      <label className="text-[11px] text-muted-foreground">Proyecto</label>
                       <Input
                         placeholder="Buscar proyecto..."
                         value={searchProject}
@@ -704,9 +704,10 @@ export default function FloatingChat() {
                               setShowProjectDropdown(false);
                             }}
                           >
-                            Sin sección
+                            Sin proyecto
                           </button>
                           {projectOptionsForNew
+                            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
                             .filter((p) => p.nombre.toLowerCase().includes(searchProject.toLowerCase()))
                             .map((p) => (
                               <button
@@ -728,13 +729,13 @@ export default function FloatingChat() {
 
                     {selectedProjectForNew && (
                       <div className="grid gap-2">
-                        <label className="text-[11px] text-muted-foreground">Subsección</label>
+                        <label className="text-[11px] text-muted-foreground">Empresa</label>
                         <select
                           value={newEmpresaId}
                           onChange={(e) => setNewEmpresaId(e.target.value)}
                           className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground"
                         >
-                          <option value="general">General del proyecto</option>
+                          <option value="general">General (sin empresa)</option>
                           {selectedProjectCompanies.map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.name}
