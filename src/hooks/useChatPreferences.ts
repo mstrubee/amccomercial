@@ -157,18 +157,25 @@ export function useChatPreferences(user: User | null | undefined) {
     const option = prefs?.sound_option || "pop";
     if (option === "mute") return;
 
+    const playBuiltIn = (type: SoundOption) => {
+      if (!soundFnsRef.current[type]) {
+        soundFnsRef.current[type] = createBeepSound(type);
+      }
+      soundFnsRef.current[type]();
+    };
+
     if (option === "custom" && prefs?.custom_sound_url) {
       const audio = new Audio(prefs.custom_sound_url);
       audio.volume = 0.5;
-      audio.play().catch(() => {});
+      audio.play().catch(() => {
+        // Fallback to built-in sound when custom audio fails
+        playBuiltIn("pop");
+      });
       return;
     }
 
     // Use Web Audio API for built-in sounds (no CORS issues)
-    if (!soundFnsRef.current[option]) {
-      soundFnsRef.current[option] = createBeepSound(option);
-    }
-    soundFnsRef.current[option]();
+    playBuiltIn(option);
   }, [prefs?.sound_option, prefs?.custom_sound_url]);
 
   return { prefs, updatePrefs, uploadCustomSound, playNotificationSound };
