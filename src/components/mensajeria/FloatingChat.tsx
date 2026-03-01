@@ -625,12 +625,22 @@ export default function FloatingChat() {
                 </button>
               )}
 
-              <h3 className="text-sm font-semibold text-foreground flex-1 truncate">
-                {view === "list" && (contextProject ? `Chat — ${contextProject.name}` : "Mensajes")}
-                {view === "new" && "Nuevo chat"}
-                {view === "settings" && "Configuración de sonido"}
-                {view === "chat" && (activeConv?.participants.map((p) => p.display_name).join(", ") || "Chat")}
-              </h3>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-foreground truncate">
+                  {view === "list" && (contextProject ? `Chat — ${contextProject.name}` : "Mensajes")}
+                  {view === "new" && "Nuevo chat"}
+                  {view === "settings" && "Configuración de sonido"}
+                  {view === "chat" && (activeConv?.participants.map((p) => p.display_name).join(", ") || "Chat")}
+                </h3>
+                {view === "chat" && activeConv && (activeConv.project_id || activeConv.empresa_id) && (
+                  <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
+                    {[
+                      activeConv.project_id ? projectNameById[activeConv.project_id] : null,
+                      activeConv.empresa_id ? companyNameById[activeConv.empresa_id] : null,
+                    ].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </div>
 
               <div className="flex items-center gap-1">
                 
