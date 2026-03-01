@@ -423,7 +423,15 @@ export default function FloatingChat() {
     ? messages.filter((m) => m.content.toLowerCase().includes(searchMessages.toLowerCase()))
     : messages;
 
-  const projectOptionsForNew = projects;
+  // Deduplicate projects by name – pick only one ID per unique nombre
+  const projectOptionsForNew = useMemo(() => {
+    const seen = new Map<string, { id: string; nombre: string }>();
+    for (const p of projects) {
+      const key = p.nombre.trim().toLowerCase();
+      if (!seen.has(key)) seen.set(key, p);
+    }
+    return Array.from(seen.values());
+  }, [projects]);
   const selectedProjectForNew = newProjectId || contextProject?.id || "";
   const selectedProjectCompanies = selectedProjectForNew ? companiesByProject[selectedProjectForNew] || [] : [];
 
@@ -707,7 +715,6 @@ export default function FloatingChat() {
                             Sin proyecto
                           </button>
                           {projectOptionsForNew
-                            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
                             .filter((p) => p.nombre.toLowerCase().includes(searchProject.toLowerCase()))
                             .map((p) => (
                               <button
