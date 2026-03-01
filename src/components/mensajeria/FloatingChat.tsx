@@ -83,6 +83,7 @@ export default function FloatingChat() {
   const [newEmpresaId, setNewEmpresaId] = useState<string>("general");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [chatSize, setChatSize] = useState<{ w: number; h: number }>({ w: 360, h: 540 });
+  const [localMuted, setLocalMuted] = useState(false);
   const isResizingRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -249,12 +250,13 @@ export default function FloatingChat() {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ senderId: string }>).detail;
       if (!detail?.senderId || detail.senderId === user?.id) return;
+      if (localMuted) return;
       playNotificationSound();
     };
 
     window.addEventListener("chat:new-message", handler as EventListener);
     return () => window.removeEventListener("chat:new-message", handler as EventListener);
-  }, [user?.id, playNotificationSound]);
+  }, [user?.id, playNotificationSound, localMuted]);
 
   // IntersectionObserver for read receipts
   const observeMessage = useCallback(
@@ -558,6 +560,19 @@ export default function FloatingChat() {
             {totalUnread > 9 ? "9+" : totalUnread}
           </span>
         )}
+      </button>
+      {/* Mute toggle button */}
+      <button
+        onClick={() => setLocalMuted((m) => !m)}
+        className={cn(
+          "absolute -bottom-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center transition-all shadow-md border border-border z-10",
+          localMuted
+            ? "bg-destructive text-destructive-foreground"
+            : "bg-card text-muted-foreground hover:text-foreground"
+        )}
+        title={localMuted ? "Activar sonido" : "Silenciar notificaciones"}
+      >
+        {localMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
       </button>
 
       <AnimatePresence>
