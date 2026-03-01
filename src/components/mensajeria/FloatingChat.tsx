@@ -524,6 +524,19 @@ export default function FloatingChat() {
             )}
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
+              {view === "list" && contextProject && (
+                <button
+                  onClick={() => {
+                    setContextProject(null);
+                    setSubsectionScope("all");
+                    setSearchConversations("");
+                  }}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Volver a todos los chats"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
               {view !== "list" && (
                 <button onClick={handleBack} className="text-muted-foreground hover:text-foreground transition-colors">
                   <ArrowLeft className="w-4 h-4" />
@@ -562,19 +575,6 @@ export default function FloatingChat() {
 
                 {view === "list" && (
                   <>
-                    {contextProject && (
-                      <button
-                        onClick={() => {
-                          setContextProject(null);
-                          setSubsectionScope("all");
-                          setSearchConversations("");
-                        }}
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                        title="Salir de chat por sección"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                     <button onClick={() => setView("settings")} className="text-muted-foreground hover:text-foreground transition-colors">
                       <Settings className="w-3.5 h-3.5" />
                     </button>
