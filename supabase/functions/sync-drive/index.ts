@@ -173,19 +173,21 @@ async function resolveProjectDriveFolderId(
 ): Promise<{ amcRootId: string; projectDriveFolderId: string; source: "mapped_parent" | "name_lookup" }> {
   const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
 
-  // Prefer deriving the project root from already-mapped folders (avoids ambiguity with duplicate project names)
-  const { data: mappedFolders } = await admin
+  // Prefer deriving the project root from already-mapped ROOT folders (parent_id IS NULL)
+  const { data: mappedRootFolders } = await admin
     .from("project_folders")
     .select("drive_folder_id")
     .eq("project_id", projectId)
+    .is("parent_id", null)
     .not("drive_folder_id", "is", null)
-    .limit(20);
+    .limit(5);
 
-  for (const folder of mappedFolders || []) {
+  for (const folder of mappedRootFolders || []) {
     if (!folder.drive_folder_id) continue;
     const info = await getDriveFolderInfo(accessToken, folder.drive_folder_id);
     const parentId = info?.parents?.[0];
     if (parentId) {
+      console.log(`[RESOLVE] Project root derived from mapped root folder (drive_parent=${parentId})`);
       return { amcRootId, projectDriveFolderId: parentId, source: "mapped_parent" };
     }
   }
@@ -550,41 +552,24 @@ Deno.serve(async (req) => {
 
       const stats = { folders_added: 0, folders_removed: 0, files_added: 0, files_removed: 0 };
 
-      // Helper: list children of a Drive folder
+      // Helper: list children of a Drive folder (no driveId scope — parent ID is sufficient)
       async function listDriveChildren(parentDriveId: string): Promise<Array<{ id: string; name: string; mimeType: string; size?: string }>> {
-        const fetchChildren = async (useSharedDriveScope: boolean) => {
-          const items: Array<{ id: string; name: string; mimeType: string; size?: string }> = [];
-          let pageToken: string | undefined;
-          do {
-            const q = `'${parentDriveId}' in parents and trashed=false`;
-            let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=100`;
-            if (useSharedDriveScope) {
-              url += `&corpora=drive&driveId=${sharedDriveId}`;
-            }
-            if (pageToken) url += `&pageToken=${pageToken}`;
+        const items: Array<{ id: string; name: string; mimeType: string; size?: string }> = [];
+        let pageToken: string | undefined;
+        do {
+          const q = `'${parentDriveId}' in parents and trashed=false`;
+          const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ""}`;
 
-            const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-            const data = await resp.json();
-            if (!resp.ok) {
-              console.log(`[REVERSE_SYNC] listDriveChildren failed (scope=${useSharedDriveScope ? "shared" : "all"}, folder=${parentDriveId}): ${data?.error?.message || resp.status}`);
-              break;
-            }
-            if (data.files) items.push(...data.files);
-            pageToken = data.nextPageToken;
-          } while (pageToken);
-          return items;
-        };
-
-        // Primary: scoped query to configured Shared Drive
-        const scopedItems = await fetchChildren(true);
-        if (scopedItems.length > 0) return scopedItems;
-
-        // Fallback: broad query across accessible drives (helps when folder IDs were migrated/desaligned)
-        const fallbackItems = await fetchChildren(false);
-        if (fallbackItems.length > 0) {
-          console.log(`[REVERSE_SYNC] Fallback listing used for folder ${parentDriveId}: ${fallbackItems.length} item(s)`);
-        }
-        return fallbackItems;
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+          const data = await resp.json();
+          if (!resp.ok) {
+            console.log(`[REVERSE_SYNC] listDriveChildren error for ${parentDriveId}: ${JSON.stringify(data?.error || data)}`);
+            break;
+          }
+          if (data.files) items.push(...data.files);
+          pageToken = data.nextPageToken;
+        } while (pageToken);
+        return items;
       }
 
       // Process folders recursively: sync Drive folders into DB
@@ -593,7 +578,7 @@ Deno.serve(async (req) => {
         const driveFolders = driveChildren.filter(c => c.mimeType === "application/vnd.google-apps.folder");
         const driveFiles = driveChildren.filter(c => c.mimeType !== "application/vnd.google-apps.folder");
 
-        console.log(`[REVERSE_SYNC] Scanning Drive folder ${driveFolderId}: ${driveFolders.length} folders, ${driveFiles.length} files (dbParentId=${dbParentId})`);
+        console.log(`[REVERSE_SYNC] Scanning Drive folder ${driveFolderId}: ${driveFolders.length} folders, ${driveFiles.length} files (dbParentId=${dbParentId})${driveFiles.length > 0 ? ` — files: ${driveFiles.map(f => f.name).join(", ")}` : ""}`);
 
         // Get DB folders under this parent
         const dbChildFolders = dbFolders!.filter(f => f.parent_id === dbParentId);
