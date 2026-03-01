@@ -837,7 +837,7 @@ export default function Proyectos() {
                                         openProjectChat(first.id, first.nombre, empresaId, pe.empresas?.nombre || null);
                                       }}
                                     >
-                                      <MessageCircle className="w-3.5 h-3.5 text-chart-potential" />
+                                      <MessageCircle className="w-3.5 h-3.5 text-chart-potential fill-chart-potential" />
                                     </Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
