@@ -726,13 +726,13 @@ export default function FloatingChat() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-0.5">
                               <span className="text-sm font-medium text-foreground truncate">
-                                {conv.participants.map((p) => p.display_name).join(", ")}
-                                {conv.project_id && (
-                                  <span className="text-muted-foreground font-normal">
-                                    {" — "}{projectNameById[conv.project_id] || "Proyecto"}
-                                    {conv.empresa_id && ` · ${companyNameById[conv.empresa_id] || "Empresa"}`}
-                                  </span>
-                                )}
+                                {conv.project_id && (projectNameById[conv.project_id] || "Proyecto")}
+                                {conv.project_id && conv.empresa_id && " · "}
+                                {conv.empresa_id && (companyNameById[conv.empresa_id] || "Empresa")}
+                                {(conv.project_id || conv.empresa_id) && " — "}
+                                <span className="text-muted-foreground font-normal">
+                                  {conv.participants.map((p) => p.display_name).join(", ")}
+                                </span>
                               </span>
                               {conv.unread_count > 0 && (
                                 <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 ml-2 shrink-0">
