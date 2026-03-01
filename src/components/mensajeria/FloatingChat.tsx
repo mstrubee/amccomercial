@@ -81,6 +81,8 @@ export default function FloatingChat() {
   const [subsectionScope, setSubsectionScope] = useState<SubsectionScope>("all");
   const [newProjectId, setNewProjectId] = useState<string>("");
   const [newEmpresaId, setNewEmpresaId] = useState<string>("general");
+  const [chatSize, setChatSize] = useState<{ w: number; h: number }>({ w: 360, h: 540 });
+  const isResizingRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -491,6 +493,38 @@ export default function FloatingChat() {
     );
   };
 
+  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const startW = chatSize.w;
+    const startH = chatSize.h;
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in ev ? ev.touches[0].clientX : (ev as MouseEvent).clientX;
+      const clientY = 'touches' in ev ? ev.touches[0].clientY : (ev as MouseEvent).clientY;
+      const dw = isLeft ? -(clientX - startX) : (clientX - startX);
+      const dh = -(clientY - startY);
+      setChatSize({
+        w: Math.max(320, Math.min(800, startW + dw)),
+        h: Math.max(400, Math.min(800, startH + dh)),
+      });
+    };
+    const onEnd = () => {
+      isResizingRef.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onEnd);
+  }, [chatSize, isLeft]);
+
   const getSectionLabel = (empresaId: string | null) => {
     if (!contextProject) return "General";
     if (!empresaId) return "General";
@@ -521,12 +555,22 @@ export default function FloatingChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
+            style={{ width: chatSize.w, height: chatSize.h }}
             className={cn(
-              "absolute w-[360px] h-[540px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
+              "absolute bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
               isBottom ? "bottom-full mb-2" : "top-full mt-2",
               isLeft ? "left-0" : "right-0"
             )}
           >
+            {/* Resize handle top-right */}
+            <div
+              onMouseDown={handleResizeStart}
+              onTouchStart={handleResizeStart}
+              className="absolute top-0 right-0 w-5 h-5 cursor-nwse-resize z-50 group"
+              style={{ cursor: isLeft ? 'nesw-resize' : 'nwse-resize' }}
+            >
+              <div className="absolute top-1 right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-muted-foreground/30 group-hover:border-muted-foreground/60 rounded-tr-sm transition-colors" />
+            </div>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
               {view === "list" && contextProject && (
                 <button
