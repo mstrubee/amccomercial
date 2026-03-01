@@ -432,8 +432,35 @@ export default function FloatingChat() {
     }
     return Array.from(seen.values());
   }, [projects]);
+
+  // Map: project name -> all project IDs with that name
+  const projectIdsByName = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const p of projects) {
+      const key = p.nombre.trim().toLowerCase();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p.id);
+    }
+    return map;
+  }, [projects]);
+
   const selectedProjectForNew = newProjectId || contextProject?.id || "";
-  const selectedProjectCompanies = selectedProjectForNew ? companiesByProject[selectedProjectForNew] || [] : [];
+
+  // Collect empresas from ALL project IDs that share the same name
+  const selectedProjectCompanies = useMemo(() => {
+    if (!selectedProjectForNew) return [];
+    const selectedProject = projects.find((p) => p.id === selectedProjectForNew);
+    if (!selectedProject) return [];
+    const key = selectedProject.nombre.trim().toLowerCase();
+    const allIds = projectIdsByName.get(key) || [selectedProjectForNew];
+    const seen = new Map<string, { id: string; name: string }>();
+    for (const pid of allIds) {
+      for (const emp of companiesByProject[pid] || []) {
+        if (!seen.has(emp.id)) seen.set(emp.id, emp);
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [selectedProjectForNew, projects, projectIdsByName, companiesByProject]);
 
   const highlightText = (text: string, query: string) => {
     if (!query.trim()) return text;
