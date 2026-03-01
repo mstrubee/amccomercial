@@ -572,8 +572,10 @@ export default function FloatingChat() {
       <button
         onClick={toggleFabSound}
         className={cn(
-          "absolute -bottom-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center transition-all shadow-md border border-border z-10",
-          "bg-card text-destructive hover:bg-destructive/10"
+          "absolute -bottom-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center transition-all shadow-md border border-border z-10",
+          isSoundMuted
+            ? "bg-destructive text-destructive-foreground"
+            : "bg-chart-effective text-foreground"
         )}
         title={isSoundMuted ? "Activar sonido" : "Silenciar notificaciones"}
       >
