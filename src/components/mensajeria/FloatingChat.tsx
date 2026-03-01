@@ -153,6 +153,14 @@ export default function FloatingChat() {
     return map;
   }, [companiesByProject]);
 
+  const projectNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of projects) {
+      map[p.id] = p.nombre;
+    }
+    return map;
+  }, [projects]);
+
   // Fetch profiles for new conversation
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-chat", contextProject?.id],
@@ -310,8 +318,9 @@ export default function FloatingChat() {
       const names = conv.participants.map((p) => p.display_name).join(" ").toLowerCase();
       const lastMsg = conv.last_message?.content?.toLowerCase() || "";
       const sectionLabel = conv.empresa_id ? companyNameById[conv.empresa_id]?.toLowerCase() || "" : "general";
+      const projName = conv.project_id ? (projectNameById[conv.project_id] || "").toLowerCase() : "";
 
-      return names.includes(q) || lastMsg.includes(q) || sectionLabel.includes(q);
+      return names.includes(q) || lastMsg.includes(q) || sectionLabel.includes(q) || projName.includes(q);
     });
   }, [conversations, subsectionScope, searchConversations, companyNameById]);
 
@@ -600,30 +609,32 @@ export default function FloatingChat() {
               </div>
             )}
 
-            {view === "list" && contextProject && (
+            {view === "list" && (
               <div className="px-3 py-2 border-b border-border bg-muted/20 space-y-2">
                 <Input
-                  placeholder="Buscar en todas las subsecciones..."
+                  placeholder="Buscar conversaciones..."
                   value={searchConversations}
                   onChange={(e) => setSearchConversations(e.target.value)}
                   className="h-7 text-xs"
                 />
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                  {sectionChips.map((chip) => (
-                    <button
-                      key={chip.value}
-                      onClick={() => setSubsectionScope(chip.value)}
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-1 text-[11px] border transition-colors",
-                        subsectionScope === chip.value
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background text-muted-foreground border-border hover:text-foreground"
-                      )}
-                    >
-                      {chip.label} ({chip.count})
-                    </button>
-                  ))}
-                </div>
+                {contextProject && (
+                  <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                    {sectionChips.map((chip) => (
+                      <button
+                        key={chip.value}
+                        onClick={() => setSubsectionScope(chip.value)}
+                        className={cn(
+                          "shrink-0 rounded-full px-2 py-1 text-[11px] border transition-colors",
+                          subsectionScope === chip.value
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-border hover:text-foreground"
+                        )}
+                      >
+                        {chip.label} ({chip.count})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -654,6 +665,12 @@ export default function FloatingChat() {
                             <div className="flex items-center justify-between mb-0.5">
                               <span className="text-sm font-medium text-foreground truncate">
                                 {conv.participants.map((p) => p.display_name).join(", ")}
+                                {conv.project_id && (
+                                  <span className="text-muted-foreground font-normal">
+                                    {" — "}{projectNameById[conv.project_id] || "Proyecto"}
+                                    {conv.empresa_id && ` · ${companyNameById[conv.empresa_id] || "Empresa"}`}
+                                  </span>
+                                )}
                               </span>
                               {conv.unread_count > 0 && (
                                 <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 ml-2 shrink-0">
@@ -661,12 +678,6 @@ export default function FloatingChat() {
                                 </Badge>
                               )}
                             </div>
-
-                            {contextProject && (
-                              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5">
-                                {conv.empresa_id ? <Building2 className="w-3 h-3" /> : <FolderKanban className="w-3 h-3" />} {getSectionLabel(conv.empresa_id)}
-                              </p>
-                            )}
 
                             {conv.last_message && <p className="text-xs text-muted-foreground truncate">{conv.last_message.content}</p>}
 
