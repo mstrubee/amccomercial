@@ -285,24 +285,22 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                     </Button>
 
                     {driveStatus?.connected && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 text-xs"
-                        disabled={resolvingDriveUrl}
-                        onClick={() => {
-                          if (projectDriveUrl) {
-                            const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
-                            if (!popup) {
-                              toast.error("El navegador bloqueó la apertura. Habilita pop-ups e intenta nuevamente.");
-                              return;
-                            }
-                            popup.opener = null;
-                            popup.location.href = projectDriveUrl;
-                          } else {
+                      projectDriveUrl ? (
+                        <Button variant="outline" size="sm" className="gap-1.5 text-xs" asChild>
+                          <a href={projectDriveUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLinkIcon className="w-3.5 h-3.5" />
+                            Ver en Google Drive
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs"
+                          disabled={resolvingDriveUrl}
+                          onClick={() => {
                             toast.info("Cargando enlace de Drive... intenta nuevamente en unos segundos.");
-                            // Retry resolving
-                            if (projectId) {
+                            if (projectId && !resolvingDriveUrl) {
                               setResolvingDriveUrl(true);
                               getProjectDriveId.mutateAsync({ projectId, projectName })
                                 .then((result) => {
@@ -312,16 +310,16 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                                 .catch((e: any) => toast.error("Error: " + e.message))
                                 .finally(() => setResolvingDriveUrl(false));
                             }
-                          }
-                        }}
-                      >
-                        {resolvingDriveUrl ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <ExternalLinkIcon className="w-3.5 h-3.5" />
-                        )}
-                        Ver en Google Drive
-                      </Button>
+                          }}
+                        >
+                          {resolvingDriveUrl ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ExternalLinkIcon className="w-3.5 h-3.5" />
+                          )}
+                          Ver en Google Drive
+                        </Button>
+                      )
                     )}
 
                     {!driveStatus?.connected && (
