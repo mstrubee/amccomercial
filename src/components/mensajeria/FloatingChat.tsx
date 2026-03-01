@@ -204,10 +204,11 @@ export default function FloatingChat() {
     return () => window.removeEventListener("open-project-chat", handler as EventListener);
   }, [setActiveConversationId]);
 
-  // Auto-open existing conversation when context launch is explicit
+  // Auto-open existing conversation or go to "new" with pre-filled project+empresa
   useEffect(() => {
     if (!pendingContextOpenRef.current || loadingConversations) return;
     const pending = pendingContextOpenRef.current;
+    pendingContextOpenRef.current = null;
 
     const match = conversations.find((c) => {
       if (pending.empresaId) return c.empresa_id === pending.empresaId;
@@ -217,9 +218,12 @@ export default function FloatingChat() {
     if (match) {
       setActiveConversationId(match.id);
       setView("chat");
+    } else {
+      // No existing chat — go to "new" with project+empresa pre-filled
+      setNewProjectId(pending.projectId);
+      setNewEmpresaId(pending.empresaId || "general");
+      setView("new");
     }
-
-    pendingContextOpenRef.current = null;
   }, [conversations, loadingConversations, setActiveConversationId]);
 
   // Scroll to bottom when messages change
