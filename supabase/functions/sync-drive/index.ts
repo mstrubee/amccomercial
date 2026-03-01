@@ -577,11 +577,12 @@ Deno.serve(async (req) => {
 
         // --- FILES: Import from Drive ---
         if (targetFolderId && driveFiles.length > 0) {
-          // Get existing drive_files for this target folder
+          // Get existing drive_files for this target folder AND this specific drive folder
           const { data: existingFiles } = await admin
             .from("drive_files")
             .select("id, drive_file_id")
-            .eq("project_folder_id", targetFolderId);
+            .eq("project_folder_id", targetFolderId)
+            .eq("drive_folder_id", driveFolderId);
 
           const existingFileIds = new Set((existingFiles || []).map(f => f.drive_file_id));
 
@@ -598,20 +599,30 @@ Deno.serve(async (req) => {
               });
               stats.files_added++;
               console.log(`[REVERSE_SYNC] Added file from Drive: "${df.name}" -> folder ${targetFolderId}`);
-            }
-          }
-
-          // --- FILES: Remove from DB if deleted in Drive ---
-          const driveFileIds = new Set(driveFiles.map(f => f.id));
-          for (const ef of (existingFiles || [])) {
-            if (!driveFileIds.has(ef.drive_file_id)) {
-              await admin.from("drive_files").delete().eq("id", ef.id);
-              stats.files_removed++;
-              console.log(`[REVERSE_SYNC] Removed file (deleted from Drive)`);
+            } else {
+              console.log(`[REVERSE_SYNC] File already synced (skip): "${df.name}"`);
             }
           }
         } else if (!targetFolderId && driveFiles.length > 0) {
           console.log(`[REVERSE_SYNC] Skipping ${driveFiles.length} file(s) in Drive folder ${driveFolderId} — no matching DB folder`);
+        }
+
+        // --- FILES: Remove from DB if deleted in Drive (runs even for empty Drive folders) ---
+        if (targetFolderId) {
+          const { data: existingFilesForCleanup } = await admin
+            .from("drive_files")
+            .select("id, drive_file_id")
+            .eq("project_folder_id", targetFolderId)
+            .eq("drive_folder_id", driveFolderId);
+
+          const driveFileIds = new Set(driveFiles.map(f => f.id));
+          for (const ef of (existingFilesForCleanup || [])) {
+            if (!driveFileIds.has(ef.drive_file_id)) {
+              await admin.from("drive_files").delete().eq("id", ef.id);
+              stats.files_removed++;
+              console.log(`[REVERSE_SYNC] Removed file (deleted from Drive): ${ef.drive_file_id}`);
+            }
+          }
         }
       }
 
