@@ -7,6 +7,7 @@ export interface Conversation {
   id: string;
   created_at: string;
   updated_at: string;
+  project_id: string | null;
   participants: { user_id: string; display_name: string; email: string }[];
   last_message?: { content: string; created_at: string; sender_id: string };
   unread_count: number;
@@ -18,20 +19,20 @@ export interface Message {
   sender_id: string;
   content: string;
   created_at: string;
+  is_read: boolean;
 }
 
-export function useMessages() {
+export function useMessages(projectId?: string | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   // Fetch conversations with participants and last message
   const { data: conversations = [], isLoading: loadingConversations } = useQuery({
-    queryKey: ["conversations", user?.id],
+    queryKey: ["conversations", user?.id, projectId ?? "all"],
     queryFn: async () => {
       if (!user) return [];
 
-      // Get user's conversations
       const { data: participations } = await supabase
         .from("conversation_participants")
         .select("conversation_id, last_read_at")
@@ -39,18 +40,44 @@ export function useMessages() {
 
       if (!participations?.length) return [];
 
-      const convIds = participations.map((p) => p.conversation_id);
+      let convIds = participations.map((p) => p.conversation_id);
       const lastReadMap = Object.fromEntries(
         participations.map((p) => [p.conversation_id, p.last_read_at])
       );
 
-      // Get all participants for these conversations
+      // Filter by project_id if provided
+      if (projectId !== undefined) {
+        const { data: convRows } = await supabase
+          .from("conversations")
+          .select("id" as any)
+          .in("id", convIds);
+        // We need project_id which is new column - use raw query via rpc or cast
+        const convRowsAny = convRows as any[] | null;
+        if (convRowsAny) {
+          // Fetch project_id separately since types not regenerated
+          const filteredIds: string[] = [];
+          for (const c of convRowsAny) {
+            const { data: convDetail } = await supabase
+              .from("conversations")
+              .select("*")
+              .eq("id", c.id)
+              .single();
+            const detail = convDetail as any;
+            if (projectId ? detail?.project_id === projectId : !detail?.project_id) {
+              filteredIds.push(c.id);
+            }
+          }
+          convIds = filteredIds;
+        }
+      }
+
+      if (!convIds.length) return [];
+
       const { data: allParticipants } = await supabase
         .from("conversation_participants")
         .select("conversation_id, user_id")
         .in("conversation_id", convIds);
 
-      // Get profiles for all participant user_ids
       const userIds = [...new Set(allParticipants?.map((p) => p.user_id) || [])];
       const { data: profiles } = await supabase
         .from("profiles")
@@ -61,7 +88,6 @@ export function useMessages() {
         (profiles || []).map((p) => [p.user_id, p])
       );
 
-      // Get last message per conversation and unread counts
       const results: Conversation[] = [];
       for (const convId of convIds) {
         const { data: lastMsg } = await supabase
@@ -85,13 +111,13 @@ export function useMessages() {
           id: convId,
           created_at: "",
           updated_at: "",
+          project_id: projectId ?? null,
           participants: convParticipants,
           last_message: lastMsg?.[0] || undefined,
           unread_count: count || 0,
         });
       }
 
-      // Sort by last message date
       results.sort((a, b) => {
         const da = a.last_message?.created_at || "0";
         const db = b.last_message?.created_at || "0";
@@ -127,15 +153,20 @@ export function useMessages() {
       .channel("messages-realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "*", schema: "public", table: "messages" },
         (payload) => {
-          const newMsg = payload.new as Message;
-          // Refresh messages if in active conversation
-          if (newMsg.conversation_id === activeConversationId) {
+          if (payload.eventType === "INSERT") {
+            const newMsg = payload.new as Message;
+            if (newMsg.conversation_id === activeConversationId) {
+              queryClient.invalidateQueries({ queryKey: ["messages", activeConversationId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ["conversations", user.id] });
+          } else if (payload.eventType === "DELETE") {
+            queryClient.invalidateQueries({ queryKey: ["messages", activeConversationId] });
+            queryClient.invalidateQueries({ queryKey: ["conversations", user.id] });
+          } else if (payload.eventType === "UPDATE") {
             queryClient.invalidateQueries({ queryKey: ["messages", activeConversationId] });
           }
-          // Always refresh conversation list for unread counts
-          queryClient.invalidateQueries({ queryKey: ["conversations", user.id] });
         }
       )
       .subscribe();
@@ -155,7 +186,6 @@ export function useMessages() {
         content,
       });
       if (error) throw error;
-      // Update conversation updated_at
       await supabase
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
@@ -167,35 +197,46 @@ export function useMessages() {
     },
   });
 
-  // Create conversation
+  // Create conversation (optionally linked to a project)
   const createConversation = useMutation({
-    mutationFn: async (otherUserId: string) => {
+    mutationFn: async ({ otherUserId, projectId: pid }: { otherUserId: string; projectId?: string | null }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Check if conversation already exists between these two users
+      // Check existing
       const { data: myParticipations } = await supabase
         .from("conversation_participants")
         .select("conversation_id")
         .eq("user_id", user.id);
 
       if (myParticipations?.length) {
-        const convIds = myParticipations.map((p) => p.conversation_id);
-        const { data: otherParticipations } = await supabase
+        const cIds = myParticipations.map((p) => p.conversation_id);
+        const { data: otherP } = await supabase
           .from("conversation_participants")
           .select("conversation_id")
           .eq("user_id", otherUserId)
-          .in("conversation_id", convIds);
+          .in("conversation_id", cIds);
 
-        if (otherParticipations?.length) {
-          return otherParticipations[0].conversation_id;
+        if (otherP?.length) {
+          for (const op of otherP) {
+            const { data: conv } = await supabase
+              .from("conversations")
+              .select("*")
+              .eq("id", op.conversation_id)
+              .single();
+            const convAny = conv as any;
+            if (convAny && convAny.project_id === (pid ?? null)) {
+              return convAny.id;
+            }
+          }
         }
       }
 
-      // Create new conversation with client-generated ID to avoid SELECT RLS issue
       const convId = crypto.randomUUID();
+      const insertData: any = { id: convId };
+      if (pid) insertData.project_id = pid;
       const { error: convError } = await supabase
         .from("conversations")
-        .insert({ id: convId });
+        .insert(insertData);
       if (convError) throw convError;
 
       const { error: partError } = await supabase
@@ -228,6 +269,60 @@ export function useMessages() {
     [user, queryClient]
   );
 
+  // Mark message as read
+  const markMessageRead = useCallback(
+    async (messageId: string) => {
+      await supabase
+        .from("messages")
+        .update({ is_read: true } as any)
+        .eq("id", messageId);
+    },
+    []
+  );
+
+  // Delete single message (admin)
+  const deleteMessage = useMutation({
+    mutationFn: async (messageId: string) => {
+      const { error } = await supabase.from("messages").delete().eq("id", messageId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", activeConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
+    },
+  });
+
+  // Delete entire conversation (admin)
+  const deleteConversation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      // Delete messages first, then participants, then conversation
+      await supabase.from("messages").delete().eq("conversation_id", conversationId);
+      await supabase.from("conversation_participants").delete().eq("conversation_id", conversationId);
+      const { error } = await supabase.from("conversations").delete().eq("id", conversationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setActiveConversationId(null);
+      queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+
+  // Search messages in a conversation
+  const searchMessages = useCallback(
+    async (conversationId: string, query: string): Promise<Message[]> => {
+      if (!query.trim()) return [];
+      const { data } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .ilike("content", `%${query}%`)
+        .order("created_at", { ascending: true });
+      return (data || []) as Message[];
+    },
+    []
+  );
+
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0);
 
   return {
@@ -240,6 +335,10 @@ export function useMessages() {
     sendMessage,
     createConversation,
     markAsRead,
+    markMessageRead,
+    deleteMessage,
+    deleteConversation,
+    searchMessages,
     totalUnread,
   };
 }

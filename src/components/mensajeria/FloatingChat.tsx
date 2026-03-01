@@ -1,8 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { MessageCircle, X, ArrowLeft, Send, Plus, Loader2 } from "lucide-react";
+import {
+  MessageCircle, X, ArrowLeft, Send, Plus, Loader2,
+  Search, Trash2, Settings, Volume2, VolumeX, Upload,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMessages, Conversation } from "@/hooks/useMessages";
+import { useMessages, Conversation, Message } from "@/hooks/useMessages";
+import { useChatPreferences, SoundOption } from "@/hooks/useChatPreferences";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,36 +15,49 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 
-type View = "list" | "chat" | "new";
+type View = "list" | "chat" | "new" | "settings";
+
+const SOUND_OPTIONS: { value: SoundOption; label: string }[] = [
+  { value: "pop", label: "Pop" },
+  { value: "icq", label: "Estilo ICQ" },
+  { value: "bell", label: "Campana" },
+  { value: "ding", label: "Ding" },
+  { value: "mute", label: "Silenciar" },
+  { value: "custom", label: "Personalizado" },
+];
 
 export default function FloatingChat() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("list");
   const [messageText, setMessageText] = useState("");
   const [searchUser, setSearchUser] = useState("");
+  const [searchMessages, setSearchMessages] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "message" | "conversation"; id: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: theme } = useThemeSettings();
   const pos = theme?.theme_floating_position || "left-14";
   const side = pos.split("-")[0];
-  const isBottom = side !== "right" && side !== "left" ? false : true;
+  const isBottom = side === "left" || side === "right";
   const isLeft = side === "left" || side === "bottom";
 
+  const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences();
+  const lastMessageCountRef = useRef(0);
+
   const {
-    conversations,
-    messages,
-    loadingConversations,
-    loadingMessages,
-    activeConversationId,
-    setActiveConversationId,
-    sendMessage,
-    createConversation,
-    markAsRead,
-    totalUnread,
+    conversations, messages, loadingConversations, loadingMessages,
+    activeConversationId, setActiveConversationId,
+    sendMessage, createConversation, markAsRead, markMessageRead,
+    deleteMessage, deleteConversation, totalUnread,
   } = useMessages();
 
   // Fetch profiles for new conversation
@@ -68,18 +85,53 @@ export default function FloatingChat() {
     }
   }, [activeConversationId, open, markAsRead]);
 
+  // Play sound on new incoming message
+  useEffect(() => {
+    if (messages.length > lastMessageCountRef.current && lastMessageCountRef.current > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.sender_id !== user?.id) {
+        playNotificationSound();
+      }
+    }
+    lastMessageCountRef.current = messages.length;
+  }, [messages, user?.id, playNotificationSound]);
+
+  // IntersectionObserver for read receipts
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const observeMessage = useCallback(
+    (node: HTMLDivElement | null, msg: Message) => {
+      if (!node || msg.sender_id === user?.id || msg.is_read) return;
+      if (!observerRef.current) {
+        observerRef.current = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const msgId = entry.target.getAttribute("data-msg-id");
+                if (msgId) markMessageRead(msgId);
+              }
+            });
+          },
+          { threshold: 0.5 }
+        );
+      }
+      observerRef.current.observe(node);
+    },
+    [user?.id, markMessageRead]
+  );
+
+  useEffect(() => {
+    return () => observerRef.current?.disconnect();
+  }, [activeConversationId]);
+
   const openConversation = (convId: string) => {
     setActiveConversationId(convId);
     setView("chat");
+    setShowSearch(false);
+    setSearchMessages("");
   };
 
   const handleSend = () => {
-    if (!activeConversationId) {
-      toast.info("Primero selecciona o crea una conversación");
-      return;
-    }
-    if (!messageText.trim()) return;
-
+    if (!activeConversationId || !messageText.trim()) return;
     sendMessage.mutate(
       { conversationId: activeConversationId, content: messageText.trim() },
       { onError: (err: any) => toast.error("Error al enviar: " + (err?.message || "Intenta nuevamente")) }
@@ -88,20 +140,56 @@ export default function FloatingChat() {
   };
 
   const handleNewConversation = (otherUserId: string) => {
-    createConversation.mutate(otherUserId, {
-      onSuccess: () => {
-        setView("chat");
-        setSearchUser("");
-      },
-      onError: (err: any) => {
-        toast.error("No se pudo crear la conversación: " + (err?.message || "Intenta nuevamente"));
-      },
-    });
+    createConversation.mutate(
+      { otherUserId },
+      {
+        onSuccess: () => { setView("chat"); setSearchUser(""); },
+        onError: (err: any) => toast.error("No se pudo crear la conversación: " + (err?.message || "")),
+      }
+    );
   };
 
   const handleBack = () => {
     setView("list");
     setActiveConversationId(null);
+    setShowSearch(false);
+    setSearchMessages("");
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "message") {
+      deleteMessage.mutate(deleteTarget.id, {
+        onSuccess: () => toast.success("Mensaje eliminado"),
+        onError: (e: any) => toast.error("Error: " + e.message),
+      });
+    } else {
+      deleteConversation.mutate(deleteTarget.id, {
+        onSuccess: () => { toast.success("Chat eliminado"); handleBack(); },
+        onError: (e: any) => toast.error("Error: " + e.message),
+      });
+    }
+    setDeleteTarget(null);
+  };
+
+  const handleSoundFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      toast.error("Solo archivos de audio (mp3, wav)");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Máximo 2MB");
+      return;
+    }
+    try {
+      const url = await uploadCustomSound(file);
+      updatePrefs.mutate({ sound_option: "custom", custom_sound_url: url });
+      toast.success("Sonido personalizado guardado");
+    } catch (err: any) {
+      toast.error("Error al subir: " + err.message);
+    }
   };
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
@@ -110,6 +198,37 @@ export default function FloatingChat() {
       p.display_name.toLowerCase().includes(searchUser.toLowerCase()) ||
       p.email.toLowerCase().includes(searchUser.toLowerCase())
   );
+
+  // Filter messages by search
+  const displayMessages = searchMessages.trim()
+    ? messages.filter((m) => m.content.toLowerCase().includes(searchMessages.toLowerCase()))
+    : messages;
+
+  // Highlight search term in text
+  const highlightText = (text: string, query: string) => {
+    if (!query.trim()) return text;
+    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={i} className="bg-yellow-300/80 text-foreground rounded-sm px-0.5">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  };
+
+  // Profile map for sender names
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ["profiles-all-chat"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, email");
+      return data || [];
+    },
+    enabled: !!activeConversationId,
+  });
+  const profileMap = Object.fromEntries(allProfiles.map((p) => [p.user_id, p]));
 
   return (
     <div className="relative">
@@ -138,32 +257,69 @@ export default function FloatingChat() {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              "absolute w-80 h-[460px] bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden",
+              "absolute w-[340px] h-[500px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
               isBottom ? "bottom-full mb-2" : "top-full mt-2",
               isLeft ? "left-0" : "right-0",
             )}
           >
             {/* Header */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
               {view !== "list" && (
-                <button onClick={handleBack} className="text-muted-foreground hover:text-foreground">
+                <button onClick={handleBack} className="text-muted-foreground hover:text-foreground transition-colors">
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               )}
-              <h3 className="text-sm font-semibold text-foreground flex-1">
+              <h3 className="text-sm font-semibold text-foreground flex-1 truncate">
                 {view === "list" && "Mensajes"}
                 {view === "new" && "Nueva conversación"}
+                {view === "settings" && "Configuración de sonido"}
                 {view === "chat" && (activeConv?.participants.map((p) => p.display_name).join(", ") || "Chat")}
               </h3>
-              {view === "list" && (
-                <button
-                  onClick={() => setView("new")}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              )}
+              <div className="flex items-center gap-1">
+                {view === "chat" && (
+                  <button onClick={() => { setShowSearch(!showSearch); setSearchMessages(""); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {view === "chat" && isAdmin && (
+                  <button
+                    onClick={() => setDeleteTarget({ type: "conversation", id: activeConversationId! })}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    title="Eliminar chat completo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {view === "list" && (
+                  <>
+                    <button onClick={() => setView("settings")} className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Settings className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setView("new")} className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* Search bar in chat */}
+            {view === "chat" && showSearch && (
+              <div className="px-3 pt-2 pb-1 border-b border-border bg-muted/20">
+                <Input
+                  placeholder="Buscar en mensajes..."
+                  value={searchMessages}
+                  onChange={(e) => setSearchMessages(e.target.value)}
+                  className="h-7 text-xs"
+                  autoFocus
+                />
+                {searchMessages && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {displayMessages.length} resultado{displayMessages.length !== 1 ? "s" : ""}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Content */}
             <div className="flex-1 overflow-hidden">
@@ -178,12 +334,7 @@ export default function FloatingChat() {
                     <div className="text-center py-8 px-4">
                       <MessageCircle className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
                       <p className="text-sm text-muted-foreground">No tienes conversaciones</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-3"
-                        onClick={() => setView("new")}
-                      >
+                      <Button variant="outline" size="sm" className="mt-3" onClick={() => setView("new")}>
                         <Plus className="w-3.5 h-3.5 mr-1" /> Nueva conversación
                       </Button>
                     </div>
@@ -193,14 +344,14 @@ export default function FloatingChat() {
                         <button
                           key={conv.id}
                           onClick={() => openConversation(conv.id)}
-                          className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
+                          className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors group"
                         >
                           <div className="flex items-center justify-between mb-0.5">
                             <span className="text-sm font-medium text-foreground truncate">
                               {conv.participants.map((p) => p.display_name).join(", ")}
                             </span>
                             {conv.unread_count > 0 && (
-                              <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 ml-2">
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 ml-2 shrink-0">
                                 {conv.unread_count}
                               </Badge>
                             )}
@@ -254,6 +405,54 @@ export default function FloatingChat() {
                 </div>
               )}
 
+              {/* Settings view */}
+              {view === "settings" && (
+                <div className="p-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4" /> Sonido de notificación
+                    </p>
+                    <div className="space-y-1.5">
+                      {SOUND_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={cn(
+                            "flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors",
+                            prefs?.sound_option === opt.value
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "hover:bg-muted/50 text-foreground"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="sound"
+                            className="accent-primary"
+                            checked={prefs?.sound_option === opt.value}
+                            onChange={() => {
+                              if (opt.value === "custom" && !prefs?.custom_sound_url) return;
+                              updatePrefs.mutate({ sound_option: opt.value, custom_sound_url: prefs?.custom_sound_url });
+                            }}
+                          />
+                          {opt.value === "mute" ? <VolumeX className="w-3.5 h-3.5" /> : null}
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs text-muted-foreground mb-2">Subir sonido personalizado (mp3/wav, máx 2MB)</p>
+                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-border hover:border-primary/50 transition-colors">
+                      <Upload className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Elegir archivo</span>
+                      <input type="file" accept="audio/mp3,audio/wav,audio/mpeg" className="hidden" onChange={handleSoundFileUpload} />
+                    </label>
+                    {prefs?.custom_sound_url && (
+                      <p className="text-[10px] text-muted-foreground mt-1 truncate">✓ Sonido personalizado cargado</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Chat view */}
               {view === "chat" && (
                 <div className="flex flex-col h-full">
@@ -262,33 +461,66 @@ export default function FloatingChat() {
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                       </div>
-                    ) : messages.length === 0 ? (
+                    ) : displayMessages.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-8">
-                        Envía el primer mensaje
+                        {searchMessages ? "Sin resultados" : "Envía el primer mensaje"}
                       </p>
                     ) : (
-                      <div className="space-y-2">
-                        {messages.map((msg) => {
+                      <div className="space-y-1.5">
+                        {displayMessages.map((msg) => {
                           const isMine = msg.sender_id === user?.id;
+                          const senderName = profileMap[msg.sender_id]?.display_name || "Usuario";
                           return (
-                            <div key={msg.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
-                              <div
-                                className={cn(
-                                  "max-w-[75%] rounded-lg px-3 py-1.5 text-sm",
-                                  isMine
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-foreground"
+                            <div
+                              key={msg.id}
+                              data-msg-id={msg.id}
+                              ref={(node) => {
+                                if (!isMine && !msg.is_read) observeMessage(node, msg);
+                              }}
+                              className={cn("flex group", isMine ? "justify-end" : "justify-start")}
+                            >
+                              <div className="relative max-w-[80%]">
+                                {/* Sender name for others' messages */}
+                                {!isMine && (
+                                  <p className="text-[10px] text-muted-foreground mb-0.5 ml-1 font-medium">{senderName}</p>
                                 )}
-                              >
-                                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                                <p
+                                <div
                                   className={cn(
-                                    "text-[10px] mt-0.5",
-                                    isMine ? "text-primary-foreground/70" : "text-muted-foreground"
+                                    "rounded-2xl px-3 py-2 text-sm relative",
+                                    isMine
+                                      ? "bg-primary text-primary-foreground rounded-br-md"
+                                      : "bg-muted text-foreground rounded-bl-md"
                                   )}
                                 >
-                                  {format(new Date(msg.created_at), "HH:mm")}
-                                </p>
+                                  <p className="whitespace-pre-wrap break-words leading-relaxed">
+                                    {highlightText(msg.content, searchMessages)}
+                                  </p>
+                                  <div className={cn("flex items-center gap-1 mt-0.5", isMine ? "justify-end" : "justify-start")}>
+                                    <span className={cn("text-[10px]", isMine ? "text-primary-foreground/60" : "text-muted-foreground")}>
+                                      {format(new Date(msg.created_at), "HH:mm")}
+                                    </span>
+                                    {/* Read receipt for sent messages */}
+                                    {isMine && (
+                                      <span
+                                        className={cn(
+                                          "inline-block w-2 h-2 rounded-full ml-0.5",
+                                          msg.is_read ? "bg-green-400" : "bg-muted-foreground/40"
+                                        )}
+                                        title={msg.is_read ? "Leído" : "No leído"}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Admin delete button */}
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => setDeleteTarget({ type: "message", id: msg.id })}
+                                    className="absolute -top-1 -right-1 hidden group-hover:flex w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm"
+                                    title="Eliminar mensaje"
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
@@ -308,16 +540,16 @@ export default function FloatingChat() {
                             handleSend();
                           }
                         }}
-                        placeholder={activeConversationId ? "Escribe un mensaje..." : "Selecciona o crea una conversación"}
-                        className="h-8 text-sm flex-1"
+                        placeholder="Escribe un mensaje..."
+                        className="h-8 text-sm flex-1 rounded-full"
                         autoFocus
                         disabled={!activeConversationId || createConversation.isPending}
                       />
                       <Button
                         type="button"
                         size="sm"
-                        className="h-8 w-8 p-0 shrink-0"
-                        disabled={!activeConversationId || !messageText.trim() || sendMessage.isPending || createConversation.isPending}
+                        className="h-8 w-8 p-0 shrink-0 rounded-full"
+                        disabled={!activeConversationId || !messageText.trim() || sendMessage.isPending}
                         onClick={handleSend}
                       >
                         <Send className="w-3.5 h-3.5" />
@@ -330,6 +562,27 @@ export default function FloatingChat() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteTarget?.type === "message" ? "¿Eliminar este mensaje?" : "¿Eliminar chat completo?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer.{" "}
+              {deleteTarget?.type === "conversation" && "Se eliminarán todos los mensajes de esta conversación."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
