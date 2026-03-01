@@ -1,50 +1,66 @@
 
 
-## Fix: Sincronizacion completa de carpetas de empresa y feedback al usuario
+# Sistema de Mensajeria In-App
 
-### Problema identificado
+## Resumen
+Crear un sistema de chat interno entre usuarios de la plataforma, accesible desde un boton flotante (similar al de presencia) y tambien desde una pagina dedicada.
 
-La logica de sincronizacion incremental (`useSyncTemplateToProject`) SI inserta carpetas nuevas de empresas correctamente en la base de datos local. Sin embargo, hay dos problemas:
+## Estructura de la base de datos
 
-1. **Sin sincronizacion a Google Drive**: Despues de que el sync de template inserta carpetas nuevas (como "Hunter"), no se dispara la sincronizacion con Google Drive. Las carpetas quedan solo localmente.
-2. **Sin feedback al usuario**: El sync es silencioso -- no notifica cuantas carpetas nuevas se insertaron ni si hubo cambios, por lo que el usuario no sabe si funciono.
-3. **Subcarpetas de empresa nueva**: Si "Hunter" tiene subcarpetas en el template (ej: "Presupuestos"), estas tambien deben crearse. La logica actual lo hace correctamente al recursionar, pero sin sync a Drive quedan invisibles en la nube.
+### Tabla `conversations`
+- `id` (uuid, PK)
+- `created_at` (timestamptz)
+- `updated_at` (timestamptz)
 
-### Cambios propuestos
+### Tabla `conversation_participants`
+- `id` (uuid, PK)
+- `conversation_id` (uuid, FK -> conversations)
+- `user_id` (uuid, FK -> auth.users)
+- `joined_at` (timestamptz)
+- `last_read_at` (timestamptz) -- para marcar mensajes leidos
 
-#### 1. `ProyectoRepositorioDialog.tsx` -- Disparar Drive sync despues de template sync
+### Tabla `messages`
+- `id` (uuid, PK)
+- `conversation_id` (uuid, FK -> conversations)
+- `sender_id` (uuid, FK -> auth.users)
+- `content` (text)
+- `created_at` (timestamptz)
 
-Modificar el efecto de auto-sync de template (lineas 82-86) para que, si se insertaron carpetas nuevas, se dispare `triggerSync()` automaticamente y se muestre un toast informativo.
+Todas con RLS: los participantes solo pueden leer/escribir en sus propias conversaciones. Se habilitara Realtime en `messages` para actualizaciones instantaneas.
 
-```typescript
-// Cambiar de:
-syncTemplateMutation.mutate({ projectId });
+## Componentes del frontend
 
-// A:
-syncTemplateMutation.mutateAsync({ projectId }).then((result) => {
-  if (result && (result.inserted > 0 || result.updated > 0)) {
-    toast.info(`Repositorio actualizado: ${result.inserted} carpeta(s) agregada(s)`);
-    triggerSync(); // Sincronizar nuevas carpetas con Drive
-  }
-});
-```
+1. **Boton flotante de mensajeria** (`FloatingChat.tsx`)
+   - Icono de mensaje en la esquina inferior derecha (junto al boton de presencia existente)
+   - Badge con contador de mensajes no leidos
+   - Al hacer clic, abre un panel con la lista de conversaciones
 
-#### 2. `useProjectFolders.ts` -- Mejorar robustez del sync
+2. **Panel de conversaciones** (dentro del flotante)
+   - Lista de conversaciones con ultimo mensaje y nombre del otro usuario
+   - Boton "Nueva conversacion" que muestra selector de usuarios (desde `profiles`)
+   - Indicador de mensajes no leidos por conversacion
 
-La logica actual tiene un bloque muerto en lineas 247-249 que no hace nada. Se limpiara para mayor claridad. La logica de filtrado de empresas es correcta pero se verificara que las subcarpetas de una empresa nueva se insertan recursivamente.
+3. **Vista de chat**
+   - Muestra los mensajes de la conversacion seleccionada
+   - Campo de texto para enviar mensajes
+   - Scroll automatico al ultimo mensaje
+   - Actualizacion en tiempo real via Realtime
 
-### Archivos a modificar
+4. **Hook `useMessages.ts`**
+   - Queries para conversaciones, participantes, mensajes
+   - Suscripcion Realtime para mensajes nuevos
+   - Mutaciones para enviar mensajes, crear conversaciones, marcar como leido
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Agregar triggerSync + toast despues de template sync exitoso |
-| `src/hooks/useProjectFolders.ts` | Limpiar codigo muerto en lineas 247-249 para claridad |
+## Flujo del usuario
+1. Hace clic en el icono de chat flotante
+2. Ve sus conversaciones existentes o inicia una nueva seleccionando un usuario
+3. Escribe y envia mensajes que aparecen en tiempo real para ambos participantes
+4. El badge muestra mensajes sin leer incluso con el panel cerrado
 
-### Resultado esperado
+## Detalles tecnicos
 
-Al abrir el repositorio de un proyecto:
-1. Se ejecuta el sync de template automaticamente
-2. Si hay carpetas nuevas (como "Hunter" y sus subcarpetas), se insertan en la BD
-3. Se muestra un toast informando los cambios
-4. Se dispara la sincronizacion con Google Drive para crear las carpetas en la nube
+- **Realtime**: Se usara `postgres_changes` en la tabla `messages` para recibir mensajes nuevos al instante
+- **Mensajes no leidos**: Se calcula comparando `last_read_at` del participante con `created_at` de los mensajes
+- **Seguridad RLS**: Los usuarios solo ven conversaciones donde son participantes, usando una funcion `SECURITY DEFINER` para evitar recursion
+- **Posicionamiento**: El boton flotante se ubicara en `bottom-[52px] right-4` para no chocar con el boton de presencia existente (que esta en `left-4`)
 
