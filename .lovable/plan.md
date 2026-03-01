@@ -1,92 +1,73 @@
 
-Objetivo: corregir definitivamente la apertura de “Ver en Google Drive/Earth” para que nunca intente renderizar contenido de Google dentro del sistema (iframe), y siempre abra en una pestaña nueva usando el enlace de visualización correcto (`webViewLink`) con medidas de seguridad.
+Objetivo: eliminar definitivamente el error `ERR_BLOCKED_BY_RESPONSE` al abrir archivos de Drive, garantizando que nunca se intenten renderizar dentro del iframe de la app y que siempre se abran en pestaña nueva.
 
-## Diagnóstico (paso a paso)
+Diagnóstico confirmado:
+1. Ya estás usando `window.open(...)` en:
+   - `src/components/repositorio/FolderTreeNode.tsx` (archivos)
+   - `src/components/repositorio/ProyectoRepositorioDialog.tsx` (carpeta del proyecto)
+2. Pero ambos flujos hacen una llamada async antes de abrir la pestaña (`await mutateAsync(...)`), lo que puede romper el “user gesture context” del navegador.
+3. En entornos embebidos (preview en iframe), cuando se pierde ese contexto, el navegador puede bloquear o resolver navegación de forma no deseada, produciendo errores como `ERR_BLOCKED_BY_RESPONSE` / bloqueo por política de frame.
+4. El problema no es solo “usar window.open”, sino usarlo en el momento correcto: inmediatamente en el click, antes del `await`.
 
-1. Ya existe lógica para abrir archivos desde `FolderTreeNode.tsx`:
-   - llama `useGetDriveViewUrl()`
-   - recibe `web_view_link` y `web_content_link`
-   - hoy usa `web_view_link || web_content_link`
-   - abre con `window.open(url, "_blank")` (sin `noopener/noreferrer`)
+Implementación propuesta:
 
-2. El botón de carpeta del proyecto (“Ver en Google Drive”) en `ProyectoRepositorioDialog.tsx` actualmente usa un `<a>` oculto y click programático (workaround de iframe).
-3. El error que reportas (“Refused to display in a frame”) indica que en algún flujo se está intentando mostrar URL de Google en contexto embebido o con apertura no segura/consistente.
-4. Tu requerimiento pide explícitamente:
-   - `window.open(fileUrl, "_blank")`
-   - seguridad equivalente a `rel="noopener noreferrer"`
-   - usar la URL de visualización de Google (`webViewLink`).
+1) Robustecer apertura de archivos en `FolderTreeNode.tsx`
+- Mantener uso exclusivo de `web_view_link` (correcto para visualización).
+- Cambiar `handleViewFile` a patrón “pre-open tab”:
+  - Abrir pestaña vacía de inmediato en el click:
+    - `const newTab = window.open("", "_blank", "noopener,noreferrer")`
+  - Si `newTab` es null: mostrar toast de popup bloqueado y salir.
+  - Luego ejecutar `await getViewUrl.mutateAsync(...)`.
+  - Si hay `web_view_link`: asignar `newTab.location.href = web_view_link`.
+  - Si no hay link o hay error: `newTab.close()` + toast explicativo.
+  - Mantener hardening: `if (newTab) newTab.opener = null`.
+  
+Resultado: la pestaña nace por gesto del usuario, evitando bloqueos y evitando cualquier intento de render dentro del iframe.
 
-## Implementación propuesta
+2) Aplicar el mismo patrón al botón “Ver en Google Drive” en `ProyectoRepositorioDialog.tsx`
+- En el `onClick` del botón:
+  - `const newTab = window.open("", "_blank", "noopener,noreferrer")` al inicio.
+  - Validar bloqueo (`!newTab`) y notificar.
+  - Hacer `await getProjectDriveId.mutateAsync(...)`.
+  - Construir URL final `https://drive.google.com/drive/folders/{drive_folder_id}`.
+  - Redirigir pestaña: `newTab.location.href = url`.
+  - Si falla el fetch del id: `newTab.close()` + toast.
+  - Mantener `newTab.opener = null`.
+  
+Resultado: consistencia entre apertura de carpeta y apertura de archivo, minimizando bloqueos del navegador en iframe.
 
-### 1) Forzar uso de `webViewLink` para archivos (sin fallback a `webContentLink`)
-**Archivo:** `src/components/repositorio/FolderTreeNode.tsx`
+3) Mantener contrato de URL correcto en hooks
+- `src/hooks/useDriveSync.ts`:
+  - No se requiere cambio funcional mayor si ya devuelve `web_view_link`.
+  - Mantener el uso en UI de `web_view_link` como fuente principal para abrir archivos.
+- No hace falta tocar backend para este ajuste, salvo que quieras endurecer el contrato tipado más adelante.
 
-Cambios:
-- En `handleViewFile`, usar **solo** `result.web_view_link`.
-- Si `web_view_link` viene nulo, mostrar toast claro (“No se pudo obtener enlace de visualización”) en vez de usar `web_content_link`.
-- Abrir con:
-  - `window.open(viewUrl, "_blank", "noopener,noreferrer")`
-  - y refuerzo: `newWindow.opener = null` cuando aplique.
+Secuencia recomendada de ejecución:
+1. Ajustar `handleViewFile` en `FolderTreeNode.tsx` con patrón pre-open.
+2. Ajustar botón “Ver en Google Drive” en `ProyectoRepositorioDialog.tsx` con patrón pre-open.
+3. Validar UX de errores (popup bloqueado, link nulo, error de función).
+4. Probar fin a fin en preview y en app publicada.
 
-Motivo:
-- `webViewLink` es el enlace diseñado por Google para visualización en navegador.
-- Evita rutas de descarga/preview que pueden comportarse distinto en entornos embebidos.
+Validación end-to-end (obligatoria):
+1. Abrir repositorio y hacer clic en un archivo:
+   - Debe abrir pestaña nueva.
+   - No debe aparecer intento de iframe.
+2. Clic en “Ver en Google Drive”:
+   - Debe abrir carpeta en nueva pestaña.
+3. Probar con popup blocker activo y desactivado:
+   - Debe mostrar mensaje claro si el navegador bloquea.
+4. Repetir en URL publicada:
+   - Confirmar comportamiento estable fuera del entorno de preview.
 
-### 2) Unificar apertura segura en pestaña nueva para el botón de carpeta del proyecto
-**Archivo:** `src/components/repositorio/ProyectoRepositorioDialog.tsx`
+Riesgos y mitigaciones:
+- Popup bloqueado por configuración del navegador:
+  - Mitigar con mensaje claro: “Tu navegador bloqueó la apertura de pestañas. Habilita popups para este sitio.”
+- Fallo en `get-drive-view-url` o `get_project_drive_id`:
+  - Cerrar pestaña en blanco automáticamente para no dejar basura UX.
+- `web_view_link` nulo:
+  - Mostrar error específico y cerrar pestaña temporal.
 
-Cambios:
-- Reemplazar el flujo de `<a>` oculto + `setTimeout` por apertura directa:
-  - obtener `drive_folder_id`
-  - construir URL `https://drive.google.com/drive/folders/{id}`
-  - `window.open(url, "_blank", "noopener,noreferrer")`
-  - `opener = null` como hardening adicional.
-- Eliminar estado/ref usados solo para el anchor oculto (`driveUrl`, `driveLinkRef`) para simplificar.
-
-Motivo:
-- Queda alineado con tu instrucción de usar `window.open`.
-- Menos complejidad y menos puntos de falla.
-
-### 3) Mantener API de backend compatible, pero reforzar contrato de “URL de vista”
-**Archivos:**
-- `src/hooks/useDriveSync.ts`
-- (opcional mínimo) `supabase/functions/get-drive-view-url/index.ts`
-
-Cambios:
-- En frontend, tratar `web_view_link` como campo principal obligatorio para abrir vista.
-- Opcional backend (recomendado): seguir devolviendo ambos campos por compatibilidad, pero documentar/normalizar que `web_view_link` es el que debe usarse en UI.
-
-Motivo:
-- Evita romper otras partes si existieran consumidores antiguos.
-- Garantiza que el botón use exactamente el tipo de URL que pediste.
-
-## Secuencia de ejecución
-
-1. Ajustar `FolderTreeNode.tsx` (uso estricto de `web_view_link` + open seguro).
-2. Ajustar `ProyectoRepositorioDialog.tsx` (quitar anchor oculto y usar `window.open` seguro).
-3. Ajustar tipado/uso en `useDriveSync.ts` si hace falta para reflejar contrato de apertura.
-4. Verificación funcional en preview y URL publicada.
-
-## Validación end-to-end (clave)
-
-1. En repositorio del proyecto, hacer clic en:
-   - “Ver en Google Drive” (carpeta)
-   - un archivo dentro del árbol (vista de archivo)
-2. Confirmar:
-   - se abre una nueva pestaña del navegador
-   - no intenta incrustar Google en el panel de la app
-   - no aparece error “Refused to display in a frame”
-3. Probar 2 tipos de archivo (por ejemplo PDF y Doc/Sheet) para confirmar consistencia con `webViewLink`.
-4. Repetir prueba en entorno publicado para descartar restricciones propias del preview embebido.
-
-## Riesgos y mitigaciones
-
-- **Popup bloqueado por navegador:** si el navegador bloquea popups, mantener apertura estrictamente dentro del evento de click (sin esperas asíncronas intermedias innecesarias).
-- **`webViewLink` nulo en casos raros:** mostrar mensaje de error claro al usuario y registrar en consola para diagnóstico.
-- **Comportamiento distinto preview vs publicado:** validar ambos contextos; el publicado es la referencia final para UX real.
-
-## Resultado esperado
-
-- El botón de Drive/Earth abre siempre en pestaña nueva.
-- Se elimina el intento de renderizar contenido de Google dentro de iframe.
-- Se usa la URL correcta de Google para visualización (`webViewLink`) y se aplica hardening de seguridad equivalente a `rel="noopener noreferrer"`.
+Resultado esperado:
+- Ningún archivo/carpeta de Drive intentará abrirse dentro de la app.
+- Todo se abrirá en pestaña nueva de forma confiable.
+- Se minimizan bloqueos por políticas de iframe al preservar el gesto de usuario desde el inicio del click.
