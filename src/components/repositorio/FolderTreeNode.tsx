@@ -81,12 +81,32 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   };
 
   const handleViewFile = (driveFileId: string) => {
-    if (!driveFileId) {
+    const rawValue = (driveFileId || "").trim();
+    const normalizedId = (() => {
+      const fromFilePath = rawValue.match(/\/file\/d\/([^/?#]+)/i)?.[1];
+      if (fromFilePath) return fromFilePath;
+
+      const fromOpenParam = rawValue.match(/[?&]id=([^&#]+)/i)?.[1];
+      if (fromOpenParam) return fromOpenParam;
+
+      return rawValue;
+    })();
+
+    if (!normalizedId) {
       toast.error("No se encontró el ID del archivo. Intenta nuevamente.");
       return;
     }
-    const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(driveFileId)}/view?usp=sharing`;
-    window.open(viewUrl, "_blank", "noopener,noreferrer");
+
+    const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(normalizedId)}/view?usp=sharing`;
+    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+
+    if (!popup) {
+      toast.error("El navegador bloqueó la apertura. Habilita pop-ups e intenta nuevamente.");
+      return;
+    }
+
+    popup.opener = null;
+    popup.location.href = viewUrl;
   };
 
   const handleDeleteFile = async (driveFileId: string, driveFilesId: string, fileName: string) => {
