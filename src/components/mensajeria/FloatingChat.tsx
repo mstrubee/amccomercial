@@ -1030,23 +1030,38 @@ export default function FloatingChat() {
                               }}
                               className={cn("flex group", isMine ? "justify-end" : "justify-start")}
                             >
-                              <div className={cn("flex items-end gap-1 max-w-[90%]", isMine ? "flex-row" : "flex-row")}> 
+                              <div className={cn("flex items-end gap-1 max-w-[90%] relative", isMine ? "flex-row" : "flex-row")}> 
                                 {!isMine && (
-                                  <div className="max-w-[90%]">
-                                    <p className="text-[10px] text-muted-foreground mb-0.5 ml-1 font-medium">{senderName}</p>
-                                    <div className="rounded-2xl px-3 py-2 text-sm bg-muted text-foreground rounded-bl-md">
-                                      <p className="whitespace-pre-wrap break-words leading-relaxed">{highlightText(msg.content, searchMessages)}</p>
-                                      <span className="text-[10px] text-muted-foreground mt-1 inline-block">{format(new Date(msg.created_at), "HH:mm")}</span>
+                                  <>
+                                    <div className="max-w-[90%]">
+                                      <p className="text-[10px] text-muted-foreground mb-0.5 ml-1 font-medium whitespace-nowrap truncate" title={senderName}>
+                                        {senderName}
+                                      </p>
+                                      <div className="rounded-2xl px-3 py-2 text-sm bg-muted text-foreground rounded-bl-md">
+                                        <p className="whitespace-normal break-normal [overflow-wrap:anywhere] leading-relaxed">
+                                          {highlightText(msg.content, searchMessages)}
+                                        </p>
+                                      </div>
                                     </div>
-                                  </div>
+                                    <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
+                                      {format(new Date(msg.created_at), "HH:mm")}
+                                    </span>
+                                  </>
                                 )}
 
                                 {isMine && (
                                   <>
+                                    <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
+                                      {format(new Date(msg.created_at), "HH:mm")}
+                                    </span>
                                     <div className="max-w-[90%]">
+                                      <p className="text-[10px] text-muted-foreground mb-0.5 mr-1 font-medium text-right whitespace-nowrap truncate" title={senderName}>
+                                        {senderName}
+                                      </p>
                                       <div className="rounded-2xl px-3 py-2 text-sm bg-primary text-primary-foreground rounded-br-md">
-                                        <p className="whitespace-pre-wrap break-words leading-relaxed">{highlightText(msg.content, searchMessages)}</p>
-                                        <span className="text-[10px] text-primary-foreground/70 mt-1 inline-block">{format(new Date(msg.created_at), "HH:mm")}</span>
+                                        <p className="whitespace-normal break-normal [overflow-wrap:anywhere] leading-relaxed">
+                                          {highlightText(msg.content, searchMessages)}
+                                        </p>
                                       </div>
                                     </div>
                                     <span
@@ -1062,7 +1077,7 @@ export default function FloatingChat() {
                                 {isAdmin && (
                                   <button
                                     onClick={() => setDeleteTarget({ type: "message", id: msg.id })}
-                                    className="hidden group-hover:flex w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm mb-1"
+                                    className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm absolute -top-1 -right-1 flex"
                                     title="Eliminar mensaje"
                                   >
                                     <Trash2 className="w-2.5 h-2.5" />
