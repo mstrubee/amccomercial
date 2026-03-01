@@ -76,6 +76,10 @@ function AppRoutes() {
           pos === "bottom-right" && "bottom-4 right-4",
           pos === "top-left" && "top-4 left-4",
           pos === "top-right" && "top-4 right-4",
+          pos === "middle-left" && "left-4 top-1/2 -translate-y-1/2",
+          pos === "middle-right" && "right-4 top-1/2 -translate-y-1/2",
+          pos === "bottom-center-left" && "bottom-4 left-[35%]",
+          pos === "bottom-center-right" && "bottom-4 left-[55%]",
         );
         return (
           <div className={posClasses}>

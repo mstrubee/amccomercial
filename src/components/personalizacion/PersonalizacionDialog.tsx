@@ -26,7 +26,10 @@ const POSITION_OPTIONS = [
   { value: "top-left", label: "Superior izquierda" },
 ];
 
-const FLOATING_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
+const FLOATING_CORNERS = [
+  "top-left", "top-right", "bottom-left", "bottom-right",
+  "middle-left", "middle-right", "bottom-center-left", "bottom-center-right",
+] as const;
 type FloatingCorner = (typeof FLOATING_CORNERS)[number];
 
 const DEFAULTS: ThemeSettings = {
@@ -69,18 +72,23 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
     setDirty(true);
   };
 
-  const getFloatingCornerPosition = (corner: FloatingCorner) => {
+  const getFloatingCornerPosition = (corner: FloatingCorner): React.CSSProperties => {
     const leftInset = 44;
     const rightInset = 12;
     const topInset = 12;
     const bottomInset = 12;
 
-    return {
-      left: corner.endsWith("left") ? leftInset : undefined,
-      right: corner.endsWith("right") ? rightInset : undefined,
-      top: corner.startsWith("top") ? topInset : undefined,
-      bottom: corner.startsWith("bottom") ? bottomInset : undefined,
+    const positions: Record<FloatingCorner, React.CSSProperties> = {
+      "top-left": { left: leftInset, top: topInset },
+      "top-right": { right: rightInset, top: topInset },
+      "bottom-left": { left: leftInset, bottom: bottomInset },
+      "bottom-right": { right: rightInset, bottom: bottomInset },
+      "middle-left": { left: leftInset, top: "50%", transform: "translateY(-50%)" },
+      "middle-right": { right: rightInset, top: "50%", transform: "translateY(-50%)" },
+      "bottom-center-left": { left: "35%", bottom: bottomInset },
+      "bottom-center-right": { left: "55%", bottom: bottomInset },
     };
+    return positions[corner] || positions["bottom-left"];
   };
 
   const updateFloatingDragFromPointer = (clientX: number, clientY: number) => {
@@ -112,11 +120,27 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
       }
 
       const rect = preview.getBoundingClientRect();
-      const centerX = floatingDragPosition.x + 19;
-      const centerY = floatingDragPosition.y + 19;
-      const horizontal: "left" | "right" = centerX < rect.width / 2 ? "left" : "right";
-      const vertical: "top" | "bottom" = centerY < rect.height / 2 ? "top" : "bottom";
-      update("theme_floating_position", `${vertical}-${horizontal}` as FloatingCorner);
+      const cx = floatingDragPosition.x + 19;
+      const cy = floatingDragPosition.y + 19;
+
+      // Snap to nearest corner/position
+      const targets: { pos: FloatingCorner; x: number; y: number }[] = [
+        { pos: "top-left", x: 44, y: 12 },
+        { pos: "top-right", x: rect.width - 12, y: 12 },
+        { pos: "bottom-left", x: 44, y: rect.height - 12 },
+        { pos: "bottom-right", x: rect.width - 12, y: rect.height - 12 },
+        { pos: "middle-left", x: 44, y: rect.height / 2 },
+        { pos: "middle-right", x: rect.width - 12, y: rect.height / 2 },
+        { pos: "bottom-center-left", x: rect.width * 0.35, y: rect.height - 12 },
+        { pos: "bottom-center-right", x: rect.width * 0.55, y: rect.height - 12 },
+      ];
+      let nearest = targets[0];
+      let minDist = Infinity;
+      for (const t of targets) {
+        const d = Math.hypot(cx - t.x, cy - t.y);
+        if (d < minDist) { minDist = d; nearest = t; }
+      }
+      update("theme_floating_position", nearest.pos);
 
       setIsDraggingFloating(false);
       setFloatingDragPosition(null);
