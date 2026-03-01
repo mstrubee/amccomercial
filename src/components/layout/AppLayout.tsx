@@ -159,7 +159,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
                               ? "bg-sidebar-accent/70 text-sidebar-accent-foreground font-medium"
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-accent-foreground"
                           )}
-                          style={isActive && accentBg ? { backgroundColor: `${accentBg}33`, color: accentBg } : undefined}
+                          style={isActive && accentBg ? { backgroundColor: `${accentBg}33`, color: theme?.theme_sidebar_text || undefined } : undefined}
                         >
                           {sub.label}
                         </Link>
