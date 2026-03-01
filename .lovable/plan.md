@@ -1,62 +1,75 @@
 
 
-## Repositorio filtrado por empresa + Repositorio Comun
+## Sincronizacion inteligente entre Repositorio Tipo y Proyectos
 
-### Objetivo
-Permitir que cada fila de empresa en el listado de proyectos muestre un repositorio filtrado con:
-1. Su carpeta específica dentro de `Empresas/[NombreEmpresa]`
-2. Las carpetas marcadas como "Repositorio Comun" (ej: `Planos`)
+### Problema actual
+1. Al generar carpetas desde el Repositorio Tipo, se copian TODAS las carpetas, incluyendo subcarpetas de empresas que no participan en el proyecto.
+2. Si despues se modifica el Repositorio Tipo (nueva carpeta, cambio de "Comun"), los proyectos existentes no se actualizan.
 
-Las carpetas NO marcadas como comun solo se muestran en la linea madre del proyecto.
+### Solucion propuesta
 
-### Cambios necesarios
+#### 1. Generacion inteligente filtrada por empresas del proyecto
 
-#### 1. Agregar columna `is_repo_comun` a `folder_templates`
-Agregar un campo booleano a la tabla de plantillas para indicar cuales carpetas raiz son "Repositorio Comun". Por defecto `false`.
+Al ejecutar "Generar desde Repositorio Tipo", el sistema:
+- Consultara las empresas vinculadas al proyecto (tabla `proyecto_empresas` + `empresas`)
+- Recorrera el arbol de plantillas y, al llegar a la carpeta raiz "Empresas", solo creara las subcarpetas cuyo nombre coincida con una empresa del proyecto
+- Las demas carpetas raiz (comunes o no) se copian normalmente
 
-```sql
-ALTER TABLE folder_templates ADD COLUMN is_repo_comun boolean NOT NULL DEFAULT false;
+**Archivo**: `src/hooks/useProjectFolders.ts` — modificar `useGenerateFromTemplate`
+
+#### 2. Sincronizacion incremental del Repositorio Tipo
+
+Se creara una nueva funcion/hook `useSyncTemplateToProject` que:
+- Compara las carpetas del template (`folder_templates`) con las del proyecto (`project_folders` via `template_id`)
+- Identifica carpetas nuevas en el template que no existen en el proyecto
+- Las inserta en la posicion correcta del arbol del proyecto
+- Respeta la logica de filtrado: solo agrega subcarpetas de "Empresas" si la empresa existe en el proyecto
+- Actualiza el flag `is_repo_comun` en carpetas existentes si cambio en el template
+
+Esta sincronizacion se ejecutara:
+- Automaticamente al abrir el repositorio de un proyecto (si ya tiene carpetas)
+- Con un boton manual "Sincronizar con Repositorio Tipo" visible en el dialogo del repositorio
+
+**Archivo**: `src/hooks/useProjectFolders.ts` — nueva funcion `useSyncTemplateToProject`
+
+#### 3. Actualizacion del dialogo de repositorio
+
+El `ProyectoRepositorioDialog` llamara a la sincronizacion incremental al abrirse (si el proyecto ya tiene carpetas), asegurando que cualquier cambio en el template se refleje automaticamente.
+
+**Archivo**: `src/components/repositorio/ProyectoRepositorioDialog.tsx`
+
+### Detalle tecnico
+
+```text
+Flujo de generacion (mejorado):
+Template Tree          Empresas del proyecto
+    |                       |
+    v                       v
+ [Planos]              [Endemik, Vidrios Chile]
+ [Empresas]
+   [Endemik]    <-- match -> se crea
+   [Otra Co]    <-- no match -> se omite
+   [Vidrios Chile] <-- match -> se crea
 ```
 
-Tambien propagar a `project_folders`:
-```sql
-ALTER TABLE project_folders ADD COLUMN is_repo_comun boolean NOT NULL DEFAULT false;
+```text
+Flujo de sincronizacion incremental:
+Template folders (por template_id)   vs   Project folders (por template_id)
+         |                                        |
+         v                                        v
+  Nuevos en template?  -----> Insertar en proyecto
+  is_repo_comun cambio? ----> Actualizar en proyecto
+  Solo empresas del proyecto se consideran
 ```
 
-#### 2. UI en Repositorio Tipo para marcar carpetas como "Comun"
-En la pagina `RepositorioTipoPage.tsx`, agregar un checkbox o toggle en cada carpeta raiz (nivel 0) que permita marcar/desmarcar como "Repositorio Comun". Solo aplica a carpetas raiz.
-
-Se agregara al componente `FolderTreeNode` una prop opcional `onToggleComun` y `isRepoComun` que muestre un icono/checkbox solo en nivel 0.
-
-#### 3. Propagar `is_repo_comun` al generar repositorios de proyecto
-En `useProjectFolders.ts`, en la funcion `useGenerateFromTemplate`, copiar el valor de `is_repo_comun` de cada template raiz a la carpeta del proyecto correspondiente.
-
-#### 4. Boton de repositorio en filas de empresa
-En `Proyectos.tsx`, en cada fila de empresa (child row), agregar un boton de carpeta (similar al de la linea madre) que abra el `ProyectoRepositorioDialog` pero con un filtro por empresa.
-
-#### 5. Filtrar el arbol en `ProyectoRepositorioDialog`
-Agregar props opcionales al dialogo:
-- `filterEmpresaName?: string` - nombre de la empresa para filtrar
-- Cuando se proporciona, el arbol mostrado sera:
-  - Carpetas raiz marcadas como `is_repo_comun = true` (con todo su contenido)
-  - La subcarpeta `Empresas/[filterEmpresaName]` (con todo su contenido)
-  - Se excluyen las demas carpetas raiz y las demas subcarpetas de "Empresas"
-- Cuando NO se proporciona (linea madre), se muestra todo el arbol completo como ahora
-
-La logica de filtrado se aplicara sobre el arbol ya construido, sin crear carpetas nuevas. Es puramente visual.
-
-#### 6. Modo lectura en filas de empresa
-El repositorio abierto desde una fila de empresa sera de solo lectura (sin crear/renombrar/eliminar carpetas), ya que la gestion completa se hace desde la linea madre. Se reutilizara la prop `canEdit` existente.
-
-### Resumen tecnico de archivos a modificar
+### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| Migracion SQL | Agregar `is_repo_comun` a `folder_templates` y `project_folders` |
-| `src/hooks/useFolderTemplates.ts` | Agregar campo al tipo, crear hook para toggle |
-| `src/hooks/useProjectFolders.ts` | Propagar `is_repo_comun` en generacion, agregar al tipo, funcion de filtrado |
-| `src/components/repositorio/FolderTreeNode.tsx` | Prop opcional para toggle de "Comun" en nivel 0 |
-| `src/pages/RepositorioTipoPage.tsx` | Pasar callbacks de toggle al tree |
-| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Aceptar `filterEmpresaName`, filtrar arbol |
-| `src/pages/Proyectos.tsx` | Agregar boton repositorio en filas de empresa, nuevo state para target con empresa |
+| `src/hooks/useProjectFolders.ts` | Filtrar empresas en generacion; nueva funcion `useSyncTemplateToProject` |
+| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Llamar sync incremental al abrir; pasar empresas del proyecto |
 
+### Consideraciones
+- La sincronizacion es aditiva (no elimina carpetas del proyecto que ya no estan en el template)
+- Si se agrega una nueva empresa al proyecto despues de generar, el usuario puede re-sincronizar para crear su carpeta
+- El `template_id` en `project_folders` es la clave para mapear que carpetas del template ya existen en el proyecto
