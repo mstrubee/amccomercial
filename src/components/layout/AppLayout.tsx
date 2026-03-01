@@ -12,6 +12,14 @@ import {
   Settings,
   ChevronDown,
   Palette,
+  Users,
+  Tags,
+  ListChecks,
+  BarChart3,
+  Upload,
+  FolderTree,
+  HardDrive,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,16 +61,16 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     ? allNavItems.filter(item => canAccessSection(item.key))
     : allNavItems;
 
-  const allAdminSubItems = [
-    { path: "/clientes", label: "Clientes y Captadores", allowTipo1: true },
-    { path: "/categorias", label: "Estatus (x Empresa)", allowTipo1: false },
-    { path: "/estados-proyecto", label: "Estado (x Proyecto)", allowTipo1: false },
-    { path: "/reporteria", label: "Reportería", allowTipo1: false },
-    { path: "/usuarios", label: "Usuarios", allowTipo1: false },
-    { path: "/empresas", label: "Empresas", allowTipo1: false },
-    { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false },
-    { path: "/repositorio-tipo", label: "Repositorio Tipo", allowTipo1: false },
-    { path: "/drive", label: "Drive", allowTipo1: false },
+  const allAdminSubItems: { path: string; label: string; allowTipo1: boolean; icon: LucideIcon }[] = [
+    { path: "/clientes", label: "Clientes y Captadores", allowTipo1: true, icon: Users },
+    { path: "/categorias", label: "Estatus (x Empresa)", allowTipo1: false, icon: Tags },
+    { path: "/estados-proyecto", label: "Estado (x Proyecto)", allowTipo1: false, icon: ListChecks },
+    { path: "/reporteria", label: "Reportería", allowTipo1: false, icon: BarChart3 },
+    { path: "/usuarios", label: "Usuarios", allowTipo1: false, icon: Users },
+    { path: "/empresas", label: "Empresas", allowTipo1: false, icon: Building2 },
+    { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false, icon: Upload },
+    { path: "/repositorio-tipo", label: "Repositorio Tipo", allowTipo1: false, icon: FolderTree },
+    { path: "/drive", label: "Drive", allowTipo1: false, icon: HardDrive },
   ];
 
   const adminSubItems = isAdmin
@@ -161,7 +169,10 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
                           )}
                           style={isActive && accentBg ? { backgroundColor: `${accentBg}33`, color: theme?.theme_sidebar_text || undefined } : undefined}
                         >
-                          {sub.label}
+                          <span className="flex items-center gap-1.5">
+                            <sub.icon className="w-3.5 h-3.5" />
+                            {sub.label}
+                          </span>
                         </Link>
                       );
                     })}
