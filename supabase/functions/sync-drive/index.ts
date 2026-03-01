@@ -552,24 +552,65 @@ Deno.serve(async (req) => {
 
       const stats = { folders_added: 0, folders_removed: 0, files_added: 0, files_removed: 0 };
 
-      // Helper: list children of a Drive folder (no driveId scope — parent ID is sufficient)
+      // Helper: list children of a Drive folder with multiple strategies (scoped + unscoped)
       async function listDriveChildren(parentDriveId: string): Promise<Array<{ id: string; name: string; mimeType: string; size?: string }>> {
-        const items: Array<{ id: string; name: string; mimeType: string; size?: string }> = [];
-        let pageToken: string | undefined;
-        do {
-          const q = `'${parentDriveId}' in parents and trashed=false`;
-          const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ""}`;
+        type DriveItem = { id: string; name: string; mimeType: string; size?: string };
 
-          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-          const data = await resp.json();
-          if (!resp.ok) {
-            console.log(`[REVERSE_SYNC] listDriveChildren error for ${parentDriveId}: ${JSON.stringify(data?.error || data)}`);
-            break;
-          }
-          if (data.files) items.push(...data.files);
-          pageToken = data.nextPageToken;
-        } while (pageToken);
-        return items;
+        const fetchChildren = async (
+          mode: "scoped_drive" | "unscoped" | "all_drives"
+        ): Promise<DriveItem[]> => {
+          const items: DriveItem[] = [];
+          let pageToken: string | undefined;
+
+          do {
+            const q = `'${parentDriveId}' in parents and trashed=false`;
+            const base =
+              `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+              `&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive` +
+              `&fields=nextPageToken,incompleteSearch,files(id,name,mimeType,size)` +
+              `&pageSize=100${pageToken ? `&pageToken=${pageToken}` : ""}`;
+
+            const modeSuffix =
+              mode === "scoped_drive"
+                ? `&corpora=drive&driveId=${sharedDriveId}`
+                : mode === "all_drives"
+                ? `&corpora=allDrives`
+                : "";
+
+            const url = `${base}${modeSuffix}`;
+            const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+            const data = await resp.json();
+
+            if (!resp.ok) {
+              console.log(`[REVERSE_SYNC] listDriveChildren(${mode}) error for ${parentDriveId}: ${JSON.stringify(data?.error || data)}`);
+              break;
+            }
+
+            if (data.incompleteSearch) {
+              console.log(`[REVERSE_SYNC] listDriveChildren(${mode}) incompleteSearch=true for ${parentDriveId}`);
+            }
+
+            if (data.files) items.push(...data.files);
+            pageToken = data.nextPageToken;
+          } while (pageToken);
+
+          return items;
+        };
+
+        const scoped = await fetchChildren("scoped_drive");
+        const unscoped = await fetchChildren("unscoped");
+        const allDrives = await fetchChildren("all_drives");
+
+        const merged = new Map<string, DriveItem>();
+        for (const item of [...scoped, ...unscoped, ...allDrives]) {
+          merged.set(item.id, item);
+        }
+
+        console.log(
+          `[REVERSE_SYNC] listDriveChildren(${parentDriveId}) scoped=${scoped.length}, unscoped=${unscoped.length}, allDrives=${allDrives.length}, merged=${merged.size}`
+        );
+
+        return Array.from(merged.values());
       }
 
       // Process folders recursively: sync Drive folders into DB
