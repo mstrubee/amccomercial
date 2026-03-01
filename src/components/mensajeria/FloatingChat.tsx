@@ -968,7 +968,7 @@ export default function FloatingChat() {
                             >
                               <div className={cn("flex items-end gap-1 max-w-[90%]", isMine ? "flex-row" : "flex-row")}> 
                                 {!isMine && (
-                                  <div className="max-w-[80%]">
+                                  <div className="max-w-[90%]">
                                     <p className="text-[10px] text-muted-foreground mb-0.5 ml-1 font-medium">{senderName}</p>
                                     <div className="rounded-2xl px-3 py-2 text-sm bg-muted text-foreground rounded-bl-md">
                                       <p className="whitespace-pre-wrap break-words leading-relaxed">{highlightText(msg.content, searchMessages)}</p>
@@ -979,7 +979,7 @@ export default function FloatingChat() {
 
                                 {isMine && (
                                   <>
-                                    <div className="max-w-[80%]">
+                                    <div className="max-w-[90%]">
                                       <div className="rounded-2xl px-3 py-2 text-sm bg-primary text-primary-foreground rounded-br-md">
                                         <p className="whitespace-pre-wrap break-words leading-relaxed">{highlightText(msg.content, searchMessages)}</p>
                                         <span className="text-[10px] text-primary-foreground/70 mt-1 inline-block">{format(new Date(msg.created_at), "HH:mm")}</span>
