@@ -633,17 +633,7 @@ export default function FloatingChat() {
               </h3>
 
               <div className="flex items-center gap-1">
-                {view === "chat" && (
-                  <button
-                    onClick={() => {
-                      setShowSearch(!showSearch);
-                      setSearchMessages("");
-                    }}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                
 
                 {view === "chat" && isAdmin && (
                   <button
@@ -676,7 +666,7 @@ export default function FloatingChat() {
               </div>
             </div>
 
-            {view === "chat" && showSearch && (
+            {view === "chat" && (
               <div className="px-3 pt-2 pb-1 border-b border-border bg-muted/20">
                 <Input
                   placeholder="Buscar en mensajes..."
@@ -1077,7 +1067,10 @@ export default function FloatingChat() {
                                 {isAdmin && (
                                   <button
                                     onClick={() => setDeleteTarget({ type: "message", id: msg.id })}
-                                    className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm absolute -top-1 -left-1 flex"
+                                    className={cn(
+                                      "opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm absolute -top-1 flex",
+                                      isMine ? "-left-1" : "-right-1"
+                                    )}
                                     title="Eliminar mensaje"
                                   >
                                     <Trash2 className="w-2.5 h-2.5" />
