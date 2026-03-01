@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useThemeSettings } from "@/hooks/useThemeSettings";
 import AppLayout from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Empresas from "@/pages/Empresas";
@@ -24,6 +25,7 @@ import Reporteria from "@/pages/Reporteria";
 import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
 import RepositorioTipoPage from "@/pages/RepositorioTipoPage";
 import DrivePage from "@/pages/DrivePage";
+import { cn } from "@/lib/utils";
 
 import { Loader2 } from "lucide-react";
 
@@ -31,6 +33,7 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
+  const { data: theme } = useThemeSettings();
   usePresenceHeartbeat(user?.id);
 
   if (loading) {
@@ -65,10 +68,22 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlertaWidget />
-      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2">
-        {isAdmin && <FloatingUserStatus />}
-        <FloatingChat />
-      </div>
+      {(() => {
+        const pos = theme?.theme_floating_position || "bottom-left";
+        const posClasses = cn(
+          "fixed z-50 flex items-center gap-2",
+          pos === "bottom-left" && "bottom-4 left-4",
+          pos === "bottom-right" && "bottom-4 right-4",
+          pos === "top-left" && "top-4 left-4",
+          pos === "top-right" && "top-4 right-4",
+        );
+        return (
+          <div className={posClasses}>
+            {isAdmin && <FloatingUserStatus />}
+            <FloatingChat />
+          </div>
+        );
+      })()}
     </AppLayout>
   );
 }
