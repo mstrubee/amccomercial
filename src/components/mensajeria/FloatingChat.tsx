@@ -608,36 +608,51 @@ export default function FloatingChat() {
                   ) : (
                     <div className="divide-y divide-border">
                       {filteredConversations.map((conv) => (
-                        <button
+                        <div
                           key={conv.id}
+                          className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-2 cursor-pointer"
                           onClick={() => openConversation(conv.id)}
-                          className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
                         >
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {conv.participants.map((p) => p.display_name).join(", ")}
-                            </span>
-                            {conv.unread_count > 0 && (
-                              <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 ml-2 shrink-0">
-                                {conv.unread_count}
-                              </Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-sm font-medium text-foreground truncate">
+                                {conv.participants.map((p) => p.display_name).join(", ")}
+                              </span>
+                              {conv.unread_count > 0 && (
+                                <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 ml-2 shrink-0">
+                                  {conv.unread_count}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {contextProject && (
+                              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5">
+                                {conv.empresa_id ? <Building2 className="w-3 h-3" /> : <FolderKanban className="w-3 h-3" />} {getSectionLabel(conv.empresa_id)}
+                              </p>
+                            )}
+
+                            {conv.last_message && <p className="text-xs text-muted-foreground truncate">{conv.last_message.content}</p>}
+
+                            {conv.last_message && (
+                              <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                                {format(new Date(conv.last_message.created_at), "d MMM, HH:mm", { locale: es })}
+                              </p>
                             )}
                           </div>
 
-                          {contextProject && (
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5">
-                              {conv.empresa_id ? <Building2 className="w-3 h-3" /> : <FolderKanban className="w-3 h-3" />} {getSectionLabel(conv.empresa_id)}
-                            </p>
+                          {isAdmin && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget({ type: "conversation", id: conv.id });
+                              }}
+                              className="mt-1 shrink-0 text-muted-foreground/40 hover:text-destructive transition-colors"
+                              title="Eliminar chat"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           )}
-
-                          {conv.last_message && <p className="text-xs text-muted-foreground truncate">{conv.last_message.content}</p>}
-
-                          {conv.last_message && (
-                            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                              {format(new Date(conv.last_message.created_at), "d MMM, HH:mm", { locale: es })}
-                            </p>
-                          )}
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
