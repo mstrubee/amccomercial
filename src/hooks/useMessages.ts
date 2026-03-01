@@ -229,7 +229,7 @@ export function useMessages(options: UseMessagesOptions = {}) {
     },
   });
 
-  // Create or join conversation: 1 project + 1 empresa = 1 chat (group)
+  // Create or join conversation: same project + empresa + same participants = reuse chat
   const createConversation = useMutation({
     mutationFn: async ({
       otherUserIds,
@@ -242,9 +242,9 @@ export function useMessages(options: UseMessagesOptions = {}) {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Look for an existing conversation with the same project+empresa
-      let existingConvId: string | null = null;
+      const desiredParticipants = [...new Set([user.id, ...otherUserIds])].sort();
 
+      // Look for an existing conversation with the same project+empresa+participants
       if (pid) {
         const query = (supabase as any)
           .from("conversations")
@@ -257,43 +257,42 @@ export function useMessages(options: UseMessagesOptions = {}) {
           query.is("empresa_id", null);
         }
 
-        const { data: existingConvs } = await query.limit(1);
-        if (existingConvs?.length) {
-          existingConvId = existingConvs[0].id;
+        const { data: candidateConvs } = await query;
+
+        if (candidateConvs?.length) {
+          const candidateIds = candidateConvs.map((c: any) => c.id);
+          const { data: allParts } = await supabase
+            .from("conversation_participants")
+            .select("conversation_id, user_id")
+            .in("conversation_id", candidateIds);
+
+          // Group participants by conversation
+          const partsByConv: Record<string, string[]> = {};
+          for (const p of allParts || []) {
+            if (!partsByConv[p.conversation_id]) partsByConv[p.conversation_id] = [];
+            partsByConv[p.conversation_id].push(p.user_id);
+          }
+
+          // Find a conversation with exactly the same participants
+          const match = candidateIds.find((cid: string) => {
+            const sorted = (partsByConv[cid] || []).sort();
+            return sorted.length === desiredParticipants.length &&
+              sorted.every((uid: string, i: number) => uid === desiredParticipants[i]);
+          });
+
+          if (match) return match as string;
         }
       }
 
-      if (existingConvId) {
-        // Add current user + selected users as participants if not already in
-        const { data: existingParts } = await supabase
-          .from("conversation_participants")
-          .select("user_id")
-          .eq("conversation_id", existingConvId);
-
-        const existingUserIds = new Set((existingParts || []).map((p) => p.user_id));
-        const allUserIds = [user.id, ...otherUserIds];
-        const newParticipants = allUserIds.filter((uid) => !existingUserIds.has(uid));
-
-        if (newParticipants.length > 0) {
-          await supabase.from("conversation_participants").insert(
-            newParticipants.map((uid) => ({ conversation_id: existingConvId!, user_id: uid }))
-          );
-        }
-
-        return existingConvId;
-      }
-
-      // No existing conversation — create a new one
+      // No matching conversation — create a new one
       const convId = crypto.randomUUID();
       const insertData: any = { id: convId, project_id: pid ?? null, empresa_id: eid ?? null };
 
       const { error: convError } = await (supabase as any).from("conversations").insert(insertData);
       if (convError) throw convError;
 
-      const allUserIds = [user.id, ...otherUserIds];
-      const uniqueUserIds = [...new Set(allUserIds)];
       const { error: partError } = await supabase.from("conversation_participants").insert(
-        uniqueUserIds.map((uid) => ({ conversation_id: convId, user_id: uid }))
+        desiredParticipants.map((uid) => ({ conversation_id: convId, user_id: uid }))
       );
       if (partError) throw partError;
 
