@@ -164,6 +164,37 @@ async function getDriveFolderInfo(
 }
 
 /** Move files from an old Drive folder to a new one and update drive_files records */
+async function resolveProjectDriveFolderId(
+  admin: ReturnType<typeof createClient>,
+  accessToken: string,
+  projectId: string,
+  projectName: string,
+  sharedDriveId: string
+): Promise<{ amcRootId: string; projectDriveFolderId: string; source: "mapped_parent" | "name_lookup" }> {
+  const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
+
+  // Prefer deriving the project root from already-mapped folders (avoids ambiguity with duplicate project names)
+  const { data: mappedFolders } = await admin
+    .from("project_folders")
+    .select("drive_folder_id")
+    .eq("project_id", projectId)
+    .not("drive_folder_id", "is", null)
+    .limit(20);
+
+  for (const folder of mappedFolders || []) {
+    if (!folder.drive_folder_id) continue;
+    const info = await getDriveFolderInfo(accessToken, folder.drive_folder_id);
+    const parentId = info?.parents?.[0];
+    if (parentId) {
+      return { amcRootId, projectDriveFolderId: parentId, source: "mapped_parent" };
+    }
+  }
+
+  // Fallback: name-based lookup/create under AMC root
+  const projectDriveFolderId = await findOrCreateFolder(accessToken, projectName, amcRootId, sharedDriveId);
+  return { amcRootId, projectDriveFolderId, source: "name_lookup" };
+}
+
 async function migrateFilesToNewFolder(
   admin: ReturnType<typeof createClient>,
   accessToken: string,
@@ -334,13 +365,17 @@ Deno.serve(async (req) => {
       console.log(`[FOLDER_SYNC] Starting sync for project: ${project_name} (${project_id})`);
 
       const accessToken = await getAccessToken();
-
-      const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
-      const projectFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
-      console.log(`[FOLDER_SYNC] AMC Repositorio: ${amcRootId}, Project folder: ${projectFolderId}`);
-
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { amcRootId, projectDriveFolderId, source } = await resolveProjectDriveFolderId(
+        admin,
+        accessToken,
+        project_id,
+        project_name,
+        sharedDriveId
+      );
+      console.log(`[FOLDER_SYNC] AMC Repositorio: ${amcRootId}, Project folder: ${projectDriveFolderId} (source=${source})`);
 
       const { data: folders, error: fErr } = await admin
         .from("project_folders")
@@ -358,7 +393,7 @@ Deno.serve(async (req) => {
       const tree = buildTree(folders as ProjectFolder[]);
       const stats = { created: 0, updated: 0, skipped: 0, repaired: 0 };
 
-      await syncRecursive(admin, accessToken, tree, projectFolderId, sharedDriveId, stats);
+      await syncRecursive(admin, accessToken, tree, projectDriveFolderId, sharedDriveId, stats);
 
       console.log(`[FOLDER_SYNC] Sync complete: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped, ${stats.repaired} repaired`);
 
@@ -471,8 +506,15 @@ Deno.serve(async (req) => {
       if (!project_id || !project_name) throw new Error("project_id and project_name are required");
 
       const accessToken = await getAccessToken();
-      const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
-      const projectDriveFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+      const { projectDriveFolderId } = await resolveProjectDriveFolderId(
+        admin,
+        accessToken,
+        project_id,
+        project_name,
+        sharedDriveId
+      );
 
       return new Response(
         JSON.stringify({ drive_folder_id: projectDriveFolderId }),
@@ -490,8 +532,13 @@ Deno.serve(async (req) => {
       const admin = createClient(supabaseUrl, serviceRoleKey);
 
       // Get the project root folder in Drive
-      const amcRootId = await findOrCreateFolder(accessToken, "AMC Repositorio", null, sharedDriveId);
-      const projectDriveFolderId = await findOrCreateFolder(accessToken, project_name, amcRootId, sharedDriveId);
+      const { projectDriveFolderId } = await resolveProjectDriveFolderId(
+        admin,
+        accessToken,
+        project_id,
+        project_name,
+        sharedDriveId
+      );
 
       // Get all project folders from DB
       const { data: dbFolders } = await admin
@@ -505,18 +552,39 @@ Deno.serve(async (req) => {
 
       // Helper: list children of a Drive folder
       async function listDriveChildren(parentDriveId: string): Promise<Array<{ id: string; name: string; mimeType: string; size?: string }>> {
-        const items: Array<{ id: string; name: string; mimeType: string; size?: string }> = [];
-        let pageToken: string | undefined;
-        do {
-          const q = `'${parentDriveId}' in parents and trashed=false`;
-          let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${sharedDriveId}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=100`;
-          if (pageToken) url += `&pageToken=${pageToken}`;
-          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-          const data = await resp.json();
-          if (data.files) items.push(...data.files);
-          pageToken = data.nextPageToken;
-        } while (pageToken);
-        return items;
+        const fetchChildren = async (useSharedDriveScope: boolean) => {
+          const items: Array<{ id: string; name: string; mimeType: string; size?: string }> = [];
+          let pageToken: string | undefined;
+          do {
+            const q = `'${parentDriveId}' in parents and trashed=false`;
+            let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=100`;
+            if (useSharedDriveScope) {
+              url += `&corpora=drive&driveId=${sharedDriveId}`;
+            }
+            if (pageToken) url += `&pageToken=${pageToken}`;
+
+            const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+            const data = await resp.json();
+            if (!resp.ok) {
+              console.log(`[REVERSE_SYNC] listDriveChildren failed (scope=${useSharedDriveScope ? "shared" : "all"}, folder=${parentDriveId}): ${data?.error?.message || resp.status}`);
+              break;
+            }
+            if (data.files) items.push(...data.files);
+            pageToken = data.nextPageToken;
+          } while (pageToken);
+          return items;
+        };
+
+        // Primary: scoped query to configured Shared Drive
+        const scopedItems = await fetchChildren(true);
+        if (scopedItems.length > 0) return scopedItems;
+
+        // Fallback: broad query across accessible drives (helps when folder IDs were migrated/desaligned)
+        const fallbackItems = await fetchChildren(false);
+        if (fallbackItems.length > 0) {
+          console.log(`[REVERSE_SYNC] Fallback listing used for folder ${parentDriveId}: ${fallbackItems.length} item(s)`);
+        }
+        return fallbackItems;
       }
 
       // Process folders recursively: sync Drive folders into DB
