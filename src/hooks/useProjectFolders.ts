@@ -114,11 +114,18 @@ export function useGenerateFromTemplate() {
       if (tErr) throw tErr;
       if (!templates || templates.length === 0) throw new Error("No hay carpetas en el Repositorio Tipo");
 
-      // Fetch empresas linked to this project
+      // Fetch empresas linked to ALL projects in the same group (same name)
+      const { data: siblingProjects } = await supabase
+        .from("proyectos")
+        .select("id")
+        .eq("nombre", projectName);
+      const allProjectIds = (siblingProjects || []).map((p: any) => p.id);
+      if (allProjectIds.length === 0) allProjectIds.push(projectId);
+
       const { data: peRows } = await supabase
         .from("proyecto_empresas")
         .select("empresa_id, empresas(nombre)")
-        .eq("proyecto_id", projectId);
+        .in("proyecto_id", allProjectIds);
       const empresaNames = new Set(
         (peRows || []).map((r: any) => (r.empresas?.nombre || "").toLowerCase())
       );
@@ -184,11 +191,27 @@ export function useSyncTemplateToProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId }: { projectId: string }) => {
-      // Fetch templates + project folders + project empresas in parallel
+      // First get the project name to find all siblings in the group
+      const { data: thisProject } = await supabase
+        .from("proyectos")
+        .select("nombre")
+        .eq("id", projectId)
+        .single();
+      const projectName = thisProject?.nombre || "";
+
+      // Find all sibling project IDs (same name = same group)
+      const { data: siblingProjects } = await supabase
+        .from("proyectos")
+        .select("id")
+        .eq("nombre", projectName);
+      const allProjectIds = (siblingProjects || []).map((p: any) => p.id);
+      if (allProjectIds.length === 0) allProjectIds.push(projectId);
+
+      // Fetch templates + project folders + empresas from ALL siblings in parallel
       const [templatesRes, foldersRes, empresasRes] = await Promise.all([
         supabase.from("folder_templates" as any).select("*").order("orden", { ascending: true }),
         supabase.from("project_folders" as any).select("*").eq("project_id", projectId),
-        supabase.from("proyecto_empresas").select("empresa_id, empresas(nombre)").eq("proyecto_id", projectId),
+        supabase.from("proyecto_empresas").select("empresa_id, empresas(nombre)").in("proyecto_id", allProjectIds),
       ]);
 
       if (templatesRes.error) throw templatesRes.error;
