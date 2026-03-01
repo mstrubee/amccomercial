@@ -257,3 +257,43 @@ export function useProcessSyncQueue() {
     },
   });
 }
+
+/**
+ * Automatic background reconciliation: calls reverse_sync silently
+ * on mount, on window focus, and every `intervalMs` while enabled.
+ */
+export function useAutoReconcileDrive(
+  projectId: string | null,
+  projectName: string,
+  enabled: boolean,
+  intervalMs = 30000
+) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["auto_reconcile_drive", projectId],
+    enabled: enabled && !!projectId,
+    refetchInterval: intervalMs,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    // Avoid showing stale data indicators — this is a side-effect query
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "reverse_sync", project_id: projectId, project_name: projectName },
+      });
+      if (error) throw error;
+      const result = data as { folders_added: number; folders_removed: number; files_added: number; files_removed: number };
+      // Only invalidate if something changed
+      const hasChanges = result.folders_added > 0 || result.folders_removed > 0 || result.files_added > 0 || result.files_removed > 0;
+      if (hasChanges) {
+        qc.invalidateQueries({ queryKey: ["project_folders", projectId] });
+        qc.invalidateQueries({ queryKey: ["drive_files"] });
+        console.log(`[AUTO_RECONCILE] Changes detected: +${result.folders_added}/-${result.folders_removed} folders, +${result.files_added}/-${result.files_removed} files`);
+      }
+      return { ...result, timestamp: Date.now() };
+    },
+    // Don't retry aggressively for background sync
+    retry: 1,
+  });
+}
