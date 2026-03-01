@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import { MessageCircle, X, ArrowLeft, Send, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMessages, Conversation } from "@/hooks/useMessages";
@@ -73,7 +74,10 @@ export default function FloatingChat() {
 
   const handleSend = () => {
     if (!messageText.trim() || !activeConversationId) return;
-    sendMessage.mutate({ conversationId: activeConversationId, content: messageText.trim() });
+    sendMessage.mutate(
+      { conversationId: activeConversationId, content: messageText.trim() },
+      { onError: (err: any) => toast.error("Error al enviar: " + (err?.message || "Intenta nuevamente")) }
+    );
     setMessageText("");
   };
 

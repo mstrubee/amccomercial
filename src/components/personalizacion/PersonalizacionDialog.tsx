@@ -297,17 +297,49 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
 
             {/* Flotantes Tab */}
             <TabsContent value="flotantes" className="space-y-4">
-              <div className="space-y-1.5">
+              <div className="space-y-3">
                 <Label className="text-sm">Posición de botones flotantes (Chat y Usuarios)</Label>
-                <Select value={local.theme_floating_position || "bottom-left"} onValueChange={(v) => update("theme_floating_position", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {POSITION_OPTIONS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-muted-foreground">Define la esquina donde aparecen los botones de Chat y Usuarios en línea. Aplica para todos los usuarios.</p>
+                <p className="text-[11px] text-muted-foreground">Haz clic en la esquina donde deseas posicionar los botones flotantes. Aplica para todos los usuarios.</p>
+                {/* Visual position picker */}
+                <div className="relative w-full aspect-[16/10] border border-border rounded-lg bg-muted/30 overflow-hidden">
+                  {/* Mini sidebar mock */}
+                  <div className="absolute left-0 top-0 bottom-0 w-10 bg-muted/60 border-r border-border" />
+                  {/* Corner buttons */}
+                  {(["top-left", "top-right", "bottom-left", "bottom-right"] as const).map((pos) => {
+                    const isSelected = (local.theme_floating_position || "bottom-left") === pos;
+                    const posStyles: Record<string, string> = {
+                      "top-left": "top-2 left-12",
+                      "top-right": "top-2 right-2",
+                      "bottom-left": "bottom-2 left-12",
+                      "bottom-right": "bottom-2 right-2",
+                    };
+                    const posLabels: Record<string, string> = {
+                      "top-left": "Sup. izq.",
+                      "top-right": "Sup. der.",
+                      "bottom-left": "Inf. izq.",
+                      "bottom-right": "Inf. der.",
+                    };
+                    return (
+                      <button
+                        key={pos}
+                        onClick={() => update("theme_floating_position", pos)}
+                        className={`absolute ${posStyles[pos]} flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all text-[10px] font-medium ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-md scale-110 ring-2 ring-primary/30"
+                            : "bg-card text-muted-foreground border border-border hover:bg-secondary hover:text-foreground"
+                        }`}
+                      >
+                        <span className="w-3 h-3 rounded-full bg-current opacity-60" />
+                        <span className="w-3 h-3 rounded-full bg-current opacity-40" />
+                        <span className="ml-1">{posLabels[pos]}</span>
+                      </button>
+                    );
+                  })}
+                  {/* Center label */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-xs text-muted-foreground/50">Vista previa</span>
+                  </div>
+                </div>
               </div>
             </TabsContent>
 
