@@ -367,6 +367,41 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_preferences: {
+        Row: {
+          created_at: string
+          custom_sound_url: string | null
+          id: string
+          sound_option: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_sound_url?: string | null
+          id?: string
+          sound_option?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_sound_url?: string | null
+          id?: string
+          sound_option?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_preferences_user_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       clasificaciones_alerta: {
         Row: {
           created_at: string
@@ -599,20 +634,41 @@ export type Database = {
       conversations: {
         Row: {
           created_at: string
+          empresa_id: string | null
           id: string
+          project_id: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          empresa_id?: string | null
           id?: string
+          project_id?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          empresa_id?: string | null
           id?: string
+          project_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       delegaciones_alerta: {
         Row: {
@@ -786,6 +842,7 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          is_read: boolean
           sender_id: string
         }
         Insert: {
@@ -793,6 +850,7 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
+          is_read?: boolean
           sender_id: string
         }
         Update: {
@@ -800,6 +858,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
+          is_read?: boolean
           sender_id?: string
         }
         Relationships: [

@@ -1,11 +1,23 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import {
-  MessageCircle, X, ArrowLeft, Send, Plus, Loader2,
-  Search, Trash2, Settings, Volume2, VolumeX, Upload,
+  MessageCircle,
+  X,
+  ArrowLeft,
+  Send,
+  Plus,
+  Loader2,
+  Search,
+  Trash2,
+  Settings,
+  Volume2,
+  VolumeX,
+  Upload,
+  FolderKanban,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMessages, Conversation, Message } from "@/hooks/useMessages";
+import { useMessages, Message } from "@/hooks/useMessages";
 import { useChatPreferences, SoundOption } from "@/hooks/useChatPreferences";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,14 +28,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 
 type View = "list" | "chat" | "new" | "settings";
+type SubsectionScope = "all" | "general" | `empresa:${string}`;
 
 const SOUND_OPTIONS: { value: SoundOption; label: string }[] = [
   { value: "pop", label: "Pop" },
@@ -34,15 +53,36 @@ const SOUND_OPTIONS: { value: SoundOption; label: string }[] = [
   { value: "custom", label: "Personalizado" },
 ];
 
+interface ProjectContext {
+  id: string;
+  name: string;
+}
+
+interface OpenProjectChatDetail {
+  projectId: string;
+  projectName: string;
+  empresaId?: string | null;
+  empresaName?: string | null;
+}
+
 export default function FloatingChat() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("list");
   const [messageText, setMessageText] = useState("");
   const [searchUser, setSearchUser] = useState("");
   const [searchMessages, setSearchMessages] = useState("");
+  const [searchConversations, setSearchConversations] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "message" | "conversation"; id: string } | null>(null);
+  const [contextProject, setContextProject] = useState<ProjectContext | null>(null);
+  const [subsectionScope, setSubsectionScope] = useState<SubsectionScope>("all");
+  const [newProjectId, setNewProjectId] = useState<string>("");
+  const [newEmpresaId, setNewEmpresaId] = useState<string>("general");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const pendingContextOpenRef = useRef<OpenProjectChatDetail | null>(null);
+
   const { user, isAdmin } = useAuth();
   const { data: theme } = useThemeSettings();
   const pos = theme?.theme_floating_position || "left-14";
@@ -51,27 +91,125 @@ export default function FloatingChat() {
   const isLeft = side === "left" || side === "bottom";
 
   const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences();
-  const lastMessageCountRef = useRef(0);
 
   const {
-    conversations, messages, loadingConversations, loadingMessages,
-    activeConversationId, setActiveConversationId,
-    sendMessage, createConversation, markAsRead, markMessageRead,
-    deleteMessage, deleteConversation, totalUnread,
-  } = useMessages();
+    conversations,
+    messages,
+    loadingConversations,
+    loadingMessages,
+    activeConversationId,
+    setActiveConversationId,
+    sendMessage,
+    createConversation,
+    markAsRead,
+    markMessageRead,
+    deleteMessage,
+    deleteConversation,
+    totalUnread,
+  } = useMessages({ projectId: contextProject?.id });
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["chat-projects"],
+    queryFn: async () => {
+      const { data } = await supabase.from("proyectos").select("id, nombre").order("nombre");
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  const { data: projectCompanies = [] } = useQuery({
+    queryKey: ["chat-project-companies"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("proyecto_empresas")
+        .select("proyecto_id, empresa_id, empresas:empresa_id(nombre)");
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  const companiesByProject = useMemo(() => {
+    const map: Record<string, { id: string; name: string }[]> = {};
+    for (const row of projectCompanies as any[]) {
+      const projectId = row.proyecto_id as string;
+      const empresaId = row.empresa_id as string;
+      const name = row.empresas?.nombre || "Empresa";
+      if (!map[projectId]) map[projectId] = [];
+      if (!map[projectId].some((e) => e.id === empresaId)) map[projectId].push({ id: empresaId, name });
+    }
+    Object.values(map).forEach((arr) => arr.sort((a, b) => a.name.localeCompare(b.name)));
+    return map;
+  }, [projectCompanies]);
+
+  const companyNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.values(companiesByProject)
+      .flat()
+      .forEach((e) => {
+        map[e.id] = e.name;
+      });
+    return map;
+  }, [companiesByProject]);
 
   // Fetch profiles for new conversation
   const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles-chat"],
+    queryKey: ["profiles-chat", contextProject?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("user_id, display_name, email")
-        .order("display_name");
+      const { data } = await supabase.from("profiles").select("user_id, display_name, email").order("display_name");
       return (data || []).filter((p) => p.user_id !== user?.id);
     },
     enabled: open && view === "new",
   });
+
+  // Profile map for sender names
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ["profiles-all-chat"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      return data || [];
+    },
+    enabled: !!activeConversationId,
+  });
+
+  const profileMap = Object.fromEntries(allProfiles.map((p) => [p.user_id, p]));
+
+  // Context open from project/company rows
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<OpenProjectChatDetail>).detail;
+      if (!detail?.projectId) return;
+
+      const projectCtx = { id: detail.projectId, name: detail.projectName || "Proyecto" };
+      setContextProject(projectCtx);
+      setSubsectionScope(detail.empresaId ? (`empresa:${detail.empresaId}` as const) : "all");
+      setOpen(true);
+      setView("list");
+      setSearchConversations("");
+      setActiveConversationId(null);
+      pendingContextOpenRef.current = detail;
+    };
+
+    window.addEventListener("open-project-chat", handler as EventListener);
+    return () => window.removeEventListener("open-project-chat", handler as EventListener);
+  }, [setActiveConversationId]);
+
+  // Auto-open existing conversation when context launch is explicit
+  useEffect(() => {
+    if (!pendingContextOpenRef.current || loadingConversations) return;
+    const pending = pendingContextOpenRef.current;
+
+    const match = conversations.find((c) => {
+      if (pending.empresaId) return c.empresa_id === pending.empresaId;
+      return c.empresa_id == null;
+    });
+
+    if (match) {
+      setActiveConversationId(match.id);
+      setView("chat");
+    }
+
+    pendingContextOpenRef.current = null;
+  }, [conversations, loadingConversations, setActiveConversationId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -85,35 +223,40 @@ export default function FloatingChat() {
     }
   }, [activeConversationId, open, markAsRead]);
 
-  // Play sound on new incoming message
+  // Sound notification via realtime event
   useEffect(() => {
-    if (messages.length > lastMessageCountRef.current && lastMessageCountRef.current > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.sender_id !== user?.id) {
-        playNotificationSound();
-      }
-    }
-    lastMessageCountRef.current = messages.length;
-  }, [messages, user?.id, playNotificationSound]);
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ senderId: string }>).detail;
+      if (!detail?.senderId || detail.senderId === user?.id) return;
+      playNotificationSound();
+    };
+
+    window.addEventListener("chat:new-message", handler as EventListener);
+    return () => window.removeEventListener("chat:new-message", handler as EventListener);
+  }, [user?.id, playNotificationSound]);
 
   // IntersectionObserver for read receipts
-  const observerRef = useRef<IntersectionObserver | null>(null);
   const observeMessage = useCallback(
     (node: HTMLDivElement | null, msg: Message) => {
       if (!node || msg.sender_id === user?.id || msg.is_read) return;
+
       if (!observerRef.current) {
         observerRef.current = new IntersectionObserver(
           (entries) => {
             entries.forEach((entry) => {
               if (entry.isIntersecting) {
                 const msgId = entry.target.getAttribute("data-msg-id");
-                if (msgId) markMessageRead(msgId);
+                if (msgId) {
+                  markMessageRead(msgId);
+                  observerRef.current?.unobserve(entry.target);
+                }
               }
             });
           },
-          { threshold: 0.5 }
+          { threshold: 0.6 }
         );
       }
+
       observerRef.current.observe(node);
     },
     [user?.id, markMessageRead]
@@ -122,6 +265,53 @@ export default function FloatingChat() {
   useEffect(() => {
     return () => observerRef.current?.disconnect();
   }, [activeConversationId]);
+
+  const sectionChips = useMemo(() => {
+    if (!contextProject) return [];
+
+    const chips: { value: SubsectionScope; label: string; count: number }[] = [];
+    chips.push({ value: "all", label: "Todas", count: conversations.length });
+
+    const generalCount = conversations.filter((c) => !c.empresa_id).length;
+    chips.push({ value: "general", label: "General", count: generalCount });
+
+    const companyCounts = new Map<string, number>();
+    for (const c of conversations) {
+      if (c.empresa_id) companyCounts.set(c.empresa_id, (companyCounts.get(c.empresa_id) || 0) + 1);
+    }
+
+    for (const [empresaId, count] of companyCounts.entries()) {
+      chips.push({
+        value: `empresa:${empresaId}`,
+        label: companyNameById[empresaId] || "Empresa",
+        count,
+      });
+    }
+
+    return chips;
+  }, [contextProject, conversations, companyNameById]);
+
+  const filteredConversations = useMemo(() => {
+    return conversations.filter((conv) => {
+      const subsectionMatch =
+        subsectionScope === "all"
+          ? true
+          : subsectionScope === "general"
+          ? !conv.empresa_id
+          : conv.empresa_id === subsectionScope.replace("empresa:", "");
+
+      if (!subsectionMatch) return false;
+
+      const q = searchConversations.trim().toLowerCase();
+      if (!q) return true;
+
+      const names = conv.participants.map((p) => p.display_name).join(" ").toLowerCase();
+      const lastMsg = conv.last_message?.content?.toLowerCase() || "";
+      const sectionLabel = conv.empresa_id ? companyNameById[conv.empresa_id]?.toLowerCase() || "" : "general";
+
+      return names.includes(q) || lastMsg.includes(q) || sectionLabel.includes(q);
+    });
+  }, [conversations, subsectionScope, searchConversations, companyNameById]);
 
   const openConversation = (convId: string) => {
     setActiveConversationId(convId);
@@ -132,19 +322,38 @@ export default function FloatingChat() {
 
   const handleSend = () => {
     if (!activeConversationId || !messageText.trim()) return;
+
     sendMessage.mutate(
       { conversationId: activeConversationId, content: messageText.trim() },
-      { onError: (err: any) => toast.error("Error al enviar: " + (err?.message || "Intenta nuevamente")) }
+      {
+        onError: (err: any) => toast.error("Error al enviar: " + (err?.message || "Intenta nuevamente")),
+      }
     );
+
     setMessageText("");
   };
 
   const handleNewConversation = (otherUserId: string) => {
+    const projectIdForNew = newProjectId || contextProject?.id || null;
+    const empresaIdForNew = newEmpresaId === "general" ? null : newEmpresaId || null;
+
     createConversation.mutate(
-      { otherUserId },
+      { otherUserId, projectId: projectIdForNew, empresaId: empresaIdForNew },
       {
-        onSuccess: () => { setView("chat"); setSearchUser(""); },
-        onError: (err: any) => toast.error("No se pudo crear la conversación: " + (err?.message || "")),
+        onSuccess: () => {
+          if (projectIdForNew) {
+            const projectName = projects.find((p) => p.id === projectIdForNew)?.nombre || "Proyecto";
+            setContextProject({ id: projectIdForNew, name: projectName });
+            if (empresaIdForNew) {
+              setSubsectionScope(`empresa:${empresaIdForNew}` as SubsectionScope);
+            } else {
+              setSubsectionScope("general");
+            }
+          }
+          setView("chat");
+          setSearchUser("");
+        },
+        onError: (err: any) => toast.error("No se pudo crear/abrir la conversación: " + (err?.message || "")),
       }
     );
   };
@@ -158,6 +367,7 @@ export default function FloatingChat() {
 
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return;
+
     if (deleteTarget.type === "message") {
       deleteMessage.mutate(deleteTarget.id, {
         onSuccess: () => toast.success("Mensaje eliminado"),
@@ -165,24 +375,31 @@ export default function FloatingChat() {
       });
     } else {
       deleteConversation.mutate(deleteTarget.id, {
-        onSuccess: () => { toast.success("Chat eliminado"); handleBack(); },
+        onSuccess: () => {
+          toast.success("Chat eliminado");
+          handleBack();
+        },
         onError: (e: any) => toast.error("Error: " + e.message),
       });
     }
+
     setDeleteTarget(null);
   };
 
   const handleSoundFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     if (!file.type.startsWith("audio/")) {
       toast.error("Solo archivos de audio (mp3, wav)");
       return;
     }
+
     if (file.size > 2 * 1024 * 1024) {
       toast.error("Máximo 2MB");
       return;
     }
+
     try {
       const url = await uploadCustomSound(file);
       updatePrefs.mutate({ sound_option: "custom", custom_sound_url: url });
@@ -193,46 +410,44 @@ export default function FloatingChat() {
   };
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
+
   const filteredProfiles = profiles.filter(
     (p) =>
       p.display_name.toLowerCase().includes(searchUser.toLowerCase()) ||
       p.email.toLowerCase().includes(searchUser.toLowerCase())
   );
 
-  // Filter messages by search
   const displayMessages = searchMessages.trim()
     ? messages.filter((m) => m.content.toLowerCase().includes(searchMessages.toLowerCase()))
     : messages;
 
-  // Highlight search term in text
+  const projectOptionsForNew = projects;
+  const selectedProjectForNew = newProjectId || contextProject?.id || "";
+  const selectedProjectCompanies = selectedProjectForNew ? companiesByProject[selectedProjectForNew] || [] : [];
+
   const highlightText = (text: string, query: string) => {
     if (!query.trim()) return text;
-    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+    const safe = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = text.split(new RegExp(`(${safe})`, "gi"));
     return parts.map((part, i) =>
       part.toLowerCase() === query.toLowerCase() ? (
-        <mark key={i} className="bg-yellow-300/80 text-foreground rounded-sm px-0.5">{part}</mark>
+        <mark key={i} className="bg-yellow-300/80 text-foreground rounded-sm px-0.5">
+          {part}
+        </mark>
       ) : (
         part
       )
     );
   };
 
-  // Profile map for sender names
-  const { data: allProfiles = [] } = useQuery({
-    queryKey: ["profiles-all-chat"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("user_id, display_name, email");
-      return data || [];
-    },
-    enabled: !!activeConversationId,
-  });
-  const profileMap = Object.fromEntries(allProfiles.map((p) => [p.user_id, p]));
+  const getSectionLabel = (empresaId: string | null) => {
+    if (!contextProject) return "General";
+    if (!empresaId) return "General";
+    return companyNameById[empresaId] || "Empresa";
+  };
 
   return (
     <div className="relative">
-      {/* Floating button */}
       <button
         onClick={() => setOpen(!open)}
         className={cn(
@@ -248,7 +463,6 @@ export default function FloatingChat() {
         )}
       </button>
 
-      {/* Chat panel */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -257,30 +471,38 @@ export default function FloatingChat() {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              "absolute w-[340px] h-[500px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
+              "absolute w-[360px] h-[540px] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
               isBottom ? "bottom-full mb-2" : "top-full mt-2",
-              isLeft ? "left-0" : "right-0",
+              isLeft ? "left-0" : "right-0"
             )}
           >
-            {/* Header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-primary/5">
               {view !== "list" && (
                 <button onClick={handleBack} className="text-muted-foreground hover:text-foreground transition-colors">
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               )}
+
               <h3 className="text-sm font-semibold text-foreground flex-1 truncate">
-                {view === "list" && "Mensajes"}
-                {view === "new" && "Nueva conversación"}
+                {view === "list" && (contextProject ? `Chat — ${contextProject.name}` : "Mensajes")}
+                {view === "new" && "Nuevo chat"}
                 {view === "settings" && "Configuración de sonido"}
                 {view === "chat" && (activeConv?.participants.map((p) => p.display_name).join(", ") || "Chat")}
               </h3>
+
               <div className="flex items-center gap-1">
                 {view === "chat" && (
-                  <button onClick={() => { setShowSearch(!showSearch); setSearchMessages(""); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <button
+                    onClick={() => {
+                      setShowSearch(!showSearch);
+                      setSearchMessages("");
+                    }}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
                     <Search className="w-3.5 h-3.5" />
                   </button>
                 )}
+
                 {view === "chat" && isAdmin && (
                   <button
                     onClick={() => setDeleteTarget({ type: "conversation", id: activeConversationId! })}
@@ -290,12 +512,33 @@ export default function FloatingChat() {
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
+
                 {view === "list" && (
                   <>
+                    {contextProject && (
+                      <button
+                        onClick={() => {
+                          setContextProject(null);
+                          setSubsectionScope("all");
+                          setSearchConversations("");
+                        }}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        title="Salir de chat por sección"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button onClick={() => setView("settings")} className="text-muted-foreground hover:text-foreground transition-colors">
                       <Settings className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => setView("new")} className="text-muted-foreground hover:text-foreground transition-colors">
+                    <button
+                      onClick={() => {
+                        setNewProjectId(contextProject?.id || "");
+                        setNewEmpresaId("general");
+                        setView("new");
+                      }}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                     </button>
                   </>
@@ -303,7 +546,6 @@ export default function FloatingChat() {
               </div>
             </div>
 
-            {/* Search bar in chat */}
             {view === "chat" && showSearch && (
               <div className="px-3 pt-2 pb-1 border-b border-border bg-muted/20">
                 <Input
@@ -321,30 +563,55 @@ export default function FloatingChat() {
               </div>
             )}
 
-            {/* Content */}
+            {view === "list" && contextProject && (
+              <div className="px-3 py-2 border-b border-border bg-muted/20 space-y-2">
+                <Input
+                  placeholder="Buscar en todas las subsecciones..."
+                  value={searchConversations}
+                  onChange={(e) => setSearchConversations(e.target.value)}
+                  className="h-7 text-xs"
+                />
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                  {sectionChips.map((chip) => (
+                    <button
+                      key={chip.value}
+                      onClick={() => setSubsectionScope(chip.value)}
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-1 text-[11px] border transition-colors",
+                        subsectionScope === chip.value
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:text-foreground"
+                      )}
+                    >
+                      {chip.label} ({chip.count})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-hidden">
-              {/* Conversation list */}
               {view === "list" && (
                 <ScrollArea className="h-full">
                   {loadingConversations ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     </div>
-                  ) : conversations.length === 0 ? (
+                  ) : filteredConversations.length === 0 ? (
                     <div className="text-center py-8 px-4">
                       <MessageCircle className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-                      <p className="text-sm text-muted-foreground">No tienes conversaciones</p>
+                      <p className="text-sm text-muted-foreground">No hay conversaciones para este filtro</p>
                       <Button variant="outline" size="sm" className="mt-3" onClick={() => setView("new")}>
-                        <Plus className="w-3.5 h-3.5 mr-1" /> Nueva conversación
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Nuevo chat
                       </Button>
                     </div>
                   ) : (
                     <div className="divide-y divide-border">
-                      {conversations.map((conv) => (
+                      {filteredConversations.map((conv) => (
                         <button
                           key={conv.id}
                           onClick={() => openConversation(conv.id)}
-                          className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors group"
+                          className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex items-center justify-between mb-0.5">
                             <span className="text-sm font-medium text-foreground truncate">
@@ -356,11 +623,15 @@ export default function FloatingChat() {
                               </Badge>
                             )}
                           </div>
-                          {conv.last_message && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {conv.last_message.content}
+
+                          {contextProject && (
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-0.5">
+                              {conv.empresa_id ? <Building2 className="w-3 h-3" /> : <FolderKanban className="w-3 h-3" />} {getSectionLabel(conv.empresa_id)}
                             </p>
                           )}
+
+                          {conv.last_message && <p className="text-xs text-muted-foreground truncate">{conv.last_message.content}</p>}
+
                           {conv.last_message && (
                             <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                               {format(new Date(conv.last_message.created_at), "d MMM, HH:mm", { locale: es })}
@@ -373,10 +644,46 @@ export default function FloatingChat() {
                 </ScrollArea>
               )}
 
-              {/* New conversation */}
               {view === "new" && (
                 <div className="flex flex-col h-full">
-                  <div className="px-3 pt-3 pb-2">
+                  <div className="px-3 pt-3 pb-2 space-y-2 border-b border-border bg-muted/10">
+                    <div className="grid gap-2">
+                      <label className="text-[11px] text-muted-foreground">Sección (proyecto)</label>
+                      <select
+                        value={selectedProjectForNew}
+                        onChange={(e) => {
+                          setNewProjectId(e.target.value);
+                          setNewEmpresaId("general");
+                        }}
+                        className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                      >
+                        <option value="">Sin sección</option>
+                        {projectOptionsForNew.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedProjectForNew && (
+                      <div className="grid gap-2">
+                        <label className="text-[11px] text-muted-foreground">Subsección</label>
+                        <select
+                          value={newEmpresaId}
+                          onChange={(e) => setNewEmpresaId(e.target.value)}
+                          className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground"
+                        >
+                          <option value="general">General del proyecto</option>
+                          {selectedProjectCompanies.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <Input
                       placeholder="Buscar usuario..."
                       value={searchUser}
@@ -384,6 +691,7 @@ export default function FloatingChat() {
                       className="h-8 text-sm"
                     />
                   </div>
+
                   <ScrollArea className="flex-1">
                     <div className="divide-y divide-border">
                       {filteredProfiles.map((p) => (
@@ -405,7 +713,6 @@ export default function FloatingChat() {
                 </div>
               )}
 
-              {/* Settings view */}
               {view === "settings" && (
                 <div className="p-4 space-y-4">
                   <div>
@@ -418,9 +725,7 @@ export default function FloatingChat() {
                           key={opt.value}
                           className={cn(
                             "flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors",
-                            prefs?.sound_option === opt.value
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "hover:bg-muted/50 text-foreground"
+                            prefs?.sound_option === opt.value ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
                           )}
                         >
                           <input
@@ -439,6 +744,7 @@ export default function FloatingChat() {
                       ))}
                     </div>
                   </div>
+
                   <div className="border-t border-border pt-3">
                     <p className="text-xs text-muted-foreground mb-2">Subir sonido personalizado (mp3/wav, máx 2MB)</p>
                     <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-border hover:border-primary/50 transition-colors">
@@ -446,14 +752,11 @@ export default function FloatingChat() {
                       <span className="text-sm text-muted-foreground">Elegir archivo</span>
                       <input type="file" accept="audio/mp3,audio/wav,audio/mpeg" className="hidden" onChange={handleSoundFileUpload} />
                     </label>
-                    {prefs?.custom_sound_url && (
-                      <p className="text-[10px] text-muted-foreground mt-1 truncate">✓ Sonido personalizado cargado</p>
-                    )}
+                    {prefs?.custom_sound_url && <p className="text-[10px] text-muted-foreground mt-1 truncate">✓ Sonido personalizado cargado</p>}
                   </div>
                 </div>
               )}
 
-              {/* Chat view */}
               {view === "chat" && (
                 <div className="flex flex-col h-full">
                   <ScrollArea className="flex-1 px-3 py-2">
@@ -462,14 +765,13 @@ export default function FloatingChat() {
                         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                       </div>
                     ) : displayMessages.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        {searchMessages ? "Sin resultados" : "Envía el primer mensaje"}
-                      </p>
+                      <p className="text-sm text-muted-foreground text-center py-8">{searchMessages ? "Sin resultados" : "Envía el primer mensaje"}</p>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {displayMessages.map((msg) => {
                           const isMine = msg.sender_id === user?.id;
                           const senderName = profileMap[msg.sender_id]?.display_name || "Usuario";
+
                           return (
                             <div
                               key={msg.id}
@@ -479,43 +781,39 @@ export default function FloatingChat() {
                               }}
                               className={cn("flex group", isMine ? "justify-end" : "justify-start")}
                             >
-                              <div className="relative max-w-[80%]">
-                                {/* Sender name for others' messages */}
+                              <div className={cn("flex items-end gap-1 max-w-[90%]", isMine ? "flex-row" : "flex-row")}> 
                                 {!isMine && (
-                                  <p className="text-[10px] text-muted-foreground mb-0.5 ml-1 font-medium">{senderName}</p>
-                                )}
-                                <div
-                                  className={cn(
-                                    "rounded-2xl px-3 py-2 text-sm relative",
-                                    isMine
-                                      ? "bg-primary text-primary-foreground rounded-br-md"
-                                      : "bg-muted text-foreground rounded-bl-md"
-                                  )}
-                                >
-                                  <p className="whitespace-pre-wrap break-words leading-relaxed">
-                                    {highlightText(msg.content, searchMessages)}
-                                  </p>
-                                  <div className={cn("flex items-center gap-1 mt-0.5", isMine ? "justify-end" : "justify-start")}>
-                                    <span className={cn("text-[10px]", isMine ? "text-primary-foreground/60" : "text-muted-foreground")}>
-                                      {format(new Date(msg.created_at), "HH:mm")}
-                                    </span>
-                                    {/* Read receipt for sent messages */}
-                                    {isMine && (
-                                      <span
-                                        className={cn(
-                                          "inline-block w-2 h-2 rounded-full ml-0.5",
-                                          msg.is_read ? "bg-green-400" : "bg-muted-foreground/40"
-                                        )}
-                                        title={msg.is_read ? "Leído" : "No leído"}
-                                      />
-                                    )}
+                                  <div className="max-w-[80%]">
+                                    <p className="text-[10px] text-muted-foreground mb-0.5 ml-1 font-medium">{senderName}</p>
+                                    <div className="rounded-2xl px-3 py-2 text-sm bg-muted text-foreground rounded-bl-md">
+                                      <p className="whitespace-pre-wrap break-words leading-relaxed">{highlightText(msg.content, searchMessages)}</p>
+                                      <span className="text-[10px] text-muted-foreground mt-1 inline-block">{format(new Date(msg.created_at), "HH:mm")}</span>
+                                    </div>
                                   </div>
-                                </div>
-                                {/* Admin delete button */}
+                                )}
+
+                                {isMine && (
+                                  <>
+                                    <div className="max-w-[80%]">
+                                      <div className="rounded-2xl px-3 py-2 text-sm bg-primary text-primary-foreground rounded-br-md">
+                                        <p className="whitespace-pre-wrap break-words leading-relaxed">{highlightText(msg.content, searchMessages)}</p>
+                                        <span className="text-[10px] text-primary-foreground/70 mt-1 inline-block">{format(new Date(msg.created_at), "HH:mm")}</span>
+                                      </div>
+                                    </div>
+                                    <span
+                                      className={cn(
+                                        "inline-block w-2 h-2 rounded-full mb-1",
+                                        msg.is_read ? "bg-emerald-500" : "bg-muted-foreground/40"
+                                      )}
+                                      title={msg.is_read ? "Leído" : "No leído"}
+                                    />
+                                  </>
+                                )}
+
                                 {isAdmin && (
                                   <button
                                     onClick={() => setDeleteTarget({ type: "message", id: msg.id })}
-                                    className="absolute -top-1 -right-1 hidden group-hover:flex w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm"
+                                    className="hidden group-hover:flex w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm mb-1"
                                     title="Eliminar mensaje"
                                   >
                                     <Trash2 className="w-2.5 h-2.5" />
@@ -529,6 +827,7 @@ export default function FloatingChat() {
                       </div>
                     )}
                   </ScrollArea>
+
                   <div className="px-3 pb-3 pt-2 border-t border-border">
                     <div className="flex items-center gap-2">
                       <Input
@@ -563,16 +862,12 @@ export default function FloatingChat() {
         )}
       </AnimatePresence>
 
-      {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {deleteTarget?.type === "message" ? "¿Eliminar este mensaje?" : "¿Eliminar chat completo?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{deleteTarget?.type === "message" ? "¿Eliminar este mensaje?" : "¿Eliminar chat completo?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer.{" "}
-              {deleteTarget?.type === "conversation" && "Se eliminarán todos los mensajes de esta conversación."}
+              Esta acción no se puede deshacer. {deleteTarget?.type === "conversation" && "Se eliminarán todos los mensajes de esta conversación."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

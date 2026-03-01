@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -277,6 +277,14 @@ export default function Proyectos() {
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const openProjectChat = useCallback((projectId: string, projectName: string, empresaId?: string | null, empresaName?: string | null) => {
+    window.dispatchEvent(
+      new CustomEvent("open-project-chat", {
+        detail: { projectId, projectName, empresaId: empresaId ?? null, empresaName: empresaName ?? null },
+      })
+    );
+  }, []);
 
   const executeParentSubmit = async (
     data: any,
@@ -613,7 +621,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} updateNotas={updateNotas.mutate} filterBotones={filterBotones} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} />;
                 }
 
                 // Grouped header
@@ -701,6 +709,18 @@ export default function Proyectos() {
                               </Popover>
                             );
                           })()}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Abrir chat del proyecto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openProjectChat(first.id, first.nombre, null, null);
+                            }}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
                             <Folder className="w-3.5 h-3.5 text-amber-500" />
                           </Button>
@@ -806,6 +826,18 @@ export default function Proyectos() {
                                     })()}
                                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio empresa" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre, empresaName: pe.empresas?.nombre }); }}>
                                       <Folder className="w-3.5 h-3.5 text-amber-500" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      title="Abrir chat de esta empresa"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openProjectChat(first.id, first.nombre, empresaId, pe.empresas?.nombre || null);
+                                      }}
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
                                     </Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -1130,7 +1162,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, updateNotas, filterBotones }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1138,6 +1170,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
   onEdit: (p: ProyectoWithEmpresas) => void;
   onDelete: (p: ProyectoWithEmpresas) => void;
   onTemplate: (p: ProyectoWithEmpresas) => void;
+  onOpenChat: (projectId: string, projectName: string, empresaId?: string | null, empresaName?: string | null) => void;
   updateNotas: (data: { id: string; notas: string }) => void;
   filterBotones: string[];
 }) {
@@ -1166,6 +1199,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         </td>
         <td className="px-5 py-3 text-right">
           <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Abrir chat del proyecto" onClick={() => onOpenChat(p.id, p.nombre, null, null)}><MessageCircle className="w-3.5 h-3.5 text-muted-foreground" /></Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Usar como plantilla" onClick={() => onTemplate(p)}><Copy className="w-3.5 h-3.5 text-muted-foreground" /></Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => onDelete(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
