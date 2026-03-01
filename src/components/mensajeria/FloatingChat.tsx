@@ -517,7 +517,7 @@ export default function FloatingChat() {
     const onMove = (ev: MouseEvent | TouchEvent) => {
       const clientX = 'touches' in ev ? ev.touches[0].clientX : (ev as MouseEvent).clientX;
       const clientY = 'touches' in ev ? ev.touches[0].clientY : (ev as MouseEvent).clientY;
-      const dw = isLeft ? -(clientX - startX) : (clientX - startX);
+      const dw = isLeft ? (clientX - startX) : -(clientX - startX);
       const dh = -(clientY - startY);
       setChatSize({
         w: Math.max(320, Math.min(800, startW + dw)),
