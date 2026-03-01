@@ -12,11 +12,35 @@ export interface ChatPreferences {
   custom_sound_url: string | null;
 }
 
+// Shared AudioContext – survives across calls and resumes on user gesture
+let sharedAudioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+    sharedAudioCtx = new AudioContext();
+  }
+  if (sharedAudioCtx.state === "suspended") {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+  return sharedAudioCtx;
+}
+
+// Warm up AudioContext on first user interaction so it's ready for realtime events
+if (typeof window !== "undefined") {
+  const warmUp = () => {
+    getAudioContext();
+    window.removeEventListener("click", warmUp);
+    window.removeEventListener("keydown", warmUp);
+  };
+  window.addEventListener("click", warmUp, { once: true });
+  window.addEventListener("keydown", warmUp, { once: true });
+}
+
 // Generate simple notification sounds using Web Audio API
 export function createBeepSound(type: SoundOption): (() => void) {
   return () => {
     try {
-      const ctx = new AudioContext();
+      const ctx = getAudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
