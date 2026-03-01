@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
-import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree, filterTreeForEmpresa } from "@/hooks/useProjectFolders";
+import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree, filterTreeForEmpresa, useSyncTemplateToProject } from "@/hooks/useProjectFolders";
 import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue, useGetProjectDriveId, useAutoReconcileDrive } from "@/hooks/useDriveSync";
 
 interface Props {
@@ -29,6 +29,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const updateMutation = useUpdateProjectFolder();
   const deleteMutation = useDeleteProjectFolder();
   const generateMutation = useGenerateFromTemplate();
+  const syncTemplateMutation = useSyncTemplateToProject();
   const { data: driveStatus } = useDriveAuthStatus();
   const getAuthUrl = useGetDriveAuthUrl();
   const syncDrive = useSyncDrive();
@@ -55,6 +56,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const rootInputRef = useRef<HTMLInputElement>(null);
 
   const autoSyncedRef = useRef(false);
+  const templateSyncedRef = useRef(false);
   const queueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Online detection — trigger sync queue when reconnecting
@@ -70,9 +72,18 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   useEffect(() => {
     if (!open) {
       autoSyncedRef.current = false;
+      templateSyncedRef.current = false;
       setProjectDriveUrl(null);
     }
   }, [open]);
+
+  // Auto-sync template to project when dialog opens (once per open, if project has folders)
+  useEffect(() => {
+    if (open && !isLoading && folders && folders.length > 0 && projectId && !templateSyncedRef.current && !syncTemplateMutation.isPending) {
+      templateSyncedRef.current = true;
+      syncTemplateMutation.mutate({ projectId });
+    }
+  }, [open, isLoading, folders, projectId]);
 
   // Pre-resolve Drive folder URL when dialog opens and Drive is connected
   useEffect(() => {
