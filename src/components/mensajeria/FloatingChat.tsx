@@ -669,7 +669,7 @@ export default function FloatingChat() {
             {view === "chat" && (
               <div className="px-3 pt-2 pb-1 border-b border-border bg-muted/20">
                 <Input
-                  placeholder="Buscar en mensajes..."
+                  placeholder="Buscar en este mensaje..."
                   value={searchMessages}
                   onChange={(e) => setSearchMessages(e.target.value)}
                   className="h-7 text-xs"
