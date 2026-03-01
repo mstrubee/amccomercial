@@ -65,8 +65,10 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlertaWidget />
-      <FloatingChat />
-      {isAdmin && <FloatingUserStatus />}
+      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2">
+        {isAdmin && <FloatingUserStatus />}
+        <FloatingChat />
+      </div>
     </AppLayout>
   );
 }

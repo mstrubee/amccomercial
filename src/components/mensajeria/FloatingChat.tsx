@@ -91,16 +91,16 @@ export default function FloatingChat() {
   );
 
   return (
-    <>
+    <div className="relative">
       {/* Floating button */}
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "fixed bottom-4 right-16 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all",
+          "w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all relative",
           "bg-primary text-primary-foreground hover:bg-primary/90"
         )}
       >
-        {open ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+        {open ? <X className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
         {!open && totalUnread > 0 && (
           <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
             {totalUnread > 9 ? "9+" : totalUnread}
@@ -116,7 +116,7 @@ export default function FloatingChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-[72px] right-4 z-50 w-80 h-[460px] bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden"
+            className="absolute bottom-full mb-2 left-0 w-80 h-[460px] bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
@@ -303,6 +303,6 @@ export default function FloatingChat() {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
