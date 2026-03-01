@@ -627,7 +627,7 @@ export default function FloatingChat() {
 
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-semibold text-foreground truncate">
-                  {view === "list" && (contextProject ? `Chat — ${contextProject.name}` : "Mensajes")}
+                  {view === "list" && (contextProject ? `Chat — ${contextProject.name}` : "AMC Chat")}
                   {view === "new" && "Nuevo chat"}
                   {view === "settings" && "Configuración de sonido"}
                   {view === "chat" && (activeConv?.participants.map((p) => p.display_name).join(", ") || "Chat")}
