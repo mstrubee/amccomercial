@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Folder, FolderPlus, Loader2, Check, X, FolderSync, ExternalLink, Clock, ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const processSyncQueue = useProcessSyncQueue();
   const getProjectDriveId = useGetProjectDriveId();
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
-  const driveLinkRef = useRef<HTMLAnchorElement>(null);
+  const [projectDriveUrl, setProjectDriveUrl] = useState<string | null>(null);
+  const [resolvingDriveUrl, setResolvingDriveUrl] = useState(false);
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
@@ -60,8 +61,24 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   useEffect(() => {
     if (!open) {
       autoSyncedRef.current = false;
+      setProjectDriveUrl(null);
     }
   }, [open]);
+
+  // Pre-resolve Drive folder URL when dialog opens and Drive is connected
+  useEffect(() => {
+    if (open && projectId && driveStatus?.connected && !projectDriveUrl && !resolvingDriveUrl) {
+      setResolvingDriveUrl(true);
+      getProjectDriveId.mutateAsync({ projectId, projectName })
+        .then((result) => {
+          setProjectDriveUrl(`https://drive.google.com/drive/folders/${result.drive_folder_id}`);
+        })
+        .catch(() => {
+          // Will retry on button click
+        })
+        .finally(() => setResolvingDriveUrl(false));
+    }
+  }, [open, projectId, driveStatus?.connected]);
 
   const triggerSync = useCallback(async () => {
     if (!projectId || !driveStatus?.connected || syncDrive.isPending) return;
@@ -255,35 +272,36 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                     </Button>
 
                     {driveStatus?.connected && (
-                      <>
-                        <a ref={driveLinkRef} href="#" target="_blank" rel="noopener noreferrer" className="hidden" />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 text-xs"
-                          disabled={getProjectDriveId.isPending}
-                          onClick={async () => {
-                            if (!projectId) return;
-                            try {
-                              const result = await getProjectDriveId.mutateAsync({ projectId, projectName });
-                              const url = `https://drive.google.com/drive/folders/${result.drive_folder_id}`;
-                              if (driveLinkRef.current) {
-                                driveLinkRef.current.href = url;
-                                driveLinkRef.current.click();
-                              }
-                            } catch (e: any) {
-                              toast.error("Error: " + e.message);
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        disabled={resolvingDriveUrl}
+                        onClick={() => {
+                          if (projectDriveUrl) {
+                            window.open(projectDriveUrl, "_blank", "noopener,noreferrer");
+                          } else {
+                            toast.info("Cargando enlace de Drive... intenta nuevamente en unos segundos.");
+                            // Retry resolving
+                            if (projectId) {
+                              setResolvingDriveUrl(true);
+                              getProjectDriveId.mutateAsync({ projectId, projectName })
+                                .then((result) => {
+                                  setProjectDriveUrl(`https://drive.google.com/drive/folders/${result.drive_folder_id}`);
+                                })
+                                .catch((e: any) => toast.error("Error: " + e.message))
+                                .finally(() => setResolvingDriveUrl(false));
                             }
-                          }}
-                        >
-                          {getProjectDriveId.isPending ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <ExternalLinkIcon className="w-3.5 h-3.5" />
-                          )}
-                          Ver en Google Drive
-                        </Button>
-                      </>
+                          }
+                        }}
+                      >
+                        {resolvingDriveUrl ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ExternalLinkIcon className="w-3.5 h-3.5" />
+                        )}
+                        Ver en Google Drive
+                      </Button>
                     )}
 
                     {!driveStatus?.connected && (

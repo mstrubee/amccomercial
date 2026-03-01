@@ -41,8 +41,6 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   const renameRef = useRef<HTMLInputElement>(null);
   const createRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const viewLinkRef = useRef<HTMLAnchorElement>(null);
-
   const { data: files } = useDriveFiles(node.id);
   const { data: pendingFiles } = usePendingFilesForFolder(node.id);
   const deleteDriveFile = useDeleteDriveFile();
@@ -88,10 +86,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
       return;
     }
     const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(driveFileId)}/view?usp=sharing`;
-    if (viewLinkRef.current) {
-      viewLinkRef.current.href = viewUrl;
-      viewLinkRef.current.click();
-    }
+    window.open(viewUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleDeleteFile = async (driveFileId: string, driveFilesId: string, fileName: string) => {
@@ -109,7 +104,6 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
 
   return (
     <div>
-      <a ref={viewLinkRef} href="#" target="_blank" rel="noopener noreferrer" className="hidden" />
       <input
         ref={fileInputRef}
         type="file"
