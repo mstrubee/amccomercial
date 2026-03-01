@@ -25,9 +25,10 @@ export default function FloatingChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { data: theme } = useThemeSettings();
-  const pos = theme?.theme_floating_position || "bottom-left";
-  const isBottom = pos.startsWith("bottom") || pos.startsWith("lower") || pos.startsWith("middle");
-  const isLeft = pos.includes("left") || pos === "bottom-center";
+  const pos = theme?.theme_floating_position || "left-14";
+  const side = pos.split("-")[0];
+  const isBottom = side !== "right" && side !== "left" ? false : true;
+  const isLeft = side === "left" || side === "bottom";
 
   const {
     conversations,

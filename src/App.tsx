@@ -69,25 +69,23 @@ function AppRoutes() {
       </Routes>
       <AlertaWidget />
       {(() => {
-        const pos = theme?.theme_floating_position || "bottom-left";
-        const posClasses = cn(
-          "fixed z-50 flex items-center gap-2",
-          pos === "bottom-left" && "bottom-4 left-4",
-          pos === "bottom-right" && "bottom-4 right-4",
-          pos === "top-left" && "top-4 left-4",
-          pos === "top-right" && "top-4 right-4",
-          pos === "upper-left" && "left-4 top-[30%]",
-          pos === "middle-left" && "left-4 top-1/2 -translate-y-1/2",
-          pos === "lower-left" && "left-4 top-[70%]",
-          pos === "upper-right" && "right-4 top-[30%]",
-          pos === "middle-right" && "right-4 top-1/2 -translate-y-1/2",
-          pos === "lower-right" && "right-4 top-[70%]",
-          pos === "bottom-center-left" && "bottom-4 left-[30%]",
-          pos === "bottom-center" && "bottom-4 left-1/2 -translate-x-1/2",
-          pos === "bottom-center-right" && "bottom-4 left-[70%]",
-        );
+        const pos = theme?.theme_floating_position || "left-14";
+        // Parse dynamic position: "left-N", "right-N", "bottom-N"
+        const [side, idxStr] = pos.split("-");
+        const idx = parseInt(idxStr || "14", 10);
+        let style: React.CSSProperties = {};
+        if (side === "left") {
+          const pct = 5 + (90 * idx) / 14;
+          style = { left: 16, top: `${pct}%`, position: "fixed" };
+        } else if (side === "right") {
+          const pct = 5 + (90 * idx) / 14;
+          style = { right: 16, top: `${pct}%`, position: "fixed" };
+        } else {
+          const pct = 8 + (84 * idx) / 14;
+          style = { left: `${pct}%`, bottom: 16, position: "fixed" };
+        }
         return (
-          <div className={posClasses}>
+          <div className="z-50 flex items-center gap-2" style={style}>
             {isAdmin && <FloatingUserStatus />}
             <FloatingChat />
           </div>

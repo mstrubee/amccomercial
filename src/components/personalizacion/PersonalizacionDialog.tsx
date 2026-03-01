@@ -26,17 +26,37 @@ const POSITION_OPTIONS = [
   { value: "top-left", label: "Superior izquierda" },
 ];
 
-const FLOATING_CORNERS = [
-  // corners
-  "top-left", "top-right", "bottom-left", "bottom-right",
-  // left side
-  "upper-left", "middle-left", "lower-left",
-  // right side
-  "upper-right", "middle-right", "lower-right",
-  // bottom edge
-  "bottom-center-left", "bottom-center", "bottom-center-right",
-] as const;
-type FloatingCorner = (typeof FLOATING_CORNERS)[number];
+// Dynamic position system: "left-N", "right-N", "bottom-N" where N is index
+const SIDE_STEPS = 15;
+const BOTTOM_STEPS = 15;
+
+interface FloatingPos { id: string; side: "left" | "right" | "bottom"; pct: number }
+
+function buildPositions(): FloatingPos[] {
+  const arr: FloatingPos[] = [];
+  for (let i = 0; i < SIDE_STEPS; i++) {
+    const pct = 5 + (90 * i) / (SIDE_STEPS - 1);
+    arr.push({ id: `left-${i}`, side: "left", pct });
+    arr.push({ id: `right-${i}`, side: "right", pct });
+  }
+  for (let i = 0; i < BOTTOM_STEPS; i++) {
+    const pct = 8 + (84 * i) / (BOTTOM_STEPS - 1);
+    arr.push({ id: `bottom-${i}`, side: "bottom", pct });
+  }
+  return arr;
+}
+const ALL_FLOAT_POSITIONS = buildPositions();
+
+function getFloatStyle(posId: string, context: "preview" | "app" = "preview"): React.CSSProperties {
+  const pos = ALL_FLOAT_POSITIONS.find((p) => p.id === posId);
+  if (!pos) return context === "preview" ? { left: 44, bottom: 12 } : {};
+  const lI = context === "preview" ? 44 : 16;
+  const rI = context === "preview" ? 12 : 16;
+  const bI = context === "preview" ? 12 : 16;
+  if (pos.side === "left") return { left: lI, top: `${pos.pct}%` };
+  if (pos.side === "right") return { right: rI, top: `${pos.pct}%` };
+  return { left: `${pos.pct}%`, bottom: bI };
+}
 
 const DEFAULTS: ThemeSettings = {
   theme_sidebar_bg: "",
@@ -47,7 +67,7 @@ const DEFAULTS: ThemeSettings = {
   theme_company_logo: "",
   theme_background_color: "",
   theme_alert_position: "bottom-right",
-  theme_floating_position: "bottom-left",
+  theme_floating_position: "left-14",
 };
 
 interface Props {
@@ -78,40 +98,17 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
     setDirty(true);
   };
 
-  const getFloatingCornerPosition = (corner: FloatingCorner): React.CSSProperties => {
-    const leftInset = 44;
-    const rightInset = 12;
-    const topInset = 12;
-    const bottomInset = 12;
-
-    const positions: Record<FloatingCorner, React.CSSProperties> = {
-      "top-left": { left: leftInset, top: topInset },
-      "top-right": { right: rightInset, top: topInset },
-      "bottom-left": { left: leftInset, bottom: bottomInset },
-      "bottom-right": { right: rightInset, bottom: bottomInset },
-      "upper-left": { left: leftInset, top: "30%" },
-      "middle-left": { left: leftInset, top: "50%", transform: "translateY(-50%)" },
-      "lower-left": { left: leftInset, top: "70%" },
-      "upper-right": { right: rightInset, top: "30%" },
-      "middle-right": { right: rightInset, top: "50%", transform: "translateY(-50%)" },
-      "lower-right": { right: rightInset, top: "70%" },
-      "bottom-center-left": { left: "30%", bottom: bottomInset },
-      "bottom-center": { left: "50%", bottom: bottomInset, transform: "translateX(-50%)" },
-      "bottom-center-right": { left: "70%", bottom: bottomInset },
-    };
-    return positions[corner] || positions["bottom-left"];
+  const getFloatingCornerPosition = (posId: string): React.CSSProperties => {
+    return getFloatStyle(posId, "preview");
   };
 
   const updateFloatingDragFromPointer = (clientX: number, clientY: number) => {
     const preview = floatingPreviewRef.current;
     if (!preview) return;
-
     const rect = preview.getBoundingClientRect();
     const bubbleSize = 38;
-
     const x = Math.max(0, Math.min(clientX - rect.left - bubbleSize / 2, rect.width - bubbleSize));
     const y = Math.max(0, Math.min(clientY - rect.top - bubbleSize / 2, rect.height - bubbleSize));
-
     setFloatingDragPosition({ x, y });
   };
 
@@ -134,22 +131,14 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
       const cx = floatingDragPosition.x + 19;
       const cy = floatingDragPosition.y + 19;
 
-      // Snap to nearest corner/position
-      const targets: { pos: FloatingCorner; x: number; y: number }[] = [
-        { pos: "top-left", x: 44, y: 12 },
-        { pos: "top-right", x: rect.width - 12, y: 12 },
-        { pos: "bottom-left", x: 44, y: rect.height - 12 },
-        { pos: "bottom-right", x: rect.width - 12, y: rect.height - 12 },
-        { pos: "upper-left", x: 44, y: rect.height * 0.3 },
-        { pos: "middle-left", x: 44, y: rect.height * 0.5 },
-        { pos: "lower-left", x: 44, y: rect.height * 0.7 },
-        { pos: "upper-right", x: rect.width - 12, y: rect.height * 0.3 },
-        { pos: "middle-right", x: rect.width - 12, y: rect.height * 0.5 },
-        { pos: "lower-right", x: rect.width - 12, y: rect.height * 0.7 },
-        { pos: "bottom-center-left", x: rect.width * 0.3, y: rect.height - 12 },
-        { pos: "bottom-center", x: rect.width * 0.5, y: rect.height - 12 },
-        { pos: "bottom-center-right", x: rect.width * 0.7, y: rect.height - 12 },
-      ];
+      // Snap to nearest position
+      const targets = ALL_FLOAT_POSITIONS.map((p) => {
+        let x: number, y: number;
+        if (p.side === "left") { x = 44; y = rect.height * p.pct / 100; }
+        else if (p.side === "right") { x = rect.width - 12; y = rect.height * p.pct / 100; }
+        else { x = rect.width * p.pct / 100; y = rect.height - 12; }
+        return { pos: p.id, x, y };
+      });
       let nearest = targets[0];
       let minDist = Infinity;
       for (const t of targets) {
@@ -415,22 +404,22 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-8 bg-muted/60 border-r border-border" />
 
-                  {FLOATING_CORNERS.map((pos) => {
-                    const isSelected = (local.theme_floating_position || "bottom-left") === pos;
-                    const styles = getFloatingCornerPosition(pos);
+                  {ALL_FLOAT_POSITIONS.map((p) => {
+                    const isSelected = (local.theme_floating_position || "left-14") === p.id;
+                    const styles = getFloatingCornerPosition(p.id);
 
                     return (
                       <button
-                        key={pos}
+                        key={p.id}
                         type="button"
-                        onClick={() => update("theme_floating_position", pos)}
-                        className={`absolute w-6 h-6 rounded-full border transition-all ${
+                        onClick={() => update("theme_floating_position", p.id)}
+                        className={`absolute w-4 h-4 rounded-full border transition-all ${
                           isSelected
-                            ? "bg-primary border-primary ring-2 ring-primary/30"
-                            : "bg-card border-border hover:bg-secondary"
+                            ? "bg-primary border-primary ring-2 ring-primary/30 z-10"
+                            : "bg-card border-border hover:bg-secondary hover:scale-125"
                         }`}
                         style={styles}
-                        aria-label={`Mover flotantes a ${pos}`}
+                        aria-label={`Mover flotantes a ${p.id}`}
                       />
                     );
                   })}
@@ -442,11 +431,11 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
                       setIsDraggingFloating(true);
                       updateFloatingDragFromPointer(event.clientX, event.clientY);
                     }}
-                    className="absolute w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg cursor-grab active:cursor-grabbing flex items-center justify-center"
+                    className="absolute w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg cursor-grab active:cursor-grabbing flex items-center justify-center z-20"
                     style={
                       isDraggingFloating && floatingDragPosition
                         ? { left: floatingDragPosition.x, top: floatingDragPosition.y }
-                        : getFloatingCornerPosition((local.theme_floating_position || "bottom-left") as FloatingCorner)
+                        : getFloatingCornerPosition(local.theme_floating_position || "left-14")
                     }
                     aria-label="Arrastrar botones flotantes"
                   >
