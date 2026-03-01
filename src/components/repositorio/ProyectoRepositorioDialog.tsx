@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
-import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree } from "@/hooks/useProjectFolders";
+import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree, filterTreeForEmpresa } from "@/hooks/useProjectFolders";
 import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue, useGetProjectDriveId, useAutoReconcileDrive } from "@/hooks/useDriveSync";
 
 interface Props {
@@ -20,9 +20,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canEdit?: boolean;
+  filterEmpresaName?: string;
 }
 
-export default function ProyectoRepositorioDialog({ projectId, projectName, open, onOpenChange, canEdit = true }: Props) {
+export default function ProyectoRepositorioDialog({ projectId, projectName, open, onOpenChange, canEdit = true, filterEmpresaName }: Props) {
   const { data: folders, isLoading } = useProjectFolders(projectId);
   const createMutation = useCreateProjectFolder();
   const updateMutation = useUpdateProjectFolder();
@@ -142,7 +143,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
     if (creatingRoot) rootInputRef.current?.focus();
   }, [creatingRoot]);
 
-  const tree = buildProjectTree(folders || []);
+  const fullTree = buildProjectTree(folders || []);
+  const tree = filterEmpresaName ? filterTreeForEmpresa(fullTree, filterEmpresaName) : fullTree;
   const hasFolders = (folders || []).length > 0;
 
   const handleGenerate = async () => {
@@ -257,7 +259,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Folder className="w-5 h-5 text-amber-500" />
-              Repositorio — {projectName}
+              Repositorio — {projectName}{filterEmpresaName ? ` / ${filterEmpresaName}` : ""}
               {!!pendingCount && pendingCount > 0 && (
                 <Badge variant="secondary" className="gap-1 ml-2">
                   <Clock className="w-3 h-3" />

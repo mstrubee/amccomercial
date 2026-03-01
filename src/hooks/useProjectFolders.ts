@@ -10,6 +10,7 @@ export interface ProjectFolder {
   template_id: string | null;
   drive_folder_id: string | null;
   orden: number;
+  is_repo_comun: boolean;
   created_at: string;
 }
 
@@ -117,8 +118,9 @@ export function useGenerateFromTemplate() {
       const tree = buildTree(typedTemplates);
 
       // Insert template tree directly as root folders (no project-name wrapper)
-      const insertRecursive = async (nodes: FolderTreeNode[], parentId: string | null) => {
+      const insertRecursive = async (nodes: FolderTreeNode[], parentId: string | null, parentIsRepoComun?: boolean) => {
         for (const node of nodes) {
+          const isComun = parentId === null ? (node as any).is_repo_comun || false : parentIsRepoComun || false;
           const { data: inserted, error } = await supabase
             .from("project_folders" as any)
             .insert({
@@ -127,12 +129,13 @@ export function useGenerateFromTemplate() {
               parent_id: parentId,
               template_id: node.id,
               orden: node.orden,
+              is_repo_comun: isComun,
             } as any)
             .select()
             .single();
           if (error) throw error;
           if (node.children.length > 0) {
-            await insertRecursive(node.children, (inserted as any).id);
+            await insertRecursive(node.children, (inserted as any).id, isComun);
           }
         }
       };
@@ -141,4 +144,29 @@ export function useGenerateFromTemplate() {
     },
     onSuccess: (_, { projectId }) => qc.invalidateQueries({ queryKey: ["project_folders", projectId] }),
   });
+}
+
+/**
+ * Filter a project folder tree for a specific empresa.
+ * Shows: root folders with is_repo_comun=true + the Empresas/[empresaName] subtree.
+ */
+export function filterTreeForEmpresa(
+  tree: ProjectFolderTreeNode[],
+  empresaName: string
+): ProjectFolderTreeNode[] {
+  const result: ProjectFolderTreeNode[] = [];
+  for (const root of tree) {
+    if (root.is_repo_comun) {
+      result.push(root);
+    } else if (root.name.toLowerCase() === "empresas") {
+      // Find the child matching the empresa name
+      const match = root.children.find(
+        (c) => c.name.toLowerCase() === empresaName.toLowerCase()
+      );
+      if (match) {
+        result.push({ ...root, children: [match] });
+      }
+    }
+  }
+  return result;
 }

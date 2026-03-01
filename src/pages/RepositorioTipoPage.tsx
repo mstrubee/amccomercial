@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import FolderTreeNode from "@/components/repositorio/FolderTreeNode";
 import {
-  useFolderTemplates, useCreateFolderTemplate, useUpdateFolderTemplate, useDeleteFolderTemplate, buildTree,
+  useFolderTemplates, useCreateFolderTemplate, useUpdateFolderTemplate, useDeleteFolderTemplate, useToggleFolderTemplateComun, buildTree,
 } from "@/hooks/useFolderTemplates";
 
 export default function RepositorioTipoPage() {
@@ -18,6 +18,7 @@ export default function RepositorioTipoPage() {
   const createMutation = useCreateFolderTemplate();
   const updateMutation = useUpdateFolderTemplate();
   const deleteMutation = useDeleteFolderTemplate();
+  const toggleComunMutation = useToggleFolderTemplateComun();
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
@@ -128,6 +129,12 @@ export default function RepositorioTipoPage() {
               onRename={handleRename}
               onDelete={(id) => setDeleteTarget(id)}
               onCreate={handleCreate}
+              onToggleComun={(id, value) => {
+                toggleComunMutation.mutate({ id, is_repo_comun: value }, {
+                  onSuccess: () => toast.success(value ? "Marcada como Repositorio Común" : "Desmarcada de Repositorio Común"),
+                  onError: (e: any) => toast.error("Error: " + e.message),
+                });
+              }}
             />
           ))
         )}
