@@ -15,6 +15,7 @@ import Auth from "@/pages/Auth";
 import NotFound from "./pages/NotFound";
 import AlertaWidget from "@/components/alertas/AlertaWidget";
 import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
+import FloatingChat from "@/components/mensajeria/FloatingChat";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import CargaMasiva from "@/pages/CargaMasiva";
 import Clientes from "@/pages/Clientes";
@@ -64,6 +65,7 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AlertaWidget />
+      <FloatingChat />
       {isAdmin && <FloatingUserStatus />}
     </AppLayout>
   );
