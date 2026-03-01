@@ -719,7 +719,7 @@ export default function Proyectos() {
                               openProjectChat(first.id, first.nombre, null, null);
                             }}
                           >
-                            <MessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
+                            <MessageCircle className="w-3.5 h-3.5 text-chart-effective fill-chart-effective" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
                             <Folder className="w-3.5 h-3.5 text-amber-500" />
