@@ -243,11 +243,6 @@ export function useSyncTemplateToProject() {
             }
           } else {
             // Template folder not in project yet — insert it
-            // Skip empresa subfolders that don't match
-            if (isInsideEmpresas && parentProjectFolderId !== null) {
-              // We're inside Empresas, direct children already filtered above
-            }
-
             const { data: ins, error } = await supabase
               .from("project_folders" as any)
               .insert({
