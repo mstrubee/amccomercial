@@ -12,6 +12,7 @@ export interface TreeNode {
   name: string;
   children: TreeNode[];
   drive_folder_id?: string | null;
+  is_repo_comun?: boolean;
 }
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
   isUploading?: boolean;
   uploadingFolderId?: string | null;
   canEdit?: boolean;
+  onToggleComun?: (id: string, value: boolean) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -32,7 +34,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function FolderTreeNode({ node, level, onRename, onDelete, onCreate, onUpload, isUploading, uploadingFolderId, canEdit = true }: Props) {
+export default function FolderTreeNode({ node, level, onRename, onDelete, onCreate, onUpload, isUploading, uploadingFolderId, canEdit = true, onToggleComun }: Props) {
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState(node.name);
@@ -166,7 +168,23 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
             </div>
           ) : (
             <>
-              <span className="text-sm text-foreground ml-1 flex-1 truncate">{node.name}</span>
+              <span className="text-sm text-foreground ml-1 flex-1 truncate">
+                {node.name}
+                {level === 0 && onToggleComun && (
+                  <button
+                    className={cn(
+                      "ml-2 text-[10px] px-1.5 py-0.5 rounded border inline-flex items-center gap-0.5 align-middle transition-colors",
+                      node.is_repo_comun
+                        ? "bg-primary/10 border-primary/30 text-primary"
+                        : "bg-muted border-border text-muted-foreground hover:border-primary/30"
+                    )}
+                    title={node.is_repo_comun ? "Quitar de Repositorio Común" : "Marcar como Repositorio Común"}
+                    onClick={(e) => { e.stopPropagation(); onToggleComun(node.id, !node.is_repo_comun); }}
+                  >
+                    {node.is_repo_comun ? "Común ✓" : "Común"}
+                  </button>
+                )}
+              </span>
 
               {isBusyHere && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto shrink-0" />
@@ -232,6 +250,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
               isUploading={isUploading}
               uploadingFolderId={uploadingFolderId}
               canEdit={canEdit}
+              onToggleComun={onToggleComun}
             />
           ))}
 

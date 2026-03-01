@@ -80,7 +80,7 @@ export default function Proyectos() {
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
-  const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string } | null>(null);
+  const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
@@ -804,6 +804,9 @@ export default function Proyectos() {
                                         </Popover>
                                       );
                                     })()}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio empresa" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre, empresaName: pe.empresas?.nombre }); }}>
+                                      <Folder className="w-3.5 h-3.5 text-amber-500" />
+                                    </Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
                                   </div>
@@ -1118,7 +1121,8 @@ export default function Proyectos() {
         projectName={repositorioTarget?.name ?? ""}
         open={!!repositorioTarget}
         onOpenChange={(o) => !o && setRepositorioTarget(null)}
-        canEdit={isAdmin}
+        canEdit={repositorioTarget?.empresaName ? false : isAdmin}
+        filterEmpresaName={repositorioTarget?.empresaName}
       />
     </div>
     </>

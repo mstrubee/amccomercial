@@ -699,6 +699,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_repo_comun: boolean
           name: string
           orden: number
           parent_id: string | null
@@ -706,6 +707,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_repo_comun?: boolean
           name: string
           orden?: number
           parent_id?: string | null
@@ -713,6 +715,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_repo_comun?: boolean
           name?: string
           orden?: number
           parent_id?: string | null
@@ -827,6 +830,7 @@ export type Database = {
           created_at: string
           drive_folder_id: string | null
           id: string
+          is_repo_comun: boolean
           name: string
           orden: number
           parent_id: string | null
@@ -837,6 +841,7 @@ export type Database = {
           created_at?: string
           drive_folder_id?: string | null
           id?: string
+          is_repo_comun?: boolean
           name: string
           orden?: number
           parent_id?: string | null
@@ -847,6 +852,7 @@ export type Database = {
           created_at?: string
           drive_folder_id?: string | null
           id?: string
+          is_repo_comun?: boolean
           name?: string
           orden?: number
           parent_id?: string | null

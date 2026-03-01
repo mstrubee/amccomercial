@@ -6,6 +6,7 @@ export interface FolderTemplate {
   name: string;
   parent_id: string | null;
   orden: number;
+  is_repo_comun: boolean;
   created_at: string;
 }
 
@@ -89,6 +90,20 @@ export function useDeleteFolderTemplate() {
         .from("folder_templates" as any)
         .delete()
         .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["folder_templates"] }),
+  });
+}
+
+export function useToggleFolderTemplateComun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { id: string; is_repo_comun: boolean }) => {
+      const { error } = await supabase
+        .from("folder_templates" as any)
+        .update({ is_repo_comun: params.is_repo_comun } as any)
+        .eq("id", params.id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["folder_templates"] }),
