@@ -730,7 +730,7 @@ export default function FloatingChat() {
                                 {conv.project_id && conv.empresa_id && " · "}
                                 {conv.empresa_id && (companyNameById[conv.empresa_id] || "Empresa")}
                                 {(conv.project_id || conv.empresa_id) && " — "}
-                                <span className="text-muted-foreground font-normal">
+                                <span className="text-chart-effective font-semibold">
                                   {conv.participants.map((p) => p.display_name).join(", ")}
                                 </span>
                               </span>
