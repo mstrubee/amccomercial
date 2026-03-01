@@ -81,6 +81,7 @@ export default function FloatingChat() {
   const [subsectionScope, setSubsectionScope] = useState<SubsectionScope>("all");
   const [newProjectId, setNewProjectId] = useState<string>("");
   const [newEmpresaId, setNewEmpresaId] = useState<string>("general");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [chatSize, setChatSize] = useState<{ w: number; h: number }>({ w: 360, h: 540 });
   const isResizingRef = useRef(false);
 
@@ -213,8 +214,11 @@ export default function FloatingChat() {
     pendingContextOpenRef.current = null;
 
     const match = conversations.find((c) => {
-      if (pending.empresaId) return c.empresa_id === pending.empresaId;
-      return c.empresa_id == null;
+      const projectMatch = c.project_id === pending.projectId;
+      const empresaMatch = pending.empresaId
+        ? c.empresa_id === pending.empresaId
+        : c.empresa_id == null;
+      return projectMatch && empresaMatch;
     });
 
     if (match) {
@@ -351,12 +355,19 @@ export default function FloatingChat() {
     setMessageText("");
   };
 
-  const handleNewConversation = (otherUserId: string) => {
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleNewConversation = () => {
+    if (selectedUserIds.length === 0) return;
     const projectIdForNew = newProjectId || contextProject?.id || null;
     const empresaIdForNew = newEmpresaId === "general" ? null : newEmpresaId || null;
 
     createConversation.mutate(
-      { otherUserId, projectId: projectIdForNew, empresaId: empresaIdForNew },
+      { otherUserIds: selectedUserIds, projectId: projectIdForNew, empresaId: empresaIdForNew },
       {
         onSuccess: () => {
           if (projectIdForNew) {
@@ -370,6 +381,7 @@ export default function FloatingChat() {
           }
           setView("chat");
           setSearchUser("");
+          setSelectedUserIds([]);
         },
         onError: (err: any) => toast.error("No se pudo crear/abrir la conversación: " + (err?.message || "")),
       }
@@ -630,6 +642,7 @@ export default function FloatingChat() {
                       onClick={() => {
                         setNewProjectId(contextProject?.id || "");
                         setNewEmpresaId("general");
+                        setSelectedUserIds([]);
                         setView("new");
                       }}
                       className="text-muted-foreground hover:text-foreground transition-colors"
@@ -847,26 +860,55 @@ export default function FloatingChat() {
                     />
                   </div>
 
-                  <ScrollArea className="flex-1">
-                    <div className="divide-y divide-border">
-                      {filteredProfiles.map((p) => (
-                        <button
-                          key={p.user_id}
-                          onClick={() => handleNewConversation(p.user_id)}
-                          className="w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors"
-                          disabled={createConversation.isPending}
-                        >
-                          <p className="text-sm font-medium text-foreground">{p.display_name}</p>
-                          <p className="text-xs text-muted-foreground">{p.email}</p>
-                        </button>
-                      ))}
-                      {filteredProfiles.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-6">No se encontraron usuarios</p>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
+                   <ScrollArea className="flex-1">
+                     <div className="divide-y divide-border">
+                       {filteredProfiles.map((p) => {
+                         const isSelected = selectedUserIds.includes(p.user_id);
+                         return (
+                           <button
+                             key={p.user_id}
+                             onClick={() => toggleUserSelection(p.user_id)}
+                             className={cn(
+                               "w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors flex items-center gap-2",
+                               isSelected && "bg-primary/10"
+                             )}
+                           >
+                             <div className={cn(
+                               "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                               isSelected ? "bg-primary border-primary" : "border-muted-foreground/40"
+                             )}>
+                               {isSelected && <span className="text-primary-foreground text-[10px] font-bold">✓</span>}
+                             </div>
+                             <div className="min-w-0">
+                               <p className="text-sm font-medium text-foreground">{p.display_name}</p>
+                               <p className="text-xs text-muted-foreground">{p.email}</p>
+                             </div>
+                           </button>
+                         );
+                       })}
+                       {filteredProfiles.length === 0 && (
+                         <p className="text-sm text-muted-foreground text-center py-6">No se encontraron usuarios</p>
+                       )}
+                     </div>
+                   </ScrollArea>
+
+                   {selectedUserIds.length > 0 && (
+                     <div className="px-3 py-2 border-t border-border">
+                       <Button
+                         size="sm"
+                         className="w-full rounded-full"
+                         onClick={handleNewConversation}
+                         disabled={createConversation.isPending}
+                       >
+                         {createConversation.isPending ? (
+                           <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                         ) : null}
+                         Iniciar chat con {selectedUserIds.length} persona{selectedUserIds.length > 1 ? "s" : ""}
+                       </Button>
+                     </div>
+                   )}
+                 </div>
+               )}
 
               {view === "settings" && (
                 <div className="p-4 space-y-4">
