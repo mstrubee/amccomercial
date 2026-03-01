@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 
 export type SoundOption = "pop" | "icq" | "bell" | "ding" | "mute" | "custom";
@@ -12,95 +12,182 @@ export interface ChatPreferences {
   custom_sound_url: string | null;
 }
 
-// Shared AudioContext – survives across calls and resumes on user gesture
-let sharedAudioCtx: AudioContext | null = null;
+// ─── Resilient Audio Manager ───────────────────────────────────────
+// Survives suspended states, tab backgrounding, and non-gesture triggers.
 
-function getAudioContext(): AudioContext {
-  if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
-    sharedAudioCtx = new AudioContext();
+let _ctx: AudioContext | null = null;
+let _pendingPlay: (() => void) | null = null;
+let _listenersRegistered = false;
+let _lastPlayTime = 0;
+const COOLDOWN_MS = 300;
+
+function getOrCreateCtx(): AudioContext {
+  if (!_ctx || _ctx.state === "closed") {
+    _ctx = new AudioContext();
   }
-  if (sharedAudioCtx.state === "suspended") {
-    sharedAudioCtx.resume().catch(() => {});
-  }
-  return sharedAudioCtx;
+  return _ctx;
 }
 
-// Warm up AudioContext on first user interaction so it's ready for realtime events
-if (typeof window !== "undefined") {
-  const warmUp = () => {
-    getAudioContext();
-    window.removeEventListener("click", warmUp);
-    window.removeEventListener("keydown", warmUp);
-  };
-  window.addEventListener("click", warmUp, { once: true });
-  window.addEventListener("keydown", warmUp, { once: true });
+/** Try to resume AudioContext. Safe to call from any context. */
+function tryResume() {
+  if (!_ctx || _ctx.state === "closed") return;
+  if (_ctx.state === "suspended") {
+    _ctx.resume().catch(() => {});
+  }
 }
 
-// Generate simple notification sounds using Web Audio API
-export function createBeepSound(type: SoundOption): (() => void) {
-  return () => {
-    try {
-      const ctx = getAudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      gain.gain.value = 0.3;
-
-      switch (type) {
-        case "pop":
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(880, ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.15);
-          break;
-
-        case "icq":
-          osc.type = "square";
-          osc.frequency.setValueAtTime(800, ctx.currentTime);
-          osc.frequency.setValueAtTime(600, ctx.currentTime + 0.08);
-          osc.frequency.setValueAtTime(900, ctx.currentTime + 0.16);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.25);
-          break;
-
-        case "bell":
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(1200, ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.4);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.5);
-          break;
-
-        case "ding":
-          osc.type = "triangle";
-          osc.frequency.setValueAtTime(1047, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.3);
-          break;
-
-        default:
-          osc.type = "sine";
-          osc.frequency.value = 660;
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.15);
+/** Called from user-gesture listeners to unlock/resume + flush pending plays. */
+function onUserGesture() {
+  const ctx = getOrCreateCtx();
+  if (ctx.state === "suspended") {
+    ctx.resume().then(() => {
+      if (_pendingPlay) {
+        const fn = _pendingPlay;
+        _pendingPlay = null;
+        fn();
       }
-    } catch {
-      // Web Audio not available
-    }
-  };
+    }).catch(() => {});
+  } else if (ctx.state === "running" && _pendingPlay) {
+    const fn = _pendingPlay;
+    _pendingPlay = null;
+    fn();
+  }
 }
+
+function onVisibilityChange() {
+  if (document.visibilityState === "visible") {
+    tryResume();
+  }
+}
+
+/** Register persistent listeners once. They stay for the lifetime of the page. */
+function ensureGestureListeners() {
+  if (_listenersRegistered || typeof window === "undefined") return;
+  _listenersRegistered = true;
+
+  const opts: AddEventListenerOptions = { capture: true, passive: true };
+  window.addEventListener("pointerdown", onUserGesture, opts);
+  window.addEventListener("keydown", onUserGesture, opts);
+  window.addEventListener("touchstart", onUserGesture, opts);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+
+  // Eagerly create context
+  getOrCreateCtx();
+}
+
+// Auto-init on module load
+ensureGestureListeners();
+
+// ─── Sound generators ──────────────────────────────────────────────
+
+function playBeepOnCtx(ctx: AudioContext, type: SoundOption) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  gain.gain.value = 0.3;
+
+  switch (type) {
+    case "pop":
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+      break;
+    case "icq":
+      osc.type = "square";
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.setValueAtTime(600, ctx.currentTime + 0.08);
+      osc.frequency.setValueAtTime(900, ctx.currentTime + 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.25);
+      break;
+    case "bell":
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.5);
+      break;
+    case "ding":
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(1047, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+      break;
+    default:
+      osc.type = "sine";
+      osc.frequency.value = 660;
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+  }
+}
+
+/** Attempt to play a built-in sound. If AudioContext is suspended, queue for next gesture. */
+function safePlayBuiltIn(type: SoundOption) {
+  const now = Date.now();
+  if (now - _lastPlayTime < COOLDOWN_MS) return; // anti-spam
+  _lastPlayTime = now;
+
+  try {
+    const ctx = getOrCreateCtx();
+
+    if (ctx.state === "running") {
+      playBeepOnCtx(ctx, type);
+      console.debug("[chat-sound] played:", type);
+      return;
+    }
+
+    // Context is suspended – try resume
+    console.debug("[chat-sound] ctx suspended, attempting resume for:", type);
+    ctx.resume().then(() => {
+      if (ctx.state === "running") {
+        playBeepOnCtx(ctx, type);
+        console.debug("[chat-sound] played after resume:", type);
+      } else {
+        // Still blocked – queue for next user gesture
+        console.debug("[chat-sound] still suspended, queuing for next gesture:", type);
+        _pendingPlay = () => {
+          try {
+            const c = getOrCreateCtx();
+            if (c.state === "running") playBeepOnCtx(c, type);
+          } catch { /* ignore */ }
+        };
+      }
+    }).catch(() => {
+      // Queue for next gesture
+      _pendingPlay = () => {
+        try {
+          const c = getOrCreateCtx();
+          if (c.state === "running") playBeepOnCtx(c, type);
+        } catch { /* ignore */ }
+      };
+    });
+  } catch {
+    // Web Audio not available at all
+  }
+}
+
+// Public export for settings preview
+export function createBeepSound(type: SoundOption): (() => void) {
+  return () => safePlayBuiltIn(type);
+}
+
+// ─── Hook ──────────────────────────────────────────────────────────
 
 export function useChatPreferences(user: User | null | undefined) {
   const qc = useQueryClient();
-  const soundFnsRef = useRef<Record<string, () => void>>({});
+
+  // Ensure gesture listeners are active when hook mounts
+  useEffect(() => {
+    ensureGestureListeners();
+  }, []);
 
   const { data: prefs } = useQuery({
     queryKey: ["chat-preferences", user?.id],
@@ -157,25 +244,18 @@ export function useChatPreferences(user: User | null | undefined) {
     const option = prefs?.sound_option || "pop";
     if (option === "mute") return;
 
-    const playBuiltIn = (type: SoundOption) => {
-      if (!soundFnsRef.current[type]) {
-        soundFnsRef.current[type] = createBeepSound(type);
-      }
-      soundFnsRef.current[type]();
-    };
-
     if (option === "custom" && prefs?.custom_sound_url) {
       const audio = new Audio(prefs.custom_sound_url);
       audio.volume = 0.5;
       audio.play().catch(() => {
-        // Fallback to built-in sound when custom audio fails
-        playBuiltIn("pop");
+        // Custom audio failed (CORS, network, etc.) – fall back to built-in pop
+        console.debug("[chat-sound] custom audio failed, falling back to pop");
+        safePlayBuiltIn("pop");
       });
       return;
     }
 
-    // Use Web Audio API for built-in sounds (no CORS issues)
-    playBuiltIn(option);
+    safePlayBuiltIn(option);
   }, [prefs?.sound_option, prefs?.custom_sound_url]);
 
   return { prefs, updatePrefs, uploadCustomSound, playNotificationSound };
