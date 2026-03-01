@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useCallback, useRef } from "react";
 
 export type SoundOption = "pop" | "icq" | "bell" | "ding" | "mute" | "custom";
 
@@ -11,16 +12,72 @@ export interface ChatPreferences {
   custom_sound_url: string | null;
 }
 
-const SOUND_URLS: Record<string, string> = {
-  pop: "https://cdn.freesound.org/previews/662/662411_11523868-lq.mp3",
-  icq: "https://cdn.freesound.org/previews/25/25879_37876-lq.mp3",
-  bell: "https://cdn.freesound.org/previews/411/411749_5121236-lq.mp3",
-  ding: "https://cdn.freesound.org/previews/536/536420_4921277-lq.mp3",
-};
+// Generate simple notification sounds using Web Audio API
+function createBeepSound(type: SoundOption): (() => void) {
+  return () => {
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      gain.gain.value = 0.3;
+
+      switch (type) {
+        case "pop":
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.15);
+          break;
+
+        case "icq":
+          osc.type = "square";
+          osc.frequency.setValueAtTime(800, ctx.currentTime);
+          osc.frequency.setValueAtTime(600, ctx.currentTime + 0.08);
+          osc.frequency.setValueAtTime(900, ctx.currentTime + 0.16);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.25);
+          break;
+
+        case "bell":
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(1200, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.4);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.5);
+          break;
+
+        case "ding":
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(1047, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.3);
+          break;
+
+        default:
+          osc.type = "sine";
+          osc.frequency.value = 660;
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.15);
+      }
+    } catch {
+      // Web Audio not available
+    }
+  };
+}
 
 export function useChatPreferences() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const soundFnsRef = useRef<Record<string, () => void>>({});
 
   const { data: prefs } = useQuery({
     queryKey: ["chat-preferences", user?.id],
@@ -73,18 +130,23 @@ export function useChatPreferences() {
     return data.publicUrl;
   };
 
-  const playNotificationSound = () => {
+  const playNotificationSound = useCallback(() => {
     const option = prefs?.sound_option || "pop";
     if (option === "mute") return;
 
-    const url = option === "custom" ? prefs?.custom_sound_url : SOUND_URLS[option];
-    if (!url) return;
+    if (option === "custom" && prefs?.custom_sound_url) {
+      const audio = new Audio(prefs.custom_sound_url);
+      audio.volume = 0.5;
+      audio.play().catch(() => {});
+      return;
+    }
 
-    const audio = new Audio(url);
-    audio.volume = 0.5;
-    audio.preload = "auto";
-    audio.play().catch(() => {});
-  };
+    // Use Web Audio API for built-in sounds (no CORS issues)
+    if (!soundFnsRef.current[option]) {
+      soundFnsRef.current[option] = createBeepSound(option);
+    }
+    soundFnsRef.current[option]();
+  }, [prefs?.sound_option, prefs?.custom_sound_url]);
 
   return { prefs, updatePrefs, uploadCustomSound, playNotificationSound };
 }
