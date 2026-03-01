@@ -84,11 +84,12 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   const handleViewFile = async (driveFileId: string) => {
     try {
       const result = await getViewUrl.mutateAsync({ driveFileId });
-      const url = result.web_view_link || result.web_content_link;
-      if (url) {
-        window.open(url, "_blank");
+      const viewUrl = result.web_view_link;
+      if (viewUrl) {
+        const w = window.open(viewUrl, "_blank", "noopener,noreferrer");
+        if (w) w.opener = null;
       } else {
-        toast.error("No se pudo obtener la URL del archivo");
+        toast.error("No se pudo obtener el enlace de visualización del archivo");
       }
     } catch (e: any) {
       toast.error("Error: " + e.message);
