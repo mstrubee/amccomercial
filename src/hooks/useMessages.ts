@@ -191,24 +191,22 @@ export function useMessages() {
         }
       }
 
-      // Create new conversation
-      const { data: conv, error: convError } = await supabase
+      // Create new conversation with client-generated ID to avoid SELECT RLS issue
+      const convId = crypto.randomUUID();
+      const { error: convError } = await supabase
         .from("conversations")
-        .insert({})
-        .select("id")
-        .single();
-      if (convError || !conv) throw convError || new Error("Failed to create conversation");
+        .insert({ id: convId });
+      if (convError) throw convError;
 
-      // Add participants
       const { error: partError } = await supabase
         .from("conversation_participants")
         .insert([
-          { conversation_id: conv.id, user_id: user.id },
-          { conversation_id: conv.id, user_id: otherUserId },
+          { conversation_id: convId, user_id: user.id },
+          { conversation_id: convId, user_id: otherUserId },
         ]);
       if (partError) throw partError;
 
-      return conv.id;
+      return convId;
     },
     onSuccess: (convId) => {
       queryClient.invalidateQueries({ queryKey: ["conversations", user?.id] });
