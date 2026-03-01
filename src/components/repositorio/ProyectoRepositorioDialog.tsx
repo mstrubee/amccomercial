@@ -81,7 +81,14 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   useEffect(() => {
     if (open && !isLoading && folders && folders.length > 0 && projectId && !templateSyncedRef.current && !syncTemplateMutation.isPending) {
       templateSyncedRef.current = true;
-      syncTemplateMutation.mutate({ projectId });
+      syncTemplateMutation.mutateAsync({ projectId }).then((result) => {
+        if (result && (result.inserted > 0 || result.updated > 0)) {
+          toast.info(`Repositorio actualizado: ${result.inserted} carpeta(s) agregada(s)`);
+          triggerSync();
+        }
+      }).catch(() => {
+        // silent — non-critical background sync
+      });
     }
   }, [open, isLoading, folders, projectId]);
 
