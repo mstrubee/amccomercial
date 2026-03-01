@@ -72,6 +72,8 @@ export default function FloatingChat() {
   const [searchUser, setSearchUser] = useState("");
   const [searchMessages, setSearchMessages] = useState("");
   const [searchConversations, setSearchConversations] = useState("");
+  const [searchProject, setSearchProject] = useState("");
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "message" | "conversation"; id: string } | null>(null);
   const [contextProject, setContextProject] = useState<ProjectContext | null>(null);
@@ -662,23 +664,67 @@ export default function FloatingChat() {
               {view === "new" && (
                 <div className="flex flex-col h-full">
                   <div className="px-3 pt-3 pb-2 space-y-2 border-b border-border bg-muted/10">
-                    <div className="grid gap-2">
+                    <div className="grid gap-2 relative">
                       <label className="text-[11px] text-muted-foreground">Sección (proyecto)</label>
-                      <select
-                        value={selectedProjectForNew}
+                      <Input
+                        placeholder="Buscar proyecto..."
+                        value={searchProject}
                         onChange={(e) => {
-                          setNewProjectId(e.target.value);
-                          setNewEmpresaId("general");
+                          setSearchProject(e.target.value);
+                          setShowProjectDropdown(true);
                         }}
-                        className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground"
-                      >
-                        <option value="">Sin sección</option>
-                        {projectOptionsForNew.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nombre}
-                          </option>
-                        ))}
-                      </select>
+                        onFocus={() => setShowProjectDropdown(true)}
+                        className="h-8 text-sm"
+                      />
+                      {selectedProjectForNew && (
+                        <div className="flex items-center gap-1 -mt-1">
+                          <Badge variant="secondary" className="text-[10px] max-w-[260px] truncate">
+                            {projectOptionsForNew.find((p) => p.id === selectedProjectForNew)?.nombre || "Proyecto"}
+                          </Badge>
+                          <button
+                            onClick={() => {
+                              setNewProjectId("");
+                              setNewEmpresaId("general");
+                              setSearchProject("");
+                            }}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                      {showProjectDropdown && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+                          <button
+                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 text-muted-foreground"
+                            onClick={() => {
+                              setNewProjectId("");
+                              setNewEmpresaId("general");
+                              setSearchProject("");
+                              setShowProjectDropdown(false);
+                            }}
+                          >
+                            Sin sección
+                          </button>
+                          {projectOptionsForNew
+                            .filter((p) => p.nombre.toLowerCase().includes(searchProject.toLowerCase()))
+                            .map((p) => (
+                              <button
+                                key={p.id}
+                                className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 text-foreground truncate"
+                                onClick={() => {
+                                  setNewProjectId(p.id);
+                                  setNewEmpresaId("general");
+                                  setSearchProject("");
+                                  setShowProjectDropdown(false);
+                                }}
+                              >
+                                {p.nombre}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                     </div>
 
                     {selectedProjectForNew && (
