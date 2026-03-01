@@ -83,7 +83,6 @@ export default function FloatingChat() {
   const [newEmpresaId, setNewEmpresaId] = useState<string>("general");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [chatSize, setChatSize] = useState<{ w: number; h: number }>({ w: 360, h: 540 });
-  const [localMuted, setLocalMuted] = useState(false);
   const isResizingRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -98,7 +97,15 @@ export default function FloatingChat() {
   const isLeft = side === "left" || side === "bottom";
 
   const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences(user);
+  const isSoundMuted = (prefs?.sound_option || "pop") === "mute";
 
+  const toggleFabSound = () => {
+    if (isSoundMuted) {
+      updatePrefs.mutate({ sound_option: "pop", custom_sound_url: prefs?.custom_sound_url ?? null });
+    } else {
+      updatePrefs.mutate({ sound_option: "mute", custom_sound_url: prefs?.custom_sound_url ?? null });
+    }
+  };
   const {
     conversations,
     messages,
@@ -250,13 +257,13 @@ export default function FloatingChat() {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ senderId: string }>).detail;
       if (!detail?.senderId || detail.senderId === user?.id) return;
-      if (localMuted) return;
+      if (isSoundMuted) return;
       playNotificationSound();
     };
 
     window.addEventListener("chat:new-message", handler as EventListener);
     return () => window.removeEventListener("chat:new-message", handler as EventListener);
-  }, [user?.id, playNotificationSound, localMuted]);
+  }, [user?.id, playNotificationSound, isSoundMuted]);
 
   // IntersectionObserver for read receipts
   const observeMessage = useCallback(
@@ -563,16 +570,14 @@ export default function FloatingChat() {
       </button>
       {/* Mute toggle button */}
       <button
-        onClick={() => setLocalMuted((m) => !m)}
+        onClick={toggleFabSound}
         className={cn(
           "absolute -bottom-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center transition-all shadow-md border border-border z-10",
-          localMuted
-            ? "bg-destructive text-destructive-foreground"
-            : "bg-card text-muted-foreground hover:text-foreground"
+          "bg-card text-destructive hover:bg-destructive/10"
         )}
-        title={localMuted ? "Activar sonido" : "Silenciar notificaciones"}
+        title={isSoundMuted ? "Activar sonido" : "Silenciar notificaciones"}
       >
-        {localMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+        {isSoundMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
       </button>
 
       <AnimatePresence>
