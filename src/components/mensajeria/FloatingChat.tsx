@@ -729,7 +729,7 @@ export default function FloatingChat() {
                       />
                       {selectedProjectForNew && (
                         <div className="flex items-center gap-1 -mt-1">
-                          <Badge variant="secondary" className="text-[10px] max-w-[260px] truncate">
+                          <Badge variant="secondary" className="text-sm max-w-[260px] truncate px-3 py-1">
                             {projectOptionsForNew.find((p) => p.id === selectedProjectForNew)?.nombre || projects.find((p) => p.id === selectedProjectForNew)?.nombre || "Proyecto"}
                           </Badge>
                           <button
