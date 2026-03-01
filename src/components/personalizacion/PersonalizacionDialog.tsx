@@ -35,6 +35,7 @@ const DEFAULTS: ThemeSettings = {
   theme_company_logo: "",
   theme_background_color: "",
   theme_alert_position: "bottom-right",
+  theme_floating_position: "bottom-left",
 };
 
 interface Props {
@@ -153,11 +154,12 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
           </div>
         ) : (
           <Tabs defaultValue="colores" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="colores">Colores</TabsTrigger>
               <TabsTrigger value="tipografia">Tipografía</TabsTrigger>
               <TabsTrigger value="logo">Logo</TabsTrigger>
               <TabsTrigger value="alertas">Alertas</TabsTrigger>
+              <TabsTrigger value="flotantes">Flotantes</TabsTrigger>
             </TabsList>
 
             {/* Colores Tab */}
@@ -290,6 +292,22 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground">Define la esquina donde aparece el widget flotante de alertas.</p>
+              </div>
+            </TabsContent>
+
+            {/* Flotantes Tab */}
+            <TabsContent value="flotantes" className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Posición de botones flotantes (Chat y Usuarios)</Label>
+                <Select value={local.theme_floating_position || "bottom-left"} onValueChange={(v) => update("theme_floating_position", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {POSITION_OPTIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Define la esquina donde aparecen los botones de Chat y Usuarios en línea. Aplica para todos los usuarios.</p>
               </div>
             </TabsContent>
 

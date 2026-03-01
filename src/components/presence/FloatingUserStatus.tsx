@@ -6,11 +6,16 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useActivityThresholds, getActivityStatus, type ProfilePresence } from "@/hooks/useActivityThresholds";
+import { useThemeSettings } from "@/hooks/useThemeSettings";
 
 export default function FloatingUserStatus() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const { data: thresholds } = useActivityThresholds();
+  const { data: theme } = useThemeSettings();
+  const pos = theme?.theme_floating_position || "bottom-left";
+  const isBottom = pos.startsWith("bottom");
+  const isLeft = pos.endsWith("left");
 
   const { data: profiles } = useQuery<ProfilePresence[]>({
     queryKey: ["presence-profiles"],
@@ -49,7 +54,11 @@ export default function FloatingUserStatus() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full mb-2 left-0 w-72 bg-card border border-border rounded-xl shadow-lg overflow-hidden"
+            className={cn(
+              "absolute w-72 bg-card border border-border rounded-xl shadow-lg overflow-hidden",
+              isBottom ? "bottom-full mb-2" : "top-full mt-2",
+              isLeft ? "left-0" : "right-0",
+            )}
           >
             <div className="px-4 py-3 border-b border-border">
               <h3 className="text-sm font-semibold text-card-foreground">

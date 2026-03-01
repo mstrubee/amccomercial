@@ -11,6 +11,7 @@ const THEME_KEYS = [
   "theme_company_logo",
   "theme_background_color",
   "theme_alert_position",
+  "theme_floating_position",
 ] as const;
 
 export type ThemeKey = (typeof THEME_KEYS)[number];
@@ -24,6 +25,7 @@ export interface ThemeSettings {
   theme_company_logo: string;
   theme_background_color: string;
   theme_alert_position: string;
+  theme_floating_position: string;
 }
 
 const DEFAULTS: ThemeSettings = {
@@ -35,6 +37,7 @@ const DEFAULTS: ThemeSettings = {
   theme_company_logo: "",
   theme_background_color: "",
   theme_alert_position: "bottom-right",
+  theme_floating_position: "bottom-left",
 };
 
 export function useThemeSettings() {
