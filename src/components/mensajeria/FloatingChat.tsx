@@ -92,7 +92,7 @@ export default function FloatingChat() {
   const isBottom = side === "left" || side === "right";
   const isLeft = side === "left" || side === "bottom";
 
-  const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences();
+  const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences(user);
 
   const {
     conversations,

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./useAuth";
 import { useCallback, useRef } from "react";
+import type { User } from "@supabase/supabase-js";
 
 export type SoundOption = "pop" | "icq" | "bell" | "ding" | "mute" | "custom";
 
@@ -74,8 +74,7 @@ function createBeepSound(type: SoundOption): (() => void) {
   };
 }
 
-export function useChatPreferences() {
-  const { user } = useAuth();
+export function useChatPreferences(user: User | null | undefined) {
   const qc = useQueryClient();
   const soundFnsRef = useRef<Record<string, () => void>>({});
 
