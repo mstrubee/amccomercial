@@ -225,10 +225,13 @@ export function useSyncTemplateToProject() {
 
       if (templates.length === 0 || projectFolders.length === 0) return { inserted: 0, updated: 0 };
 
-      // Build lookup: template_id -> project_folder
+      // Build lookups: template_id -> project_folder AND (name+parent_id) -> project_folder
       const templateToFolder = new Map<string, ProjectFolder>();
+      const nameParentToFolder = new Map<string, ProjectFolder>();
       for (const pf of projectFolders) {
         if (pf.template_id) templateToFolder.set(pf.template_id, pf);
+        const key = `${(pf.name || "").toLowerCase()}::${pf.parent_id || "null"}`;
+        nameParentToFolder.set(key, pf);
       }
 
       const tree = buildTree(templates);
@@ -245,14 +248,20 @@ export function useSyncTemplateToProject() {
           const isEmpresasRoot = parentProjectFolderId === null && node.name.toLowerCase() === "empresas";
           const isComun = parentProjectFolderId === null ? node.is_repo_comun || false : parentIsRepoComun;
 
-          const existing = templateToFolder.get(node.id);
+          // Match by template_id first, then fall back to name+parent to avoid duplicates
+          const nameKey = `${node.name.toLowerCase()}::${parentProjectFolderId || "null"}`;
+          const existing = templateToFolder.get(node.id) || nameParentToFolder.get(nameKey);
 
           if (existing) {
-            // Update is_repo_comun if it changed
-            if (existing.is_repo_comun !== isComun) {
+            // Backfill template_id if matched by name but missing template link
+            const needsUpdate: Record<string, any> = {};
+            if (!existing.template_id) needsUpdate.template_id = node.id;
+            if (existing.is_repo_comun !== isComun) needsUpdate.is_repo_comun = isComun;
+
+            if (Object.keys(needsUpdate).length > 0) {
               await supabase
                 .from("project_folders" as any)
-                .update({ is_repo_comun: isComun } as any)
+                .update(needsUpdate as any)
                 .eq("id", existing.id);
               updated++;
             }
