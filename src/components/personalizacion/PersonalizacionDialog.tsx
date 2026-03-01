@@ -27,8 +27,14 @@ const POSITION_OPTIONS = [
 ];
 
 const FLOATING_CORNERS = [
+  // corners
   "top-left", "top-right", "bottom-left", "bottom-right",
-  "middle-left", "middle-right", "bottom-center-left", "bottom-center-right",
+  // left side
+  "upper-left", "middle-left", "lower-left",
+  // right side
+  "upper-right", "middle-right", "lower-right",
+  // bottom edge
+  "bottom-center-left", "bottom-center", "bottom-center-right",
 ] as const;
 type FloatingCorner = (typeof FLOATING_CORNERS)[number];
 
@@ -83,10 +89,15 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
       "top-right": { right: rightInset, top: topInset },
       "bottom-left": { left: leftInset, bottom: bottomInset },
       "bottom-right": { right: rightInset, bottom: bottomInset },
+      "upper-left": { left: leftInset, top: "30%" },
       "middle-left": { left: leftInset, top: "50%", transform: "translateY(-50%)" },
+      "lower-left": { left: leftInset, top: "70%" },
+      "upper-right": { right: rightInset, top: "30%" },
       "middle-right": { right: rightInset, top: "50%", transform: "translateY(-50%)" },
-      "bottom-center-left": { left: "35%", bottom: bottomInset },
-      "bottom-center-right": { left: "55%", bottom: bottomInset },
+      "lower-right": { right: rightInset, top: "70%" },
+      "bottom-center-left": { left: "30%", bottom: bottomInset },
+      "bottom-center": { left: "50%", bottom: bottomInset, transform: "translateX(-50%)" },
+      "bottom-center-right": { left: "70%", bottom: bottomInset },
     };
     return positions[corner] || positions["bottom-left"];
   };
@@ -129,10 +140,15 @@ export default function PersonalizacionDialog({ open, onOpenChange }: Props) {
         { pos: "top-right", x: rect.width - 12, y: 12 },
         { pos: "bottom-left", x: 44, y: rect.height - 12 },
         { pos: "bottom-right", x: rect.width - 12, y: rect.height - 12 },
-        { pos: "middle-left", x: 44, y: rect.height / 2 },
-        { pos: "middle-right", x: rect.width - 12, y: rect.height / 2 },
-        { pos: "bottom-center-left", x: rect.width * 0.35, y: rect.height - 12 },
-        { pos: "bottom-center-right", x: rect.width * 0.55, y: rect.height - 12 },
+        { pos: "upper-left", x: 44, y: rect.height * 0.3 },
+        { pos: "middle-left", x: 44, y: rect.height * 0.5 },
+        { pos: "lower-left", x: 44, y: rect.height * 0.7 },
+        { pos: "upper-right", x: rect.width - 12, y: rect.height * 0.3 },
+        { pos: "middle-right", x: rect.width - 12, y: rect.height * 0.5 },
+        { pos: "lower-right", x: rect.width - 12, y: rect.height * 0.7 },
+        { pos: "bottom-center-left", x: rect.width * 0.3, y: rect.height - 12 },
+        { pos: "bottom-center", x: rect.width * 0.5, y: rect.height - 12 },
+        { pos: "bottom-center-right", x: rect.width * 0.7, y: rect.height - 12 },
       ];
       let nearest = targets[0];
       let minDist = Infinity;

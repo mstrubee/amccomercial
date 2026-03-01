@@ -14,8 +14,8 @@ export default function FloatingUserStatus() {
   const { data: thresholds } = useActivityThresholds();
   const { data: theme } = useThemeSettings();
   const pos = theme?.theme_floating_position || "bottom-left";
-  const isBottom = pos.startsWith("bottom") || pos.startsWith("middle");
-  const isLeft = pos.includes("left");
+  const isBottom = pos.startsWith("bottom") || pos.startsWith("lower") || pos.startsWith("middle");
+  const isLeft = pos.includes("left") || pos === "bottom-center";
 
   const { data: profiles } = useQuery<ProfilePresence[]>({
     queryKey: ["presence-profiles"],
