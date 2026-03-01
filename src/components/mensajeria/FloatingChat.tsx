@@ -273,29 +273,30 @@ export default function FloatingChat() {
                     )}
                   </ScrollArea>
                   <div className="px-3 pb-3 pt-2 border-t border-border">
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSend();
-                      }}
-                      className="flex items-center gap-2"
-                    >
+                    <div className="flex items-center gap-2">
                       <Input
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSend();
+                          }
+                        }}
                         placeholder="Escribe un mensaje..."
                         className="h-8 text-sm flex-1"
                         autoFocus
                       />
                       <Button
-                        type="submit"
+                        type="button"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="h-8 w-8 p-0 shrink-0"
                         disabled={!messageText.trim() || sendMessage.isPending}
+                        onClick={handleSend}
                       >
                         <Send className="w-3.5 h-3.5" />
                       </Button>
-                    </form>
+                    </div>
                   </div>
                 </div>
               )}
