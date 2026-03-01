@@ -142,7 +142,9 @@ Deno.serve(async (req) => {
     if (!projectFolderId) throw new Error("No project_folder_id provided");
 
     const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const storagePath = `${user.id}/${Date.now()}_${file.name}`;
+    // Sanitize filename for Supabase Storage (only allow alphanumeric, dash, underscore, dot)
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `${user.id}/${Date.now()}_${safeName}`;
 
     console.log(`[UPLOAD] "${file.name}" (${file.size} bytes) to folder ${driveFolderId} (project_folder: ${projectFolderId})`);
 
