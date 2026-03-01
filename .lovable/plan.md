@@ -1,75 +1,50 @@
 
 
-## Sincronizacion inteligente entre Repositorio Tipo y Proyectos
+## Fix: Sincronizacion completa de carpetas de empresa y feedback al usuario
 
-### Problema actual
-1. Al generar carpetas desde el Repositorio Tipo, se copian TODAS las carpetas, incluyendo subcarpetas de empresas que no participan en el proyecto.
-2. Si despues se modifica el Repositorio Tipo (nueva carpeta, cambio de "Comun"), los proyectos existentes no se actualizan.
+### Problema identificado
 
-### Solucion propuesta
+La logica de sincronizacion incremental (`useSyncTemplateToProject`) SI inserta carpetas nuevas de empresas correctamente en la base de datos local. Sin embargo, hay dos problemas:
 
-#### 1. Generacion inteligente filtrada por empresas del proyecto
+1. **Sin sincronizacion a Google Drive**: Despues de que el sync de template inserta carpetas nuevas (como "Hunter"), no se dispara la sincronizacion con Google Drive. Las carpetas quedan solo localmente.
+2. **Sin feedback al usuario**: El sync es silencioso -- no notifica cuantas carpetas nuevas se insertaron ni si hubo cambios, por lo que el usuario no sabe si funciono.
+3. **Subcarpetas de empresa nueva**: Si "Hunter" tiene subcarpetas en el template (ej: "Presupuestos"), estas tambien deben crearse. La logica actual lo hace correctamente al recursionar, pero sin sync a Drive quedan invisibles en la nube.
 
-Al ejecutar "Generar desde Repositorio Tipo", el sistema:
-- Consultara las empresas vinculadas al proyecto (tabla `proyecto_empresas` + `empresas`)
-- Recorrera el arbol de plantillas y, al llegar a la carpeta raiz "Empresas", solo creara las subcarpetas cuyo nombre coincida con una empresa del proyecto
-- Las demas carpetas raiz (comunes o no) se copian normalmente
+### Cambios propuestos
 
-**Archivo**: `src/hooks/useProjectFolders.ts` — modificar `useGenerateFromTemplate`
+#### 1. `ProyectoRepositorioDialog.tsx` -- Disparar Drive sync despues de template sync
 
-#### 2. Sincronizacion incremental del Repositorio Tipo
+Modificar el efecto de auto-sync de template (lineas 82-86) para que, si se insertaron carpetas nuevas, se dispare `triggerSync()` automaticamente y se muestre un toast informativo.
 
-Se creara una nueva funcion/hook `useSyncTemplateToProject` que:
-- Compara las carpetas del template (`folder_templates`) con las del proyecto (`project_folders` via `template_id`)
-- Identifica carpetas nuevas en el template que no existen en el proyecto
-- Las inserta en la posicion correcta del arbol del proyecto
-- Respeta la logica de filtrado: solo agrega subcarpetas de "Empresas" si la empresa existe en el proyecto
-- Actualiza el flag `is_repo_comun` en carpetas existentes si cambio en el template
+```typescript
+// Cambiar de:
+syncTemplateMutation.mutate({ projectId });
 
-Esta sincronizacion se ejecutara:
-- Automaticamente al abrir el repositorio de un proyecto (si ya tiene carpetas)
-- Con un boton manual "Sincronizar con Repositorio Tipo" visible en el dialogo del repositorio
-
-**Archivo**: `src/hooks/useProjectFolders.ts` — nueva funcion `useSyncTemplateToProject`
-
-#### 3. Actualizacion del dialogo de repositorio
-
-El `ProyectoRepositorioDialog` llamara a la sincronizacion incremental al abrirse (si el proyecto ya tiene carpetas), asegurando que cualquier cambio en el template se refleje automaticamente.
-
-**Archivo**: `src/components/repositorio/ProyectoRepositorioDialog.tsx`
-
-### Detalle tecnico
-
-```text
-Flujo de generacion (mejorado):
-Template Tree          Empresas del proyecto
-    |                       |
-    v                       v
- [Planos]              [Endemik, Vidrios Chile]
- [Empresas]
-   [Endemik]    <-- match -> se crea
-   [Otra Co]    <-- no match -> se omite
-   [Vidrios Chile] <-- match -> se crea
+// A:
+syncTemplateMutation.mutateAsync({ projectId }).then((result) => {
+  if (result && (result.inserted > 0 || result.updated > 0)) {
+    toast.info(`Repositorio actualizado: ${result.inserted} carpeta(s) agregada(s)`);
+    triggerSync(); // Sincronizar nuevas carpetas con Drive
+  }
+});
 ```
 
-```text
-Flujo de sincronizacion incremental:
-Template folders (por template_id)   vs   Project folders (por template_id)
-         |                                        |
-         v                                        v
-  Nuevos en template?  -----> Insertar en proyecto
-  is_repo_comun cambio? ----> Actualizar en proyecto
-  Solo empresas del proyecto se consideran
-```
+#### 2. `useProjectFolders.ts` -- Mejorar robustez del sync
+
+La logica actual tiene un bloque muerto en lineas 247-249 que no hace nada. Se limpiara para mayor claridad. La logica de filtrado de empresas es correcta pero se verificara que las subcarpetas de una empresa nueva se insertan recursivamente.
 
 ### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/hooks/useProjectFolders.ts` | Filtrar empresas en generacion; nueva funcion `useSyncTemplateToProject` |
-| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Llamar sync incremental al abrir; pasar empresas del proyecto |
+| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Agregar triggerSync + toast despues de template sync exitoso |
+| `src/hooks/useProjectFolders.ts` | Limpiar codigo muerto en lineas 247-249 para claridad |
 
-### Consideraciones
-- La sincronizacion es aditiva (no elimina carpetas del proyecto que ya no estan en el template)
-- Si se agrega una nueva empresa al proyecto despues de generar, el usuario puede re-sincronizar para crear su carpeta
-- El `template_id` en `project_folders` es la clave para mapear que carpetas del template ya existen en el proyecto
+### Resultado esperado
+
+Al abrir el repositorio de un proyecto:
+1. Se ejecuta el sync de template automaticamente
+2. Si hay carpetas nuevas (como "Hunter" y sus subcarpetas), se insertan en la BD
+3. Se muestra un toast informando los cambios
+4. Se dispara la sincronizacion con Google Drive para crear las carpetas en la nube
+
