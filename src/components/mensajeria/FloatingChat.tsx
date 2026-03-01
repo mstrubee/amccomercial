@@ -15,10 +15,11 @@ import {
   Upload,
   FolderKanban,
   Building2,
+  Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMessages, Message } from "@/hooks/useMessages";
-import { useChatPreferences, SoundOption } from "@/hooks/useChatPreferences";
+import { useChatPreferences, SoundOption, createBeepSound } from "@/hooks/useChatPreferences";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -845,7 +846,37 @@ export default function FloatingChat() {
                             }}
                           />
                           {opt.value === "mute" ? <VolumeX className="w-3.5 h-3.5" /> : null}
-                          {opt.label}
+                          <span className="flex-1">{opt.label}</span>
+                          {opt.value !== "mute" && opt.value !== "custom" && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                createBeepSound(opt.value)();
+                              }}
+                              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                              title={`Escuchar ${opt.label}`}
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {opt.value === "custom" && prefs?.custom_sound_url && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const audio = new Audio(prefs.custom_sound_url!);
+                                audio.volume = 0.5;
+                                audio.play().catch(() => {});
+                              }}
+                              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                              title="Escuchar sonido personalizado"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </label>
                       ))}
                     </div>
