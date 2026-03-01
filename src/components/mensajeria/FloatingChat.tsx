@@ -633,7 +633,7 @@ export default function FloatingChat() {
                   {view === "chat" && (activeConv?.participants.map((p) => p.display_name).join(", ") || "Chat")}
                 </h3>
                 {view === "chat" && activeConv && (activeConv.project_id || activeConv.empresa_id) && (
-                  <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
+                  <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5 font-semibold">
                     {[
                       activeConv.project_id ? projectNameById[activeConv.project_id] : null,
                       activeConv.empresa_id ? companyNameById[activeConv.empresa_id] : null,
