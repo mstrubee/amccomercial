@@ -207,29 +207,29 @@ export default function FloatingChat() {
     return () => window.removeEventListener("open-project-chat", handler as EventListener);
   }, [setActiveConversationId]);
 
-  // Auto-open existing conversation or go to "new" with pre-filled project+empresa
+  // Auto-open existing conversation or show list for project-level clicks
   useEffect(() => {
     if (!pendingContextOpenRef.current || loadingConversations) return;
     const pending = pendingContextOpenRef.current;
     pendingContextOpenRef.current = null;
 
-    const match = conversations.find((c) => {
-      const projectMatch = c.project_id === pending.projectId;
-      const empresaMatch = pending.empresaId
-        ? c.empresa_id === pending.empresaId
-        : c.empresa_id == null;
-      return projectMatch && empresaMatch;
-    });
+    // If opened from empresa-specific button, try to auto-open that exact chat
+    if (pending.empresaId) {
+      const match = conversations.find((c) => {
+        return c.project_id === pending.projectId && c.empresa_id === pending.empresaId;
+      });
 
-    if (match) {
-      setActiveConversationId(match.id);
-      setView("chat");
-    } else {
-      // No existing chat — go to "new" with project+empresa pre-filled
-      setNewProjectId(pending.projectId);
-      setNewEmpresaId(pending.empresaId || "general");
-      setView("new");
+      if (match) {
+        setActiveConversationId(match.id);
+        setView("chat");
+      } else {
+        setNewProjectId(pending.projectId);
+        setNewEmpresaId(pending.empresaId);
+        setView("new");
+      }
     }
+    // Project-level click: stay on list to show all existing chats (general + empresas)
+    // User can pick an existing chat or create a new one from there
   }, [conversations, loadingConversations, setActiveConversationId]);
 
   // Scroll to bottom when messages change
