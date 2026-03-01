@@ -525,10 +525,14 @@ Deno.serve(async (req) => {
         const driveFolders = driveChildren.filter(c => c.mimeType === "application/vnd.google-apps.folder");
         const driveFiles = driveChildren.filter(c => c.mimeType !== "application/vnd.google-apps.folder");
 
+        console.log(`[REVERSE_SYNC] Scanning Drive folder ${driveFolderId}: ${driveFolders.length} folders, ${driveFiles.length} files (dbParentId=${dbParentId})`);
+
         // Get DB folders under this parent
         const dbChildFolders = dbFolders!.filter(f => f.parent_id === dbParentId);
-        // Get DB files for folders that map to this drive folder
+        // Get DB folder that maps to this drive folder
         const dbFolderForThis = dbFolders!.find(f => f.drive_folder_id === driveFolderId);
+        // Fallback: use dbParentId when dbFolderForThis is null (e.g. project root folder in Drive)
+        const targetFolderId = dbFolderForThis?.id || dbParentId;
 
         // --- FOLDERS: Import from Drive ---
         for (const df of driveFolders) {
@@ -572,21 +576,19 @@ Deno.serve(async (req) => {
         }
 
         // --- FILES: Import from Drive ---
-        // Only process files if we have a DB folder matching this drive folder
-        const targetDbFolderId = dbFolderForThis?.id || (dbParentId ? undefined : undefined);
-        if (dbFolderForThis) {
-          // Get existing drive_files for this project folder
+        if (targetFolderId && driveFiles.length > 0) {
+          // Get existing drive_files for this target folder
           const { data: existingFiles } = await admin
             .from("drive_files")
             .select("id, drive_file_id")
-            .eq("project_folder_id", dbFolderForThis.id);
+            .eq("project_folder_id", targetFolderId);
 
           const existingFileIds = new Set((existingFiles || []).map(f => f.drive_file_id));
 
           for (const df of driveFiles) {
             if (!existingFileIds.has(df.id)) {
               await admin.from("drive_files").insert({
-                project_folder_id: dbFolderForThis.id,
+                project_folder_id: targetFolderId,
                 drive_file_id: df.id,
                 drive_folder_id: driveFolderId,
                 file_name: df.name,
@@ -595,7 +597,7 @@ Deno.serve(async (req) => {
                 created_by: user!.id,
               });
               stats.files_added++;
-              console.log(`[REVERSE_SYNC] Added file from Drive: "${df.name}"`);
+              console.log(`[REVERSE_SYNC] Added file from Drive: "${df.name}" -> folder ${targetFolderId}`);
             }
           }
 
@@ -608,6 +610,8 @@ Deno.serve(async (req) => {
               console.log(`[REVERSE_SYNC] Removed file (deleted from Drive)`);
             }
           }
+        } else if (!targetFolderId && driveFiles.length > 0) {
+          console.log(`[REVERSE_SYNC] Skipping ${driveFiles.length} file(s) in Drive folder ${driveFolderId} — no matching DB folder`);
         }
       }
 
