@@ -116,16 +116,7 @@ export function useGenerateFromTemplate() {
       const typedTemplates = templates as unknown as FolderTemplate[];
       const tree = buildTree(typedTemplates);
 
-      // Create root folder with project name
-      const { data: rootFolder, error: rootErr } = await supabase
-        .from("project_folders" as any)
-        .insert({ name: projectName, project_id: projectId, parent_id: null, orden: 0 } as any)
-        .select()
-        .single();
-      if (rootErr) throw rootErr;
-      const rootId = (rootFolder as any).id;
-
-      // Insert template tree under root folder
+      // Insert template tree directly as root folders (no project-name wrapper)
       const insertRecursive = async (nodes: FolderTreeNode[], parentId: string | null) => {
         for (const node of nodes) {
           const { data: inserted, error } = await supabase
@@ -146,7 +137,7 @@ export function useGenerateFromTemplate() {
         }
       };
 
-      await insertRecursive(tree, rootId);
+      await insertRecursive(tree, null);
     },
     onSuccess: (_, { projectId }) => qc.invalidateQueries({ queryKey: ["project_folders", projectId] }),
   });
