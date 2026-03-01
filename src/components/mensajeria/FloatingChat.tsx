@@ -1077,7 +1077,7 @@ export default function FloatingChat() {
                                 {isAdmin && (
                                   <button
                                     onClick={() => setDeleteTarget({ type: "message", id: msg.id })}
-                                    className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm absolute -top-1 -right-1 flex"
+                                    className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-destructive text-destructive-foreground items-center justify-center transition-all shadow-sm absolute -top-1 -left-1 flex"
                                     title="Eliminar mensaje"
                                   >
                                     <Trash2 className="w-2.5 h-2.5" />
