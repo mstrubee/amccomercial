@@ -557,7 +557,12 @@ Deno.serve(async (req) => {
 
       const stats = { folders_added: 0, folders_removed: 0, files_added: 0, files_removed: 0 };
 
-      // Helper: list children of a Drive folder with multiple strategies (scoped + unscoped)
+      // Fallback target for files uploaded directly to the project root in Drive.
+      // If there is no DB folder mapped to the project root folder itself, use the first root folder in DB.
+      const projectRootDbFolderId =
+        dbFolders
+          .filter((f) => f.parent_id === null)
+          .sort((a, b) => a.name.localeCompare(b.name))[0]?.id ?? null;
       async function listDriveChildren(parentDriveId: string): Promise<Array<{ id: string; name: string; mimeType: string; size?: string }>> {
         type DriveItem = { id: string; name: string; mimeType: string; size?: string };
 
@@ -630,8 +635,13 @@ Deno.serve(async (req) => {
         const dbChildFolders = dbFolders!.filter(f => f.parent_id === dbParentId);
         // Get DB folder that maps to this drive folder
         const dbFolderForThis = dbFolders!.find(f => f.drive_folder_id === driveFolderId);
-        // Fallback: use dbParentId when dbFolderForThis is null (e.g. project root folder in Drive)
-        const targetFolderId = dbFolderForThis?.id || dbParentId;
+        const isProjectRootDriveFolder = driveFolderId === projectDriveFolderId;
+
+        // Fallback order:
+        // 1) exact DB folder mapped to this Drive folder
+        // 2) current DB parent in recursion
+        // 3) project root DB folder (for files uploaded directly in project root folder in Drive)
+        const targetFolderId = dbFolderForThis?.id || dbParentId || (isProjectRootDriveFolder ? projectRootDbFolderId : null);
 
         // --- FOLDERS: Import from Drive ---
         for (const df of driveFolders) {
