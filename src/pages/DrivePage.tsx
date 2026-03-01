@@ -1,13 +1,16 @@
-import { HardDrive, CheckCircle2, XCircle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { HardDrive, CheckCircle2, XCircle, ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useDriveAuthStatus, useGetDriveAuthUrl } from "@/hooks/useDriveSync";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useState } from "react";
 
 export default function DrivePage() {
   const { data: driveStatus, isLoading, refetch } = useDriveAuthStatus();
   const getAuthUrl = useGetDriveAuthUrl();
+  const [deduplicating, setDeduplicating] = useState(false);
 
   const handleConnect = async () => {
     try {
@@ -16,6 +19,24 @@ export default function DrivePage() {
       toast.info("Completa la autenticación en la ventana abierta, luego actualiza el estado.");
     } catch (e: any) {
       toast.error("Error al obtener URL de autenticación: " + e.message);
+    }
+  };
+
+  const handleDeduplicate = async () => {
+    setDeduplicating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "deduplicate" },
+      });
+      if (error) throw error;
+      toast.success(data.message || "Deduplicación completada");
+      if (data.details?.length > 0) {
+        console.log("[DEDUP] Details:", data.details);
+      }
+    } catch (e: any) {
+      toast.error("Error: " + e.message);
+    } finally {
+      setDeduplicating(false);
     }
   };
 
@@ -55,7 +76,7 @@ export default function DrivePage() {
               <p className="text-sm text-muted-foreground">
                 Google Drive está vinculado correctamente. Los repositorios de proyecto se sincronizan automáticamente.
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()}>
                   <RefreshCw className="w-3.5 h-3.5" />
                   Actualizar estado
@@ -63,6 +84,16 @@ export default function DrivePage() {
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={handleConnect}>
                   <ExternalLink className="w-3.5 h-3.5" />
                   Reconectar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-destructive hover:text-destructive"
+                  onClick={handleDeduplicate}
+                  disabled={deduplicating}
+                >
+                  {deduplicating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Limpiar duplicados
                 </Button>
               </div>
             </div>
