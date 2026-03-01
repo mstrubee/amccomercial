@@ -71,7 +71,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
       setResolvingDriveUrl(true);
       getProjectDriveId.mutateAsync({ projectId, projectName })
         .then((result) => {
-          setProjectDriveUrl(`https://drive.google.com/drive/folders/${result.drive_folder_id}`);
+          const resolvedUrl = buildDriveFolderUrl(result.drive_folder_id);
+          setProjectDriveUrl(resolvedUrl);
         })
         .catch(() => {
           // Will retry on button click
@@ -79,6 +80,18 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
         .finally(() => setResolvingDriveUrl(false));
     }
   }, [open, projectId, driveStatus?.connected]);
+
+  const buildDriveFolderUrl = (folderValue: string) => {
+    const rawValue = (folderValue || "").trim();
+    const normalizedId = (() => {
+      const fromFoldersPath = rawValue.match(/\/folders\/([^/?#]+)/i)?.[1];
+      if (fromFoldersPath) return fromFoldersPath;
+
+      return rawValue;
+    })();
+
+    return normalizedId ? `https://drive.google.com/drive/folders/${encodeURIComponent(normalizedId)}` : null;
+  };
 
   const triggerSync = useCallback(async () => {
     if (!projectId || !driveStatus?.connected || syncDrive.isPending) return;
@@ -279,7 +292,13 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                         disabled={resolvingDriveUrl}
                         onClick={() => {
                           if (projectDriveUrl) {
-                            window.open(projectDriveUrl, "_blank", "noopener,noreferrer");
+                            const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+                            if (!popup) {
+                              toast.error("El navegador bloqueó la apertura. Habilita pop-ups e intenta nuevamente.");
+                              return;
+                            }
+                            popup.opener = null;
+                            popup.location.href = projectDriveUrl;
                           } else {
                             toast.info("Cargando enlace de Drive... intenta nuevamente en unos segundos.");
                             // Retry resolving
@@ -287,7 +306,8 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                               setResolvingDriveUrl(true);
                               getProjectDriveId.mutateAsync({ projectId, projectName })
                                 .then((result) => {
-                                  setProjectDriveUrl(`https://drive.google.com/drive/folders/${result.drive_folder_id}`);
+                                  const resolvedUrl = buildDriveFolderUrl(result.drive_folder_id);
+                                  setProjectDriveUrl(resolvedUrl);
                                 })
                                 .catch((e: any) => toast.error("Error: " + e.message))
                                 .finally(() => setResolvingDriveUrl(false));
