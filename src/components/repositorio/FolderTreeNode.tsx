@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { useDriveFiles, useDeleteDriveFile, useGetDriveViewUrl, usePendingFilesForFolder } from "@/hooks/useDriveSync";
+import { useDriveFiles, useDeleteDriveFile, usePendingFilesForFolder } from "@/hooks/useDriveSync";
 import { toast } from "sonner";
 
 export interface TreeNode {
@@ -45,7 +45,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
   const { data: files } = useDriveFiles(node.id);
   const { data: pendingFiles } = usePendingFilesForFolder(node.id);
   const deleteDriveFile = useDeleteDriveFile();
-  const getViewUrl = useGetDriveViewUrl();
+  
 
   useEffect(() => {
     if (renaming) renameRef.current?.focus();
@@ -81,26 +81,21 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
     e.target.value = "";
   };
 
-  const handleViewFile = async (driveFileId: string) => {
-    const newTab = window.open("", "_blank", "noopener,noreferrer");
+  const handleViewFile = (driveFileId: string) => {
+    if (!driveFileId) {
+      toast.error("No se encontró el ID del archivo. Intenta nuevamente.");
+      return;
+    }
+
+    const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(driveFileId)}/view?usp=sharing`;
+    const newTab = window.open(viewUrl, "_blank", "noopener,noreferrer");
+
     if (!newTab) {
       toast.error("Tu navegador bloqueó la apertura de pestañas. Habilita popups para este sitio.");
       return;
     }
+
     newTab.opener = null;
-    try {
-      const result = await getViewUrl.mutateAsync({ driveFileId });
-      const viewUrl = result.web_view_link;
-      if (viewUrl) {
-        newTab.location.href = viewUrl;
-      } else {
-        newTab.close();
-        toast.error("No se pudo obtener el enlace de visualización del archivo");
-      }
-    } catch (e: any) {
-      newTab.close();
-      toast.error("Error: " + e.message);
-    }
   };
 
   const handleDeleteFile = async (driveFileId: string, driveFilesId: string, fileName: string) => {
