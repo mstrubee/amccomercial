@@ -132,8 +132,9 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )}
+                style={isAdminPathActive && accentBg ? { backgroundColor: `${accentBg}33` } : undefined}
               >
-                <Settings className={cn("w-5 h-5 shrink-0", isAdminPathActive && "text-sidebar-primary")} />
+                <Settings className={cn("w-5 h-5 shrink-0", isAdminPathActive && "text-sidebar-primary")} style={isAdminPathActive && accentBg ? { color: accentBg } : undefined} />
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="whitespace-nowrap flex-1 text-left flex items-center justify-between">
@@ -158,6 +159,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
                               ? "bg-sidebar-accent/70 text-sidebar-accent-foreground font-medium"
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-accent-foreground"
                           )}
+                          style={isActive && accentBg ? { backgroundColor: `${accentBg}33`, color: accentBg } : undefined}
                         >
                           {sub.label}
                         </Link>
