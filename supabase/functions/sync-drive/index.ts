@@ -733,38 +733,37 @@ Deno.serve(async (req) => {
 
     if (action === "debug_list_folder") {
       const folderId = body.folder_id;
-      if (!folderId) throw new Error("folder_id is required");
-
+      const fileId = body.file_id;
       const accessToken = await getAccessToken();
-      const q = `'${folderId}' in parents and trashed=false`;
 
-      // Strategy 1: no corpora
-      const url1 = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=incompleteSearch,files(id,name,mimeType,size,parents)&pageSize=100`;
-      const r1 = await fetch(url1, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const d1 = await r1.json();
+      const results: Record<string, unknown> = {};
 
-      // Strategy 2: corpora=drive
-      const url2 = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${sharedDriveId}&fields=incompleteSearch,files(id,name,mimeType,size,parents)&pageSize=100`;
-      const r2 = await fetch(url2, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const d2 = await r2.json();
+      // Direct file access check
+      if (fileId) {
+        const urlFile = `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,parents,mimeType,size,driveId,capabilities,owners,sharingUser,shared`;
+        const rFile = await fetch(urlFile, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const dFile = await rFile.json();
+        results.file_direct_access = { status: rFile.status, data: dFile };
+      }
 
-      // Strategy 3: search by name globally
+      if (folderId) {
+        const q = `'${folderId}' in parents and trashed=false`;
+        const url1 = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=incompleteSearch,files(id,name,mimeType,size,parents)&pageSize=100`;
+        const r1 = await fetch(url1, { headers: { Authorization: `Bearer ${accessToken}` } });
+        results.children_unscoped = { status: r1.status, data: await r1.json() };
+
+        const url4 = `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=id,name,parents,mimeType,capabilities,driveId`;
+        const r4 = await fetch(url4, { headers: { Authorization: `Bearer ${accessToken}` } });
+        results.folder_info = await r4.json();
+      }
+
+      // Global name search
       const q3 = `name contains 'CSM' and trashed=false`;
-      const url3 = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q3)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=incompleteSearch,files(id,name,mimeType,size,parents)&pageSize=100`;
+      const url3 = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q3)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=incompleteSearch,files(id,name,mimeType,size,parents,driveId)&pageSize=100`;
       const r3 = await fetch(url3, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const d3 = await r3.json();
+      results.global_csm_search = { status: r3.status, data: await r3.json() };
 
-      // Strategy 4: get folder info itself
-      const url4 = `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=id,name,parents,mimeType,capabilities,driveId`;
-      const r4 = await fetch(url4, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const d4 = await r4.json();
-
-      return new Response(JSON.stringify({
-        folder_info: d4,
-        children_unscoped: { status: r1.status, data: d1 },
-        children_scoped: { status: r2.status, data: d2 },
-        global_csm_search: { status: r3.status, data: d3 },
-      }, null, 2), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify(results, null, 2), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     throw new Error("Invalid action");
