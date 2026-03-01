@@ -1,74 +1,62 @@
 
 
-## Correccion: archivos subidos en Drive no aparecen en el sistema (reverse_sync)
+## Repositorio filtrado por empresa + Repositorio Comun
 
-### Problema encontrado
+### Objetivo
+Permitir que cada fila de empresa en el listado de proyectos muestre un repositorio filtrado con:
+1. Su carpeta específica dentro de `Empresas/[NombreEmpresa]`
+2. Las carpetas marcadas como "Repositorio Comun" (ej: `Planos`)
 
-Despues de analizar el codigo y los logs, identifique un bug critico en la logica de limpieza de archivos del `reverse_sync`:
+Las carpetas NO marcadas como comun solo se muestran en la linea madre del proyecto.
 
-**Bug en la limpieza de archivos (lineas 604-612)**: Cuando se escanea una carpeta de Drive, el codigo obtiene TODOS los archivos de la BD para ese `project_folder_id`, pero luego los compara solo contra los archivos de la carpeta de Drive ACTUAL. Si un archivo fue subido desde el sistema (y tiene un `drive_folder_id` diferente por migracion/reparacion), seria eliminado incorrectamente de la BD porque no aparece en la lista de archivos de la carpeta de Drive que se esta escaneando.
+### Cambios necesarios
 
-Ademas, hay un problema con los archivos nuevos: cuando la carpeta de Drive escaneada tiene `0 files`, el bloque completo de archivos se salta (condicion `driveFiles.length > 0`), lo cual significa que NO se ejecuta la limpieza de archivos eliminados en carpetas vacias de Drive.
+#### 1. Agregar columna `is_repo_comun` a `folder_templates`
+Agregar un campo booleano a la tabla de plantillas para indicar cuales carpetas raiz son "Repositorio Comun". Por defecto `false`.
 
-### Solucion
-
-#### Archivo: `supabase/functions/sync-drive/index.ts`
-
-**1. Corregir la limpieza de archivos para filtrar por `drive_folder_id`**
-
-La consulta de archivos existentes debe incluir el filtro `drive_folder_id = driveFolderId` para solo comparar archivos que pertenecen a la carpeta de Drive que se esta escaneando:
-
-```text
-Antes:
-  const { data: existingFiles } = await admin
-    .from("drive_files")
-    .select("id, drive_file_id")
-    .eq("project_folder_id", targetFolderId);
-
-Despues:
-  const { data: existingFiles } = await admin
-    .from("drive_files")
-    .select("id, drive_file_id")
-    .eq("project_folder_id", targetFolderId)
-    .eq("drive_folder_id", driveFolderId);
+```sql
+ALTER TABLE folder_templates ADD COLUMN is_repo_comun boolean NOT NULL DEFAULT false;
 ```
 
-**2. Separar la logica de agregar archivos de la logica de limpiar archivos**
-
-Actualmente ambas estan dentro del bloque `if (targetFolderId && driveFiles.length > 0)`. La limpieza de archivos eliminados en Drive debe ejecutarse incluso cuando `driveFiles.length === 0` (carpeta vacia en Drive = todos los archivos fueron borrados):
-
-```text
-// Agregar archivos nuevos (solo si hay archivos en Drive)
-if (targetFolderId && driveFiles.length > 0) {
-  // ... insertar archivos nuevos ...
-}
-
-// Limpiar archivos eliminados en Drive (siempre que haya una carpeta DB mapeada)
-if (targetFolderId) {
-  const { data: existingFiles } = await admin
-    .from("drive_files")
-    .select("id, drive_file_id")
-    .eq("project_folder_id", targetFolderId)
-    .eq("drive_folder_id", driveFolderId);
-  
-  const driveFileIds = new Set(driveFiles.map(f => f.id));
-  for (const ef of (existingFiles || [])) {
-    if (!driveFileIds.has(ef.drive_file_id)) {
-      await admin.from("drive_files").delete().eq("id", ef.id);
-      stats.files_removed++;
-    }
-  }
-}
+Tambien propagar a `project_folders`:
+```sql
+ALTER TABLE project_folders ADD COLUMN is_repo_comun boolean NOT NULL DEFAULT false;
 ```
 
-**3. Agregar logging adicional para diagnostico**
+#### 2. UI en Repositorio Tipo para marcar carpetas como "Comun"
+En la pagina `RepositorioTipoPage.tsx`, agregar un checkbox o toggle en cada carpeta raiz (nivel 0) que permita marcar/desmarcar como "Repositorio Comun". Solo aplica a carpetas raiz.
 
-Agregar log cuando se detectan archivos ya existentes (skip) para confirmar que el sistema los ve correctamente.
+Se agregara al componente `FolderTreeNode` una prop opcional `onToggleComun` y `isRepoComun` que muestre un icono/checkbox solo en nivel 0.
 
-### Resumen de cambios
+#### 3. Propagar `is_repo_comun` al generar repositorios de proyecto
+En `useProjectFolders.ts`, en la funcion `useGenerateFromTemplate`, copiar el valor de `is_repo_comun` de cada template raiz a la carpeta del proyecto correspondiente.
 
-- Solo se modifica: `supabase/functions/sync-drive/index.ts`
-- Se corrige el filtro de limpieza para evitar eliminar archivos de otras carpetas de Drive
-- Se separa la logica de insercion y limpieza de archivos
-- Se mantiene todo el comportamiento existente de sincronizacion de carpetas
+#### 4. Boton de repositorio en filas de empresa
+En `Proyectos.tsx`, en cada fila de empresa (child row), agregar un boton de carpeta (similar al de la linea madre) que abra el `ProyectoRepositorioDialog` pero con un filtro por empresa.
+
+#### 5. Filtrar el arbol en `ProyectoRepositorioDialog`
+Agregar props opcionales al dialogo:
+- `filterEmpresaName?: string` - nombre de la empresa para filtrar
+- Cuando se proporciona, el arbol mostrado sera:
+  - Carpetas raiz marcadas como `is_repo_comun = true` (con todo su contenido)
+  - La subcarpeta `Empresas/[filterEmpresaName]` (con todo su contenido)
+  - Se excluyen las demas carpetas raiz y las demas subcarpetas de "Empresas"
+- Cuando NO se proporciona (linea madre), se muestra todo el arbol completo como ahora
+
+La logica de filtrado se aplicara sobre el arbol ya construido, sin crear carpetas nuevas. Es puramente visual.
+
+#### 6. Modo lectura en filas de empresa
+El repositorio abierto desde una fila de empresa sera de solo lectura (sin crear/renombrar/eliminar carpetas), ya que la gestion completa se hace desde la linea madre. Se reutilizara la prop `canEdit` existente.
+
+### Resumen tecnico de archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| Migracion SQL | Agregar `is_repo_comun` a `folder_templates` y `project_folders` |
+| `src/hooks/useFolderTemplates.ts` | Agregar campo al tipo, crear hook para toggle |
+| `src/hooks/useProjectFolders.ts` | Propagar `is_repo_comun` en generacion, agregar al tipo, funcion de filtrado |
+| `src/components/repositorio/FolderTreeNode.tsx` | Prop opcional para toggle de "Comun" en nivel 0 |
+| `src/pages/RepositorioTipoPage.tsx` | Pasar callbacks de toggle al tree |
+| `src/components/repositorio/ProyectoRepositorioDialog.tsx` | Aceptar `filterEmpresaName`, filtrar arbol |
+| `src/pages/Proyectos.tsx` | Agregar boton repositorio en filas de empresa, nuevo state para target con empresa |
 
