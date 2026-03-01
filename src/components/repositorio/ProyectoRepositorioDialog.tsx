@@ -12,7 +12,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import FolderTreeNode from "./FolderTreeNode";
 import { useProjectFolders, useCreateProjectFolder, useUpdateProjectFolder, useDeleteProjectFolder, useGenerateFromTemplate, buildProjectTree } from "@/hooks/useProjectFolders";
-import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue, useGetProjectDriveId } from "@/hooks/useDriveSync";
+import { useDriveAuthStatus, useGetDriveAuthUrl, useSyncDrive, useUploadToDrive, useDeleteDriveFolder, usePendingSyncCount, useProcessSyncQueue, useGetProjectDriveId, useAutoReconcileDrive } from "@/hooks/useDriveSync";
 
 interface Props {
   projectId: string | null;
@@ -39,6 +39,14 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
   const [projectDriveUrl, setProjectDriveUrl] = useState<string | null>(null);
   const [resolvingDriveUrl, setResolvingDriveUrl] = useState(false);
+
+  // Automatic background reconciliation: polls Drive every 30s + on window focus
+  useAutoReconcileDrive(
+    projectId,
+    projectName,
+    open && !!driveStatus?.connected && (folders || []).length > 0,
+    30000
+  );
 
   const [creatingRoot, setCreatingRoot] = useState(false);
   const [rootName, setRootName] = useState("");
