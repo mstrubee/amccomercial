@@ -725,7 +725,6 @@ export default function FloatingChat() {
                         </div>
                       )}
                     </div>
-                    </div>
 
                     {selectedProjectForNew && (
                       <div className="grid gap-2">
