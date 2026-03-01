@@ -80,7 +80,7 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
     e.target.value = "";
   };
 
-  const handleViewFile = (driveFileId: string) => {
+  const getDriveFileViewUrl = (driveFileId: string) => {
     const rawValue = (driveFileId || "").trim();
     const normalizedId = (() => {
       const fromFilePath = rawValue.match(/\/file\/d\/([^/?#]+)/i)?.[1];
@@ -93,20 +93,10 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
     })();
 
     if (!normalizedId) {
-      toast.error("No se encontró el ID del archivo. Intenta nuevamente.");
-      return;
+      return null;
     }
 
-    const viewUrl = `https://drive.google.com/file/d/${encodeURIComponent(normalizedId)}/view?usp=sharing`;
-    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
-
-    if (!popup) {
-      toast.error("El navegador bloqueó la apertura. Habilita pop-ups e intenta nuevamente.");
-      return;
-    }
-
-    popup.opener = null;
-    popup.location.href = viewUrl;
+    return `https://drive.google.com/file/d/${encodeURIComponent(normalizedId)}/view?usp=sharing`;
   };
 
   const handleDeleteFile = async (driveFileId: string, driveFilesId: string, fileName: string) => {
@@ -245,36 +235,51 @@ export default function FolderTreeNode({ node, level, onRename, onDelete, onCrea
             />
           ))}
 
-          {/* Synced files */}
           {files && files.length > 0 && (
             <div>
-              {files.map((file) => (
-                <div
-                  key={file.id}
-                  className="group flex items-center gap-1.5 py-1 px-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer"
-                  style={{ paddingLeft: `${(level + 1) * 20 + 8}px` }}
-                  onClick={() => handleViewFile(file.drive_file_id)}
-                >
-                  <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <span className="text-xs text-foreground truncate flex-1">{file.file_name}</span>
-                  <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
-                  <span className="text-[10px] text-muted-foreground shrink-0">{formatFileSize(file.file_size)}</span>
-                  {canEdit && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100 hover:bg-destructive/10"
-                      title="Eliminar archivo"
+              {files.map((file) => {
+                const fileUrl = getDriveFileViewUrl(file.drive_file_id);
+
+                return (
+                  <div
+                    key={file.id}
+                    className="group flex items-center gap-1.5 py-1 px-2 rounded-md hover:bg-accent/30 transition-colors"
+                    style={{ paddingLeft: `${(level + 1) * 20 + 8}px` }}
+                  >
+                    <a
+                      href={fileUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 flex-1 min-w-0"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFile(file.drive_file_id, file.id, file.file_name);
+                        if (!fileUrl) {
+                          e.preventDefault();
+                          toast.error("No se encontró el ID del archivo. Intenta nuevamente.");
+                        }
                       }}
                     >
-                      <Trash2 className="w-3 h-3 text-destructive/70" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                      <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <span className="text-xs text-foreground truncate flex-1">{file.file_name}</span>
+                      <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                      <span className="text-[10px] text-muted-foreground shrink-0">{formatFileSize(file.file_size)}</span>
+                    </a>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 hover:bg-destructive/10"
+                        title="Eliminar archivo"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteFile(file.drive_file_id, file.id, file.file_name);
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3 text-destructive/70" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
