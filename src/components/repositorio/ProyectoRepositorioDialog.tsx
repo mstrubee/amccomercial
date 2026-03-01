@@ -309,7 +309,7 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                   <div className="flex gap-2 mb-3 flex-wrap">
                     <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setCreatingRoot(true)}>
                       <FolderPlus className="w-3.5 h-3.5" />
-                      Nueva Carpeta Raíz
+                      Nueva Carpeta Local
                     </Button>
 
                     {driveStatus?.connected && (
