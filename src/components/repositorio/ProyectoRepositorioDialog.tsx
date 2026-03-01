@@ -261,12 +261,18 @@ export default function ProyectoRepositorioDialog({ projectId, projectName, open
                         disabled={getProjectDriveId.isPending}
                         onClick={async () => {
                           if (!projectId) return;
+                          const newTab = window.open("", "_blank", "noopener,noreferrer");
+                          if (!newTab) {
+                            toast.error("Tu navegador bloqueó la apertura de pestañas. Habilita popups para este sitio.");
+                            return;
+                          }
+                          newTab.opener = null;
                           try {
                             const result = await getProjectDriveId.mutateAsync({ projectId, projectName });
                             const url = `https://drive.google.com/drive/folders/${result.drive_folder_id}`;
-                            const w = window.open(url, "_blank", "noopener,noreferrer");
-                            if (w) w.opener = null;
+                            newTab.location.href = url;
                           } catch (e: any) {
+                            newTab.close();
                             toast.error("Error: " + e.message);
                           }
                         }}
