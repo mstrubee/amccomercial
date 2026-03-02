@@ -6,6 +6,7 @@ import {
   FolderKanban,
   TrendingUp,
   Bell,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -55,10 +56,11 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban, key: "proyectos" },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp, key: "finanzas" },
     { path: "/alertas", label: "Tareas y Alertas", icon: Bell, key: "alertas" },
+    { path: "/calendario", label: "Calendario", icon: CalendarDays, key: "calendario" },
   ];
 
   const navItems = canAccessSection
-    ? allNavItems.filter(item => canAccessSection(item.key))
+    ? allNavItems.filter(item => item.key === "calendario" || canAccessSection(item.key))
     : allNavItems;
 
   const allAdminSubItems: { path: string; label: string; allowTipo1: boolean; icon: LucideIcon }[] = [
