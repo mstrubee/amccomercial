@@ -11,8 +11,18 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://amccomercial.lovable.app";
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-calendar-auth`;
+
+function redirectWithError(errorCode: string, detail?: string): Response {
+  const params = new URLSearchParams({ oauth_error: errorCode });
+  if (detail) params.set("oauth_detail", detail);
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `${APP_BASE_URL}/calendario?${params}`, ...corsHeaders },
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,15 +35,24 @@ Deno.serve(async (req) => {
       const url = new URL(req.url);
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
+      const error = url.searchParams.get("error");
 
-      if (!code || !state) {
-        return new Response("Missing code or state", { status: 400 });
+      console.log("[calendar-auth] Callback received", { hasCode: !!code, hasState: !!state, error });
+
+      if (error) {
+        console.error("[calendar-auth] Google returned error:", error);
+        return redirectWithError(error);
       }
 
-      // state contains user_id
+      if (!code || !state) {
+        console.error("[calendar-auth] Missing code or state");
+        return redirectWithError("missing_params");
+      }
+
       const userId = state;
 
       // Exchange code for tokens
+      console.log("[calendar-auth] Exchanging code for tokens...");
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -48,18 +67,27 @@ Deno.serve(async (req) => {
 
       const tokenData = await tokenRes.json();
 
-      if (!tokenData.refresh_token && !tokenData.access_token) {
-        return new Response("Failed to get tokens from Google", { status: 400 });
+      if (!tokenRes.ok || (!tokenData.refresh_token && !tokenData.access_token)) {
+        console.error("[calendar-auth] Token exchange failed:", {
+          status: tokenRes.status,
+          error: tokenData.error,
+          error_description: tokenData.error_description,
+        });
+        return redirectWithError(
+          tokenData.error || "token_exchange_failed",
+          tokenData.error_description || "No se pudieron obtener tokens de Google"
+        );
       }
 
-      // Use service role to write token (no user session in callback)
+      console.log("[calendar-auth] Token exchange successful, saving...");
+
       const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
       const expiresAt = tokenData.expires_in
         ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
         : null;
 
-      const { error } = await supabaseAdmin
+      const { error: dbError } = await supabaseAdmin
         .from("user_google_tokens")
         .upsert(
           {
@@ -73,25 +101,22 @@ Deno.serve(async (req) => {
           { onConflict: "user_id" }
         );
 
-      if (error) {
-        console.error("Error saving token:", error);
-        return new Response("Error saving token", { status: 500 });
+      if (dbError) {
+        console.error("[calendar-auth] Error saving token:", dbError);
+        return redirectWithError("db_error", "Error guardando credenciales");
       }
 
-      // Redirect back to the app calendario page
-      // The callback comes from Google, so origin/referer won't be the app URL
-      const redirectTo = "https://amccomercial.lovable.app/calendario?connected=true";
-
+      console.log("[calendar-auth] Token saved, redirecting to app");
       return new Response(null, {
         status: 302,
         headers: {
-          Location: redirectTo,
+          Location: `${APP_BASE_URL}/calendario?connected=true`,
           ...corsHeaders,
         },
       });
     }
 
-    // POST = actions (get_auth_url, check_status, disconnect)
+    // POST = actions (get_auth_url, check_status, disconnect, get_config)
     if (req.method === "POST") {
       const authHeader = req.headers.get("Authorization");
       if (!authHeader?.startsWith("Bearer ")) {
@@ -162,6 +187,21 @@ Deno.serve(async (req) => {
         });
       }
 
+      // New action: returns config info for diagnostics
+      if (action === "get_config") {
+        const maskedClientId = GOOGLE_CLIENT_ID
+          ? GOOGLE_CLIENT_ID.substring(0, 12) + "..." + GOOGLE_CLIENT_ID.slice(-6)
+          : "NOT SET";
+
+        return new Response(
+          JSON.stringify({
+            redirect_uri: REDIRECT_URI,
+            client_id_masked: maskedClientId,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(JSON.stringify({ error: "Unknown action" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -170,7 +210,7 @@ Deno.serve(async (req) => {
 
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   } catch (err) {
-    console.error("Error:", err);
+    console.error("[calendar-auth] Unhandled error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

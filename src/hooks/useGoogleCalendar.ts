@@ -12,6 +12,11 @@ export interface CalendarEvent {
   htmlLink?: string;
 }
 
+export interface OAuthConfig {
+  redirect_uri: string;
+  client_id_masked: string;
+}
+
 async function invokeCalendarAuth(action: string) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
@@ -46,6 +51,13 @@ export function useGoogleCalendar(currentMonth: Date) {
   });
 
   const isConnected = connectionStatus?.connected === true;
+
+  // Fetch OAuth config for diagnostics
+  const { data: oauthConfig } = useQuery<OAuthConfig>({
+    queryKey: ["google-calendar-config"],
+    queryFn: () => invokeCalendarAuth("get_config"),
+    staleTime: 300_000,
+  });
 
   const timeMin = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
   const timeMax = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
@@ -124,6 +136,7 @@ export function useGoogleCalendar(currentMonth: Date) {
     events,
     loadingEvents,
     refetchEvents,
+    oauthConfig: oauthConfig || null,
     createEvent: createEventMutation.mutate,
     updateEvent: updateEventMutation.mutate,
     deleteEvent: deleteEventMutation.mutate,
