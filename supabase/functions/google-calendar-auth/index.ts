@@ -79,8 +79,8 @@ Deno.serve(async (req) => {
       }
 
       // Redirect back to the app calendario page
-      const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-      const redirectTo = appUrl ? `${new URL(appUrl).origin}/calendario?connected=true` : "/calendario?connected=true";
+      // The callback comes from Google, so origin/referer won't be the app URL
+      const redirectTo = "https://amccomercial.lovable.app/calendario?connected=true";
 
       return new Response(null, {
         status: 302,

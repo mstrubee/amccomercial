@@ -15,5 +15,11 @@ verify_jwt = false
 [functions.delete-drive-file]
 verify_jwt = false
 
+[functions.google-calendar-auth]
+verify_jwt = false
+
+[functions.google-calendar-api]
+verify_jwt = false
+
 [functions.get-drive-view-url]
 verify_jwt = false
