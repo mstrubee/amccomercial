@@ -1,82 +1,54 @@
 
+Objetivo: salir del bucle de “no funciona” con una corrección verificable y evitar que vuelvas a perder créditos en pruebas ciegas.
 
-# Integracion de Google Calendar - Todos los Usuarios
+1) Diagnóstico confirmado (causa más probable)
+- La app sí genera correctamente la URL OAuth desde backend.
+- En tus capturas, los “redirect URI” configurados en Google aparecen con diferencias de texto respecto al URI real (hay caracteres cambiados y rutas truncadas).
+- URI real que está enviando la app:
+  `https://bprwbhvhuetjnmsjqfcm.supabase.co/functions/v1/google-calendar-auth`
+- Si en Google Cloud hay aunque sea 1 carácter distinto, Google devuelve 403/blocked antes de volver a la app.
 
-## Resumen
-Cada usuario autenticado podra conectar su propia cuenta de Google Calendar desde una nueva pagina "/calendario". El calendario sera privado: cada usuario solo ve sus propios eventos. Se implementara vista mensual completa con lectura y escritura (crear, editar, eliminar eventos).
+2) Desbloqueo inmediato (sin código, para validar ahora)
+- Dejar solo este Redirect URI exacto en el OAuth Client:
+  `https://bprwbhvhuetjnmsjqfcm.supabase.co/functions/v1/google-calendar-auth`
+- Eliminar entradas parecidas/duplicadas con typo.
+- Esperar 5–10 min por propagación y probar nuevamente.
 
-## Cambios principales
+3) Implementación propuesta para que no vuelva a pasar
+- Agregar diagnóstico OAuth visible en /calendario (UI):
+  - Mostrar “Redirect URI exacto en uso” con botón “Copiar”.
+  - Mostrar “Client ID en uso” (enmascarado parcial).
+  - Mostrar último error OAuth legible (ej. redirect_uri_mismatch, access_denied, app_not_configured).
+- Mejorar callback en `google-calendar-auth`:
+  - Si falla intercambio de código por token, redirigir a `/calendario?oauth_error=...` con mensaje claro.
+  - Registrar logs estructurados (sin exponer secretos) para saber exactamente en qué paso falla.
+- Mejorar robustez de autenticación de funciones:
+  - Migrar validación a `getClaims()` (alineado con signing keys) en lugar de `getUser(token)` para evitar falsos 401 por validación.
+- Mejorar redirect post-callback:
+  - Evitar URL hardcodeada fija; usar variable de entorno de app base URL (publicada) y fallback seguro.
+  - Soportar preview/publicado sin romper flujo.
 
-### 1. Base de datos: tabla `user_google_tokens`
-Nueva tabla para almacenar tokens OAuth individuales por usuario, con RLS que garantiza que cada usuario solo acceda a su propio registro.
+4) Archivos a tocar
+- `supabase/functions/google-calendar-auth/index.ts`
+- `supabase/functions/google-calendar-api/index.ts` (solo ajuste de validación JWT)
+- `src/hooks/useGoogleCalendar.ts`
+- `src/pages/Calendario.tsx`
+- (Opcional) componente nuevo de diagnóstico en `src/components/calendario/`
 
-```text
-user_google_tokens
-- id (uuid, PK)
-- user_id (uuid, NOT NULL, UNIQUE)
-- refresh_token (text, NOT NULL)
-- access_token (text)
-- expires_at (timestamptz)
-- scopes (text) -- para distinguir Drive vs Calendar
-- created_at / updated_at (timestamptz)
-```
+5) Riesgos y controles
+- Riesgo: seguir probando con URI mal escrito en Google.
+  - Control: exponer en UI el URI exacto y copiar/pegar literal.
+- Riesgo: errores silenciosos de OAuth.
+  - Control: retorno de `oauth_error` + toast específico + logs backend.
 
-RLS: solo `auth.uid() = user_id` para todas las operaciones.
+6) Validación final (end-to-end)
+- Flujo completo: `/calendario` → “Conectar Google Calendar” → autorizar Google → volver a `/calendario?connected=true`.
+- Confirmar en UI estado conectado.
+- Crear, editar y eliminar 1 evento real.
+- Recargar página y verificar persistencia de conexión y listado.
 
-### 2. Edge Function: `google-calendar-auth`
-Maneja el flujo OAuth individual para Calendar:
-- **POST action=get_auth_url**: genera URL con scope `https://www.googleapis.com/auth/calendar` y pasa el `user_id` en el parametro `state` de OAuth
-- **GET callback**: intercambia el code por tokens y los guarda en `user_google_tokens` asociados al user_id extraido del state
-- **POST action=check_status**: verifica si el usuario tiene token guardado
-- **POST action=disconnect**: elimina el token del usuario
-
-Reutiliza los secrets existentes `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`.
-
-### 3. Edge Function: `google-calendar-api`
-Proxy autenticado para operaciones con Google Calendar API:
-- **list_events**: lista eventos en rango de fechas del usuario autenticado
-- **create_event**: crea evento nuevo
-- **update_event**: actualiza evento existente
-- **delete_event**: elimina evento
-- Refresca automaticamente el access_token usando el refresh_token cuando expire
-
-### 4. Frontend: pagina `/calendario`
-- Grilla mensual interactiva mostrando eventos por dia
-- Si el usuario no ha conectado Google Calendar, muestra boton para conectar
-- Click en dia vacio para crear evento (dialog con titulo, fecha/hora inicio/fin, descripcion)
-- Click en evento para ver detalles, editar o eliminar
-- Navegacion entre meses con flechas
-- Boton para desconectar Google Calendar
-
-### 5. Navegacion
-- Agregar "Calendario" como item del menu lateral principal (no dentro de Administracion), visible para todos los roles
-- Icono: CalendarDays de lucide-react
-- Ruta `/calendario` accesible para todos los usuarios autenticados
-
-## Seccion tecnica
-
-### Archivos nuevos
-- `supabase/functions/google-calendar-auth/index.ts` -- OAuth flow por usuario
-- `supabase/functions/google-calendar-api/index.ts` -- proxy a Google Calendar API
-- `src/pages/Calendario.tsx` -- pagina principal con grilla mensual
-- `src/components/calendario/CalendarGrid.tsx` -- componente de grilla mensual
-- `src/components/calendario/CalendarEventDialog.tsx` -- dialog para crear/editar eventos
-- `src/hooks/useGoogleCalendar.ts` -- hook con React Query para estado y operaciones
-
-### Archivos modificados
-- `src/components/layout/AppLayout.tsx` -- agregar enlace "Calendario" en navItems
-- `src/App.tsx` -- agregar ruta /calendario
-
-### Configuracion
-- Registrar las dos nuevas funciones en `supabase/config.toml` con `verify_jwt = false`
-- Migracion SQL para crear tabla `user_google_tokens`
-
-### Flujo OAuth
-A diferencia de la integracion de Drive (token compartido en app_settings), aqui cada usuario tiene su propio token. El redirect URI sera la edge function `google-calendar-auth`. Se codifica el `user_id` en el parametro `state` de OAuth para asociar el token al usuario correcto tras el callback. Se usa service_role_key en el callback para insertar/actualizar el token en la tabla.
-
-### Seguridad
-- Tokens almacenados con RLS estricto (solo el propio usuario)
-- Edge functions validan JWT del usuario antes de operar
-- El callback usa service_role para escribir tokens (ya que no hay sesion de usuario en el redirect de Google)
-- Scope limitado a `https://www.googleapis.com/auth/calendar`
-
+Señal de éxito esperada:
+- Sin 403 en Google.
+- Callback llega al backend.
+- Token guardado para el usuario.
+- Estado “connected: true” y eventos visibles.
