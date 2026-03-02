@@ -1,68 +1,82 @@
 
-Goal
-- Fix the notification sound so admin reliably hears a sound on every incoming message from other users, and stop the current “no sound” failure.
 
-What I found (root cause analysis)
-- Incoming message flow is working:
-  - Realtime events are being emitted from `useMessages` (`chat:new-message` custom event is dispatched on INSERT).
-  - Message rows are arriving for admin in the database/network snapshots.
-- Admin preference is not muted:
-  - `chat_preferences.sound_option` for admin is currently `pop`.
-- Current sound path is fragile:
-  - `useChatPreferences` uses a shared `AudioContext` and a one-time warm-up listener (`click`/`keydown` with `{ once: true }`).
-  - If the context is suspended/interrupted later, playback can fail because resume is attempted during a realtime callback (not a user gesture), and there is no persistent unlock/recovery strategy.
-- Conclusion:
-  - This is not a chat event issue; it is an audio context lifecycle/recovery issue.
+# Integracion de Google Calendar - Todos los Usuarios
 
-Implementation plan
-1) Harden notification audio engine in `src/hooks/useChatPreferences.ts`
-- Replace one-shot warm-up with a resilient unlock strategy:
-  - Add a small internal “audio manager” with:
-    - `ensureAudioContext()` (creates context if missing/closed),
-    - `resumeAudioContextFromGesture()` (called on user gestures),
-    - state tracking (`running/suspended/interrupted`).
-  - Register persistent lightweight listeners (e.g., `pointerdown`, `keydown`, `touchstart`, `visibilitychange`) to resume context whenever needed, not just once.
-- Add defensive playback wrapper:
-  - `safePlayBuiltIn(type)`:
-    - If context is running, play beep immediately.
-    - If not running, attempt resume; if still blocked, queue one pending play and execute on next gesture.
-- Keep custom sound support, but with deterministic fallback chain:
-  - custom audio attempt -> built-in `pop` fallback.
-- Add a small anti-spam cooldown (e.g., 250–400ms) to avoid overlapping beep storms from burst inserts.
+## Resumen
+Cada usuario autenticado podra conectar su propia cuenta de Google Calendar desde una nueva pagina "/calendario". El calendario sera privado: cada usuario solo ve sus propios eventos. Se implementara vista mensual completa con lectura y escritura (crear, editar, eliminar eventos).
 
-2) Make message event handling consume the hardened API in `src/components/mensajeria/FloatingChat.tsx`
-- Keep current checks (`senderId !== user.id`, `!isSoundMuted`).
-- Route notification trigger through the new robust `playNotificationSound` that can recover from suspended context and queue playback until next gesture.
-- Keep mute button behavior unchanged (green active, red muted) as already requested.
+## Cambios principales
 
-3) Add focused runtime diagnostics for this bug (temporary, low-noise)
-- Add guarded debug logs only when playback fails/retries (single-line structured logs).
-- This allows immediate confirmation in preview console without affecting normal UX.
-- After confirmation, remove or downgrade to silent handling if desired.
+### 1. Base de datos: tabla `user_google_tokens`
+Nueva tabla para almacenar tokens OAuth individuales por usuario, con RLS que garantiza que cada usuario solo acceda a su propio registro.
 
-4) Verification plan (end-to-end, mandatory)
-- Scenario A: Chat closed, admin on `/proyectos`, second user sends message -> admin hears sound.
-- Scenario B: Chat open in active conversation -> admin hears sound on incoming message.
-- Scenario C: Admin muted (red) -> no sound; unmute (green) -> sound returns.
-- Scenario D: Leave tab idle/background briefly, return, receive message -> sound still works (recovery path validated).
-- Scenario E: Custom sound selected but invalid/unreachable URL -> fallback `pop` still plays.
+```text
+user_google_tokens
+- id (uuid, PK)
+- user_id (uuid, NOT NULL, UNIQUE)
+- refresh_token (text, NOT NULL)
+- access_token (text)
+- expires_at (timestamptz)
+- scopes (text) -- para distinguir Drive vs Calendar
+- created_at / updated_at (timestamptz)
+```
 
-Files to change
-- `src/hooks/useChatPreferences.ts` (main fix: resilient audio context + queued replay/fallback/cooldown)
-- `src/components/mensajeria/FloatingChat.tsx` (consume robust notifier, keep UX/mute behavior)
+RLS: solo `auth.uid() = user_id` para todas las operaciones.
 
-Database / backend impact
-- No schema or policy changes needed.
-- Existing `chat_preferences` table and access rules are correct for this fix.
+### 2. Edge Function: `google-calendar-auth`
+Maneja el flujo OAuth individual para Calendar:
+- **POST action=get_auth_url**: genera URL con scope `https://www.googleapis.com/auth/calendar` y pasa el `user_id` en el parametro `state` de OAuth
+- **GET callback**: intercambia el code por tokens y los guarda en `user_google_tokens` asociados al user_id extraido del state
+- **POST action=check_status**: verifica si el usuario tiene token guardado
+- **POST action=disconnect**: elimina el token del usuario
 
-Risk and mitigation
-- Risk: too many recovery listeners or repeated resumes.
-  - Mitigation: centralize listener registration once, lightweight handlers, clean up on unmount, and throttle resume attempts.
-- Risk: multiple quick message inserts causing audio clutter.
-  - Mitigation: cooldown/debounce in notification playback.
+Reutiliza los secrets existentes `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`.
 
-Acceptance criteria
-- Admin consistently hears a notification for incoming messages from other users when sound is active.
-- Mute/unmute state is respected 100% of the time.
-- Notification still works after idle/background transitions.
-- No regressions in custom sound selection or chat performance.
+### 3. Edge Function: `google-calendar-api`
+Proxy autenticado para operaciones con Google Calendar API:
+- **list_events**: lista eventos en rango de fechas del usuario autenticado
+- **create_event**: crea evento nuevo
+- **update_event**: actualiza evento existente
+- **delete_event**: elimina evento
+- Refresca automaticamente el access_token usando el refresh_token cuando expire
+
+### 4. Frontend: pagina `/calendario`
+- Grilla mensual interactiva mostrando eventos por dia
+- Si el usuario no ha conectado Google Calendar, muestra boton para conectar
+- Click en dia vacio para crear evento (dialog con titulo, fecha/hora inicio/fin, descripcion)
+- Click en evento para ver detalles, editar o eliminar
+- Navegacion entre meses con flechas
+- Boton para desconectar Google Calendar
+
+### 5. Navegacion
+- Agregar "Calendario" como item del menu lateral principal (no dentro de Administracion), visible para todos los roles
+- Icono: CalendarDays de lucide-react
+- Ruta `/calendario` accesible para todos los usuarios autenticados
+
+## Seccion tecnica
+
+### Archivos nuevos
+- `supabase/functions/google-calendar-auth/index.ts` -- OAuth flow por usuario
+- `supabase/functions/google-calendar-api/index.ts` -- proxy a Google Calendar API
+- `src/pages/Calendario.tsx` -- pagina principal con grilla mensual
+- `src/components/calendario/CalendarGrid.tsx` -- componente de grilla mensual
+- `src/components/calendario/CalendarEventDialog.tsx` -- dialog para crear/editar eventos
+- `src/hooks/useGoogleCalendar.ts` -- hook con React Query para estado y operaciones
+
+### Archivos modificados
+- `src/components/layout/AppLayout.tsx` -- agregar enlace "Calendario" en navItems
+- `src/App.tsx` -- agregar ruta /calendario
+
+### Configuracion
+- Registrar las dos nuevas funciones en `supabase/config.toml` con `verify_jwt = false`
+- Migracion SQL para crear tabla `user_google_tokens`
+
+### Flujo OAuth
+A diferencia de la integracion de Drive (token compartido en app_settings), aqui cada usuario tiene su propio token. El redirect URI sera la edge function `google-calendar-auth`. Se codifica el `user_id` en el parametro `state` de OAuth para asociar el token al usuario correcto tras el callback. Se usa service_role_key en el callback para insertar/actualizar el token en la tabla.
+
+### Seguridad
+- Tokens almacenados con RLS estricto (solo el propio usuario)
+- Edge functions validan JWT del usuario antes de operar
+- El callback usa service_role para escribir tokens (ya que no hay sesion de usuario en el redirect de Google)
+- Scope limitado a `https://www.googleapis.com/auth/calendar`
+
