@@ -1568,7 +1568,7 @@ function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: 
           </span>
         </div>
       )}
-      {empresaId && <EmpresaChecklistPanel empresaId={empresaId} proyectoId={proyecto.id} readOnly={false} />}
+      
     </div>
   );
 }
