@@ -54,7 +54,17 @@ export default function ReunionesPage() {
     if (filterEmpresaIds.length > 0) g = g.filter(x => filterEmpresaIds.includes(x.empresaId));
     if (search) {
       const s = search.toLowerCase();
-      g = g.filter(x => x.proyectoName.toLowerCase().includes(s) || x.empresaName.toLowerCase().includes(s));
+      g = g.filter(x => {
+        // Search in project name, empresa name
+        if (x.proyectoName.toLowerCase().includes(s)) return true;
+        if (x.empresaName.toLowerCase().includes(s)) return true;
+        // Search in checklist item texts
+        if (x.items.some(i => i.text.toLowerCase().includes(s))) return true;
+        // Search in empresa notas_atencion_especial
+        const emp = empresas.find(e => e.id === x.empresaId);
+        if (emp && (emp as any).notas_atencion_especial?.toLowerCase().includes(s)) return true;
+        return false;
+      });
     }
     return g;
   }, [groups, filterProyectoIds, filterEmpresaIds, search]);
