@@ -684,7 +684,7 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3">
-                        <GroupEmpresasCell items={items} />
+                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} />
                       </td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
