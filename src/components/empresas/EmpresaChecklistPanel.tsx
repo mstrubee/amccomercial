@@ -249,7 +249,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
       {!readOnly && (
         <div className="flex gap-1">
           <Textarea
-            placeholder="Nueva nota de reunión..."
+            placeholder="Nueva nota de reunión — indique mes y día en formato mm.dd para agregar fecha. Presione Ctrl+Enter para agregar la nota"
             value={newItemText}
             onChange={e => setNewItemText(e.target.value)}
             onKeyDown={e => {
