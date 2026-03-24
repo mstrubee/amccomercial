@@ -624,7 +624,7 @@ export default function Proyectos() {
             </thead>
             <tbody>
               {groupedRows.map(({ key, items }, groupIdx) => {
-                const isGroup = items.length > 1;
+                const isGroup = (fullGroupSizes[key] || items.length) > 1;
                 const expanded = expandedGroups[key] ?? false;
                 const parentNum = groupIdx + 1;
                 const isEven = groupIdx % 2 === 1;
