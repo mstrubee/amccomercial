@@ -753,6 +753,54 @@ export type Database = {
           },
         ]
       }
+      empresa_checklist_items: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          empresa_id: string
+          id: string
+          is_completed: boolean
+          parent_id: string | null
+          text: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          empresa_id: string
+          id?: string
+          is_completed?: boolean
+          parent_id?: string | null
+          text: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          is_completed?: boolean
+          parent_id?: string | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "empresa_checklist_items_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "empresa_checklist_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_checklist_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       empresas: {
         Row: {
           created_at: string
@@ -760,6 +808,7 @@ export type Database = {
           fecha_inicio_relacion: string
           id: string
           nombre: string
+          notas_atencion_especial: string
           updated_at: string
         }
         Insert: {
@@ -768,6 +817,7 @@ export type Database = {
           fecha_inicio_relacion?: string
           id?: string
           nombre: string
+          notas_atencion_especial?: string
           updated_at?: string
         }
         Update: {
@@ -776,6 +826,7 @@ export type Database = {
           fecha_inicio_relacion?: string
           id?: string
           nombre?: string
+          notas_atencion_especial?: string
           updated_at?: string
         }
         Relationships: []
