@@ -57,6 +57,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/proyectos", label: "Proyectos", icon: FolderKanban, key: "proyectos" },
     { path: "/finanzas", label: "Finanzas", icon: TrendingUp, key: "finanzas" },
     { path: "/alertas", label: "Tareas y Alertas", icon: Bell, key: "alertas" },
+    { path: "/atencion-empresas", label: "Reuniones", icon: ClipboardCheck, key: "reuniones" },
     { path: "/calendario", label: "Calendario", icon: CalendarDays, key: "calendario" },
   ];
 
