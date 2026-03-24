@@ -861,6 +861,13 @@ export default function Proyectos() {
                                   </div>
                                 </td>
                               </motion.tr>
+                              {empresaId && (
+                                <tr className={childBg}>
+                                  <td colSpan={10} className="px-5 pb-2 pt-0 pl-10">
+                                    <EmpresaChecklistPanel empresaId={empresaId} proyectoId={p.id} readOnly={false} />
+                                  </td>
+                                </tr>
+                              )}
                             </Fragment>
                           );
                         });
@@ -1568,7 +1575,7 @@ function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: 
           </span>
         </div>
       )}
-      {empresaId && <EmpresaChecklistPanel empresaId={empresaId} proyectoId={proyecto.id} readOnly={false} />}
+      
     </div>
   );
 }
