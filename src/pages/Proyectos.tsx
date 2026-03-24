@@ -1249,14 +1249,14 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
 }
 
 /* ── Empresas cell component ── */
-function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"] }) {
+function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[] }) {
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
 
   return (
     <div className="space-y-1">
-      {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i).map((pe) => {
+      {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
         const monto = (pe as any).monto_cotizacion || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
