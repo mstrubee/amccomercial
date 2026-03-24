@@ -762,6 +762,7 @@ export type Database = {
           id: string
           is_completed: boolean
           parent_id: string | null
+          proyecto_id: string | null
           text: string
         }
         Insert: {
@@ -772,6 +773,7 @@ export type Database = {
           id?: string
           is_completed?: boolean
           parent_id?: string | null
+          proyecto_id?: string | null
           text: string
         }
         Update: {
@@ -782,6 +784,7 @@ export type Database = {
           id?: string
           is_completed?: boolean
           parent_id?: string | null
+          proyecto_id?: string | null
           text?: string
         }
         Relationships: [
@@ -797,6 +800,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "empresa_checklist_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "empresa_checklist_items_proyecto_id_fkey"
+            columns: ["proyecto_id"]
+            isOneToOne: false
+            referencedRelation: "proyectos"
             referencedColumns: ["id"]
           },
         ]

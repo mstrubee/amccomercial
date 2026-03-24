@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,6 +35,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoRepositorioDialog";
+import { useAddChecklistItem, startsWithDate } from "@/hooks/useEmpresaChecklist";
+import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
+import { cn } from "@/lib/utils";
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
@@ -786,7 +789,7 @@ export default function Proyectos() {
                               >
                                 <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
                                 <td colSpan={3} className="px-5 py-2 align-top">
-                                  <NotasCell proyecto={p} onSave={updateNotas.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: empresaId, defaultTexto: texto })} />
+                                  <NotasCell proyecto={p} onSave={updateNotas.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: p.id, empresa_id: empresaId, defaultTexto: texto })} empresaId={empresaId} />
                                 </td>
                                 <td colSpan={2} className="px-5 py-2 align-top">
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
@@ -1223,7 +1226,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
       </tr>
       <tr className={evenBg}>
         <td className="px-5 pb-2 pt-0" colSpan={10}>
-          <NotasCell proyecto={p} onSave={updateNotas} />
+          <NotasCell proyecto={p} onSave={updateNotas} empresaId={p.proyecto_empresas?.[0]?.empresa_id || null} />
         </td>
       </tr>
     </>
@@ -1480,12 +1483,13 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
 }
 
 /* ── Inline notas cell ── */
-function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; onCreateAlerta?: (texto: string) => void }) {
+function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; onCreateAlerta?: (texto: string) => void; empresaId?: string | null }) {
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
   const [focused, setFocused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFocusedRef = useRef(false);
+  const addChecklistItem = useAddChecklistItem();
 
   useEffect(() => {
     if (!isFocusedRef.current) {
@@ -1503,6 +1507,16 @@ function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWit
     }, 800);
   };
 
+  const isDatePrefixed = startsWithDate(value);
+
+  const handleCreateChecklist = () => {
+    if (!empresaId || !value.trim()) return;
+    addChecklistItem.mutate(
+      { empresa_id: empresaId, proyecto_id: proyecto.id, text: value.trim() },
+      { onSuccess: () => { setValue(""); onSave({ id: proyecto.id, notas: "" }); } }
+    );
+  };
+
   return (
     <div className="relative">
       <textarea
@@ -1513,23 +1527,44 @@ function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWit
         onClick={(e) => e.stopPropagation()}
         onFocus={() => { setFocused(true); isFocusedRef.current = true; }}
         onBlur={() => { setFocused(false); isFocusedRef.current = false; }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && isDatePrefixed && empresaId) {
+            e.preventDefault();
+            handleCreateChecklist();
+          }
+        }}
       />
       {focused && (
-        <div className="flex items-center justify-between mt-0.5">
-          {onCreateAlerta && value.trim() ? (
-            <button
-              className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
-              title="Crear alerta a partir de esta nota"
-            >
-              <Bell className="w-2.5 h-2.5" /> Crear alerta
-            </button>
-          ) : <span />}
+        <div className="flex items-center justify-between mt-0.5 gap-2">
+          <div className="flex items-center gap-2">
+            {onCreateAlerta && value.trim() && (
+              <button
+                className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
+                title="Crear alerta a partir de esta nota"
+              >
+                <Bell className="w-2.5 h-2.5" /> Crear alerta
+              </button>
+            )}
+            {empresaId && value.trim() && (
+              <button
+                className={cn(
+                  "text-[9px] font-medium flex items-center gap-0.5",
+                  isDatePrefixed ? "text-emerald-600 hover:text-emerald-700" : "text-blue-600 hover:text-blue-700"
+                )}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleCreateChecklist(); }}
+                title="Crear ítem de checklist"
+              >
+                <ListChecks className="w-2.5 h-2.5" /> {isDatePrefixed ? "↵ Checklist" : "Crear nota checklist"}
+              </button>
+            )}
+          </div>
           <span className="text-[9px] text-muted-foreground">
             {value.length} chars{!saved && " · guardando..."}
           </span>
         </div>
       )}
+      {empresaId && <EmpresaChecklistPanel empresaId={empresaId} proyectoId={proyecto.id} readOnly={false} />}
     </div>
   );
 }

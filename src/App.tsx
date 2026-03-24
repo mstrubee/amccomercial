@@ -26,7 +26,7 @@ import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
 import RepositorioTipoPage from "@/pages/RepositorioTipoPage";
 import DrivePage from "@/pages/DrivePage";
 import Calendario from "@/pages/Calendario";
-import AtencionEmpresas from "@/pages/AtencionEmpresas";
+import ReunionesPage from "@/pages/AtencionEmpresas";
 import { cn } from "@/lib/utils";
 
 import { Loader2 } from "lucide-react";
@@ -67,7 +67,7 @@ function AppRoutes() {
         {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
         {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
         <Route path="/calendario" element={<Calendario />} />
-        {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<AtencionEmpresas />} />}
+        {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}
         
         <Route path="*" element={<NotFound />} />
       </Routes>
