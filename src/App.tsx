@@ -67,7 +67,7 @@ function AppRoutes() {
         {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
         {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
         <Route path="/calendario" element={<Calendario />} />
-        {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<AtencionEmpresas />} />}
+        {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}
         
         <Route path="*" element={<NotFound />} />
       </Routes>
