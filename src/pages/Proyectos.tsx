@@ -1194,7 +1194,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [] }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1205,6 +1205,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
   onOpenChat: (projectId: string, projectName: string, empresaId?: string | null, empresaName?: string | null) => void;
   updateNotas: (data: { id: string; notas: string }) => void;
   filterBotones: string[];
+  filterEmpresas?: string[];
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
   return (
