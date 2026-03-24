@@ -1306,12 +1306,14 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
 }
 
 /* ── Group header empresas cell (name + category, no monto) ── */
-function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
+function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[] }) {
   const allEmpresasRaw = items.flatMap((p) => p.proyecto_empresas || []);
   const seen = new Set<string>();
   const allEmpresas = allEmpresasRaw.filter((pe) => {
     if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
     seen.add(pe.empresa_id);
+    // When empresa filter is active, only show matching empresas
+    if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) return false;
     return true;
   });
   if (allEmpresas.length === 0) {
