@@ -1226,7 +1226,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
       </tr>
       <tr className={evenBg}>
         <td className="px-5 pb-2 pt-0" colSpan={10}>
-          <NotasCell proyecto={p} onSave={updateNotas} />
+          <NotasCell proyecto={p} onSave={updateNotas} empresaId={p.proyecto_empresas?.[0]?.empresa_id || null} />
         </td>
       </tr>
     </>
