@@ -18,9 +18,10 @@ import {
   ListChecks,
   BarChart3,
   Upload,
-  FolderTree,
-  HardDrive,
-  type LucideIcon,
+    FolderTree,
+    HardDrive,
+    ClipboardCheck,
+    type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
