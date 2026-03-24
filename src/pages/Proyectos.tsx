@@ -593,34 +593,6 @@ export default function Proyectos() {
         />
       </div>
 
-      {/* Empresa Cards */}
-      {empresas && empresas.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="flex flex-wrap gap-2">
-          {empresas.filter(e => e.estado === "Activa").map(emp => {
-            const isSelected = filterEmpresas.includes(emp.id);
-            return (
-              <button
-                key={emp.id}
-                onClick={() => {
-                  if (isSelected) {
-                    setFilterEmpresas(prev => prev.filter(id => id !== emp.id));
-                  } else {
-                    setFilterEmpresas([emp.id]);
-                  }
-                }}
-                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                  isSelected
-                    ? "bg-primary text-primary-foreground border-primary shadow-md"
-                    : "bg-card text-card-foreground border-border hover:bg-accent hover:border-accent-foreground/20"
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
-                {emp.nombre}
-              </button>
-            );
-          })}
-        </motion.div>
-      )}
 
       {/* Table */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex-1 min-h-0 bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
