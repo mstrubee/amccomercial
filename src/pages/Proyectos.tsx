@@ -1153,7 +1153,7 @@ export default function Proyectos() {
         projectName={repositorioTarget?.name ?? ""}
         open={!!repositorioTarget}
         onOpenChange={(o) => !o && setRepositorioTarget(null)}
-        canEdit={repositorioTarget?.empresaName ? false : isAdmin}
+        canEdit={repositorioTarget?.empresaName ? false : (isAdmin || isUsuarioTipo1)}
         filterEmpresaName={repositorioTarget?.empresaName}
       />
     </div>
