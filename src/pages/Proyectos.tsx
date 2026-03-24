@@ -1480,12 +1480,13 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
 }
 
 /* ── Inline notas cell ── */
-function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; onCreateAlerta?: (texto: string) => void }) {
+function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; notas: string }) => void; onCreateAlerta?: (texto: string) => void; empresaId?: string | null }) {
   const [value, setValue] = useState((proyecto as any).notas || "");
   const [saved, setSaved] = useState(true);
   const [focused, setFocused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFocusedRef = useRef(false);
+  const addChecklistItem = useAddChecklistItem();
 
   useEffect(() => {
     if (!isFocusedRef.current) {
@@ -1503,6 +1504,16 @@ function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWit
     }, 800);
   };
 
+  const isDatePrefixed = startsWithDate(value);
+
+  const handleCreateChecklist = () => {
+    if (!empresaId || !value.trim()) return;
+    addChecklistItem.mutate(
+      { empresa_id: empresaId, proyecto_id: proyecto.id, text: value.trim() },
+      { onSuccess: () => { setValue(""); onSave({ id: proyecto.id, notas: "" }); } }
+    );
+  };
+
   return (
     <div className="relative">
       <textarea
@@ -1513,23 +1524,44 @@ function NotasCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWit
         onClick={(e) => e.stopPropagation()}
         onFocus={() => { setFocused(true); isFocusedRef.current = true; }}
         onBlur={() => { setFocused(false); isFocusedRef.current = false; }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && isDatePrefixed && empresaId) {
+            e.preventDefault();
+            handleCreateChecklist();
+          }
+        }}
       />
       {focused && (
-        <div className="flex items-center justify-between mt-0.5">
-          {onCreateAlerta && value.trim() ? (
-            <button
-              className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
-              title="Crear alerta a partir de esta nota"
-            >
-              <Bell className="w-2.5 h-2.5" /> Crear alerta
-            </button>
-          ) : <span />}
+        <div className="flex items-center justify-between mt-0.5 gap-2">
+          <div className="flex items-center gap-2">
+            {onCreateAlerta && value.trim() && (
+              <button
+                className="text-[9px] text-amber-600 hover:text-amber-700 font-medium flex items-center gap-0.5"
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onCreateAlerta(value.trim().slice(0, 100)); }}
+                title="Crear alerta a partir de esta nota"
+              >
+                <Bell className="w-2.5 h-2.5" /> Crear alerta
+              </button>
+            )}
+            {empresaId && value.trim() && (
+              <button
+                className={cn(
+                  "text-[9px] font-medium flex items-center gap-0.5",
+                  isDatePrefixed ? "text-emerald-600 hover:text-emerald-700" : "text-blue-600 hover:text-blue-700"
+                )}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleCreateChecklist(); }}
+                title="Crear ítem de checklist"
+              >
+                <ListChecks className="w-2.5 h-2.5" /> {isDatePrefixed ? "↵ Checklist" : "Crear nota checklist"}
+              </button>
+            )}
+          </div>
           <span className="text-[9px] text-muted-foreground">
             {value.length} chars{!saved && " · guardando..."}
           </span>
         </div>
       )}
+      {empresaId && <EmpresaChecklistPanel empresaId={empresaId} proyectoId={proyecto.id} readOnly={false} />}
     </div>
   );
 }
