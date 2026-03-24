@@ -244,7 +244,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
   if (totalCount === 0 && readOnly) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 w-full">
       {/* Input area */}
       {!readOnly && (
         <div className="flex gap-1">
