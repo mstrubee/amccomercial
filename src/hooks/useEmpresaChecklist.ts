@@ -84,14 +84,30 @@ function parseDateFromText(raw: string): { date: Date | null; cleanText: string 
     return { date: d, cleanText: raw.slice(m[0].length).trim() };
   }
 
+  // mm.dd format (no year) → use current year
+  const mmddPattern = /^(\d{1,2})[.\-/](\d{1,2})\s*/;
+  m = raw.match(mmddPattern);
+  if (m) {
+    const mo = parseInt(m[1]);
+    const da = parseInt(m[2]);
+    if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31) {
+      const d = new Date(new Date().getFullYear(), mo - 1, da, 12);
+      return { date: d, cleanText: raw.slice(m[0].length).trim() };
+    }
+  }
+
   return { date: null, cleanText: raw };
 }
 
 export { parseDateFromText };
 
-/** Check if text starts with a date pattern (yyyy.mm.dd) */
+/** Check if text starts with a date pattern (yyyy.mm.dd, dd.mm.yyyy, dd.mm.yy, mm.dd, or "dd de mes") */
 export function startsWithDate(text: string): boolean {
-  return /^\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(text.trim());
+  const t = text.trim();
+  return /^\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(t) ||
+    /^\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}/.test(t) ||
+    /^\d{1,2}[.\-/]\d{1,2}(\s|$)/.test(t) ||
+    /^\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i.test(t);
 }
 
 export function useAddChecklistItem() {
