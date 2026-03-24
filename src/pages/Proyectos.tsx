@@ -35,6 +35,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoRepositorioDialog";
+import { useAddChecklistItem, startsWithDate } from "@/hooks/useEmpresaChecklist";
+import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
+import { cn } from "@/lib/utils";
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
