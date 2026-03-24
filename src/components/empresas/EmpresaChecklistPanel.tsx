@@ -249,7 +249,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
       {!readOnly && (
         <div className="flex gap-1">
           <Textarea
-            placeholder="Nuevo ítem de checklist..."
+            placeholder="Nueva nota de reunión..."
             value={newItemText}
             onChange={e => setNewItemText(e.target.value)}
             onKeyDown={e => {
