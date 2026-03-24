@@ -101,9 +101,13 @@ function parseDateFromText(raw: string): { date: Date | null; cleanText: string 
 
 export { parseDateFromText };
 
-/** Check if text starts with a date pattern (yyyy.mm.dd) */
+/** Check if text starts with a date pattern (yyyy.mm.dd, dd.mm.yyyy, dd.mm.yy, mm.dd, or "dd de mes") */
 export function startsWithDate(text: string): boolean {
-  return /^\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(text.trim());
+  const t = text.trim();
+  return /^\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(t) ||
+    /^\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}/.test(t) ||
+    /^\d{1,2}[.\-/]\d{1,2}(\s|$)/.test(t) ||
+    /^\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i.test(t);
 }
 
 export function useAddChecklistItem() {
