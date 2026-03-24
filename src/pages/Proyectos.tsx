@@ -593,6 +593,35 @@ export default function Proyectos() {
         />
       </div>
 
+      {/* Empresa Cards */}
+      {empresas && empresas.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="flex flex-wrap gap-2">
+          {empresas.filter(e => e.estado === "Activa").map(emp => {
+            const isSelected = filterEmpresas.includes(emp.id);
+            return (
+              <button
+                key={emp.id}
+                onClick={() => {
+                  if (isSelected) {
+                    setFilterEmpresas(prev => prev.filter(id => id !== emp.id));
+                  } else {
+                    setFilterEmpresas([emp.id]);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground border-primary shadow-md"
+                    : "bg-card text-card-foreground border-border hover:bg-accent hover:border-accent-foreground/20"
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+                {emp.nombre}
+              </button>
+            );
+          })}
+        </motion.div>
+      )}
+
       {/* Table */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex-1 min-h-0 bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto overflow-y-auto flex-1">
@@ -621,7 +650,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} />;
                 }
 
                 // Grouped header
@@ -655,7 +684,7 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3">
-                        <GroupEmpresasCell items={items} />
+                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} />
                       </td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
@@ -743,13 +772,16 @@ export default function Proyectos() {
                     </tr>
                     <AnimatePresence>
                       {expanded && (() => {
-                        // Flatten: one child row per unique empresa across all items
+                         // Flatten: one child row per unique empresa across all items
+                        // When empresa filter is active, only show matching empresas
                         const seenEmpresas = new Set<string>();
                         const childRows: { p: ProyectoWithEmpresas; pe: ProyectoWithEmpresas["proyecto_empresas"][0] }[] = [];
                         for (const p of items) {
                           for (const pe of (p.proyecto_empresas || [])) {
                             if (!seenEmpresas.has(pe.empresa_id)) {
                               seenEmpresas.add(pe.empresa_id);
+                              // Skip empresas that don't match the active filter
+                              if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
                               childRows.push({ p, pe });
                             }
                           }
@@ -1162,7 +1194,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [] }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1173,6 +1205,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
   onOpenChat: (projectId: string, projectName: string, empresaId?: string | null, empresaName?: string | null) => void;
   updateNotas: (data: { id: string; notas: string }) => void;
   filterBotones: string[];
+  filterEmpresas?: string[];
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
   return (
@@ -1185,7 +1218,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
-        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} /></td>
+        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} /></td>
         <td className="px-5 py-3">
           {filterBotones.length > 0 && (
             <div className="flex flex-col items-center gap-1">
@@ -1216,14 +1249,14 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
 }
 
 /* ── Empresas cell component ── */
-function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"] }) {
+function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[] }) {
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
 
   return (
     <div className="space-y-1">
-      {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i).map((pe) => {
+      {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
         const monto = (pe as any).monto_cotizacion || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
@@ -1274,12 +1307,14 @@ function EmpresasCell({ proyectoEmpresas }: { proyectoEmpresas: ProyectoWithEmpr
 }
 
 /* ── Group header empresas cell (name + category, no monto) ── */
-function GroupEmpresasCell({ items }: { items: ProyectoWithEmpresas[] }) {
+function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[] }) {
   const allEmpresasRaw = items.flatMap((p) => p.proyecto_empresas || []);
   const seen = new Set<string>();
   const allEmpresas = allEmpresasRaw.filter((pe) => {
     if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
     seen.add(pe.empresa_id);
+    // When empresa filter is active, only show matching empresas
+    if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) return false;
     return true;
   });
   if (allEmpresas.length === 0) {
