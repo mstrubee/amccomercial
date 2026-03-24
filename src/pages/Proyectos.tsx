@@ -772,13 +772,16 @@ export default function Proyectos() {
                     </tr>
                     <AnimatePresence>
                       {expanded && (() => {
-                        // Flatten: one child row per unique empresa across all items
+                         // Flatten: one child row per unique empresa across all items
+                        // When empresa filter is active, only show matching empresas
                         const seenEmpresas = new Set<string>();
                         const childRows: { p: ProyectoWithEmpresas; pe: ProyectoWithEmpresas["proyecto_empresas"][0] }[] = [];
                         for (const p of items) {
                           for (const pe of (p.proyecto_empresas || [])) {
                             if (!seenEmpresas.has(pe.empresa_id)) {
                               seenEmpresas.add(pe.empresa_id);
+                              // Skip empresas that don't match the active filter
+                              if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
                               childRows.push({ p, pe });
                             }
                           }
