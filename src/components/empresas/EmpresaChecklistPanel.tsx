@@ -253,7 +253,12 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
             value={newItemText}
             onChange={e => setNewItemText(e.target.value)}
             onKeyDown={e => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddItem(); }
+              if (e.key !== "Enter") return;
+              e.stopPropagation();
+              if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+                e.preventDefault();
+                handleAddItem();
+              }
             }}
             className="min-h-[36px] text-xs"
             onClick={e => e.stopPropagation()}

@@ -1528,7 +1528,11 @@ function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: 
         onFocus={() => { setFocused(true); isFocusedRef.current = true; }}
         onBlur={() => { setFocused(false); isFocusedRef.current = false; }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && e.ctrlKey && isDatePrefixed && empresaId) {
+          if (e.key !== "Enter") return;
+
+          e.stopPropagation();
+
+          if ((e.ctrlKey || e.metaKey) && isDatePrefixed && empresaId) {
             e.preventDefault();
             handleCreateChecklist();
           }
