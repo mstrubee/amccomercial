@@ -84,6 +84,18 @@ function parseDateFromText(raw: string): { date: Date | null; cleanText: string 
     return { date: d, cleanText: raw.slice(m[0].length).trim() };
   }
 
+  // mm.dd format (no year) → use current year
+  const mmddPattern = /^(\d{1,2})[.\-/](\d{1,2})\s*/;
+  m = raw.match(mmddPattern);
+  if (m) {
+    const mo = parseInt(m[1]);
+    const da = parseInt(m[2]);
+    if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31) {
+      const d = new Date(new Date().getFullYear(), mo - 1, da, 12);
+      return { date: d, cleanText: raw.slice(m[0].length).trim() };
+    }
+  }
+
   return { date: null, cleanText: raw };
 }
 
