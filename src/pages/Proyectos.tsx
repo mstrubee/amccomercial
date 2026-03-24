@@ -650,7 +650,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} />;
                 }
 
                 // Grouped header
