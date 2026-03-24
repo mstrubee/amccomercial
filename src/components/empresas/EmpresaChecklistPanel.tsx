@@ -18,28 +18,27 @@ import {
   useUpdateChecklistItemDate,
   useDeleteChecklistItem,
   useDeleteChecklistItemRecursive,
-  useUpdateEmpresaNotasAtencion,
 } from "@/hooks/useEmpresaChecklist";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   empresaId: string;
-  notasAtencion: string;
+  proyectoId?: string | null;
+  /** If true, only show checklist items (no input area) */
+  readOnly?: boolean;
 }
 
-export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Props) {
+export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly }: Props) {
   const { user } = useAuth();
-  const { data: items = [] } = useEmpresaChecklistItems(empresaId);
+  const { data: items = [] } = useEmpresaChecklistItems(empresaId, proyectoId);
   const addItem = useAddChecklistItem();
   const toggleItem = useToggleChecklistItem();
   const updateText = useUpdateChecklistItemText();
   const updateDate = useUpdateChecklistItemDate();
   const deleteItem = useDeleteChecklistItem();
   const deleteRecursive = useDeleteChecklistItemRecursive();
-  const updateNotas = useUpdateEmpresaNotasAtencion();
 
   const [newItemText, setNewItemText] = useState("");
-  const [localNotas, setLocalNotas] = useState(notasAtencion);
   const [checklistOpen, setChecklistOpen] = useState(true);
 
   // Editing states
@@ -58,22 +57,6 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
   const [deleteTarget, setDeleteTarget] = useState<ChecklistItem | null>(null);
   const [confirmRecursive, setConfirmRecursive] = useState(false);
 
-  // Sync local notas on prop change
-  const isFocusedRef = useRef(false);
-  useEffect(() => {
-    if (!isFocusedRef.current) setLocalNotas(notasAtencion);
-  }, [notasAtencion]);
-
-  // Debounced save notas
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleNotasChange = useCallback((val: string) => {
-    setLocalNotas(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      updateNotas.mutate({ empresa_id: empresaId, notas: val });
-    }, 600);
-  }, [empresaId, updateNotas]);
-
   // Build tree
   const tree = useMemo(() => {
     const childrenMap: Record<string, ChecklistItem[]> = {};
@@ -87,13 +70,12 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
 
   const completedCount = items.filter(i => i.is_completed).length;
   const totalCount = items.length;
-
   const hasChildren = (id: string) => (tree[id] || []).length > 0;
 
   const handleAddItem = () => {
     const trimmed = newItemText.trim();
     if (!trimmed) return;
-    addItem.mutate({ empresa_id: empresaId, text: trimmed });
+    addItem.mutate({ empresa_id: empresaId, proyecto_id: proyectoId, text: trimmed });
     setNewItemText("");
   };
 
@@ -108,21 +90,19 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
   };
 
   const handleAddSubItem = () => {
-    const parent = subItemParent;
-    if (!parent) return;
+    if (!subItemParent) return;
     const trimmed = subItemText.trim();
     if (!trimmed) return;
-    addItem.mutate({ empresa_id: empresaId, text: trimmed, parent_id: parent.id });
+    addItem.mutate({ empresa_id: empresaId, proyecto_id: proyectoId, text: trimmed, parent_id: subItemParent.id });
     setSubItemParent(null);
     setSubItemText("");
   };
 
   const handleFollowUp = () => {
-    const parent = followUpParent;
-    if (!parent) return;
+    if (!followUpParent) return;
     const trimmed = followUpText.trim();
     if (!trimmed) { setFollowUpParent(null); return; }
-    addItem.mutate({ empresa_id: empresaId, text: trimmed, parent_id: parent.id });
+    addItem.mutate({ empresa_id: empresaId, proyecto_id: proyectoId, text: trimmed, parent_id: followUpParent.id });
     setFollowUpParent(null);
     setFollowUpText("");
   };
@@ -151,9 +131,9 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
 
   const saveEditDate = (item: ChecklistItem) => {
     const fullY = 2000 + parseInt(editDateY || "0");
-    let mo = Math.max(1, Math.min(12, parseInt(editDateM || "1")));
+    const mo = Math.max(1, Math.min(12, parseInt(editDateM || "1")));
     const maxD = daysInMonth(fullY, mo - 1);
-    let da = Math.max(1, Math.min(maxD, parseInt(editDateD || "1")));
+    const da = Math.max(1, Math.min(maxD, parseInt(editDateD || "1")));
     const orig = new Date(item.created_at);
     const newDate = new Date(fullY, mo - 1, da, orig.getHours(), orig.getMinutes(), orig.getSeconds());
     updateDate.mutate({ id: item.id, empresa_id: empresaId, created_at: newDate.toISOString() });
@@ -193,7 +173,7 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
             className="mt-0.5"
           />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 text-sm">
+            <div className="flex items-center gap-1.5 text-sm flex-wrap">
               {isEditingDate ? (
                 <span className="flex items-center gap-0.5">
                   <span className="text-xs text-muted-foreground">20</span>
@@ -206,10 +186,7 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditingDateId(null)}><X className="w-3 h-3" /></Button>
                 </span>
               ) : (
-                <span
-                  className="text-muted-foreground text-xs cursor-pointer shrink-0"
-                  onDoubleClick={() => startEditDate(item)}
-                >
+                <span className="text-muted-foreground text-xs cursor-pointer shrink-0" onDoubleClick={() => startEditDate(item)}>
                   {formatChecklistDate(item.created_at)}
                 </span>
               )}
@@ -236,25 +213,26 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
               )}
 
               {item.is_completed && item.completed_at && (
-                <span className="text-xs text-muted-foreground ml-1">(completado el {formatCompletedDate(item.completed_at)})</span>
+                <span className="text-xs text-muted-foreground">(completado el {formatCompletedDate(item.completed_at)})</span>
               )}
             </div>
           </div>
 
-          {/* Hover actions */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <Button size="icon" variant="ghost" className="h-6 w-6" title="Agregar sub-ítem" onClick={() => { setSubItemParent(item); setSubItemText(""); }}>
-              <Plus className="w-3.5 h-3.5" />
-            </Button>
-            {!item.is_completed && (
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Editar" onClick={() => startEditText(item)}>
-                <Pencil className="w-3.5 h-3.5" />
+          {!readOnly && (
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <Button size="icon" variant="ghost" className="h-6 w-6" title="Agregar sub-ítem" onClick={() => { setSubItemParent(item); setSubItemText(""); }}>
+                <Plus className="w-3.5 h-3.5" />
               </Button>
-            )}
-            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" title="Eliminar" onClick={() => handleDelete(item)}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+              {!item.is_completed && (
+                <Button size="icon" variant="ghost" className="h-6 w-6" title="Editar" onClick={() => startEditText(item)}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" title="Eliminar" onClick={() => handleDelete(item)}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
         {children.map(child => renderItem(child, depth + 1))}
       </div>
@@ -263,10 +241,12 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
 
   const rootItems = tree["root"] || [];
 
+  if (totalCount === 0 && readOnly) return null;
+
   return (
-    <div className="space-y-3">
-      {/* Split layout: checklist input + notes */}
-      <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-2">
+      {/* Input area */}
+      {!readOnly && (
         <div className="flex gap-1">
           <Textarea
             placeholder="Nuevo ítem de checklist..."
@@ -275,38 +255,29 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddItem(); }
             }}
-            className="min-h-[60px] text-sm"
+            className="min-h-[36px] text-xs"
+            onClick={e => e.stopPropagation()}
           />
-          <Button size="icon" variant="outline" className="shrink-0 h-[60px]" onClick={handleAddItem} disabled={!newItemText.trim()}>
+          <Button size="icon" variant="outline" className="shrink-0 h-9" onClick={handleAddItem} disabled={!newItemText.trim()}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        <Textarea
-          placeholder="Notas generales..."
-          value={localNotas}
-          onChange={e => handleNotasChange(e.target.value)}
-          onFocus={() => { isFocusedRef.current = true; }}
-          onBlur={() => { isFocusedRef.current = false; }}
-          className="min-h-[60px] text-sm"
-        />
-      </div>
+      )}
 
       {/* Collapsible checklist */}
-      <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
-        <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:text-foreground transition-colors">
-          <ChevronDown className={cn("w-4 h-4 transition-transform", !checklistOpen && "-rotate-90")} />
-          Checklist ({completedCount}/{totalCount})
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="mt-2 max-h-[300px] overflow-y-auto border rounded-md p-1">
-            {rootItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground p-2 text-center">Sin ítems</p>
-            ) : (
-              rootItems.map(item => renderItem(item, 0))
-            )}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      {totalCount > 0 && (
+        <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
+          <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !checklistOpen && "-rotate-90")} />
+            Checklist ({completedCount}/{totalCount})
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-1 max-h-[300px] overflow-y-auto border rounded-md p-1">
+              {rootItems.map(item => renderItem(item, 0))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* Follow-up dialog */}
       <Dialog open={!!followUpParent} onOpenChange={open => { if (!open) setFollowUpParent(null); }}>
@@ -315,12 +286,7 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
             <DialogTitle>Crear ítem de seguimiento</DialogTitle>
             <DialogDescription>Referencia: {followUpParent?.text}</DialogDescription>
           </DialogHeader>
-          <Textarea
-            placeholder="Texto del sub-ítem de seguimiento..."
-            value={followUpText}
-            onChange={e => setFollowUpText(e.target.value)}
-            className="min-h-[80px]"
-          />
+          <Textarea placeholder="Texto del sub-ítem de seguimiento..." value={followUpText} onChange={e => setFollowUpText(e.target.value)} className="min-h-[80px]" />
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setFollowUpParent(null)}>Omitir</Button>
             <Button onClick={handleFollowUp} disabled={!followUpText.trim()}>Agregar</Button>
@@ -335,12 +301,7 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
             <DialogTitle>Agregar sub-ítem</DialogTitle>
             <DialogDescription>Padre: {subItemParent?.text}</DialogDescription>
           </DialogHeader>
-          <Textarea
-            placeholder="Texto del sub-ítem..."
-            value={subItemText}
-            onChange={e => setSubItemText(e.target.value)}
-            className="min-h-[80px]"
-          />
+          <Textarea placeholder="Texto del sub-ítem..." value={subItemText} onChange={e => setSubItemText(e.target.value)} className="min-h-[80px]" />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSubItemParent(null)}>Cancelar</Button>
             <Button onClick={handleAddSubItem} disabled={!subItemText.trim()}>Agregar</Button>
@@ -356,33 +317,22 @@ export default function EmpresaChecklistPanel({ empresaId, notasAtencion }: Prop
             <AlertDialogDescription>
               {deleteTarget && hasChildren(deleteTarget.id)
                 ? "Este ítem tiene sub-ítems. ¿Qué deseas hacer?"
-                : `¿Eliminar "${deleteTarget?.text}"?`
-              }
+                : `¿Eliminar "${deleteTarget?.text}"?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setConfirmRecursive(false); }}>
-              Cancelar
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setConfirmRecursive(false); }}>Cancelar</AlertDialogCancel>
             {deleteTarget && hasChildren(deleteTarget.id) ? (
               <>
-                <Button variant="outline" onClick={() => executeDelete(false)}>
-                  Borrar solo la línea
-                </Button>
+                <Button variant="outline" onClick={() => executeDelete(false)}>Borrar solo la línea</Button>
                 {!confirmRecursive ? (
-                  <Button variant="destructive" onClick={() => setConfirmRecursive(true)}>
-                    Borrar línea y dependientes
-                  </Button>
+                  <Button variant="destructive" onClick={() => setConfirmRecursive(true)}>Borrar línea y dependientes</Button>
                 ) : (
-                  <Button variant="destructive" onClick={() => executeDelete(true)}>
-                    ⚠ Confirmar eliminación total
-                  </Button>
+                  <Button variant="destructive" onClick={() => executeDelete(true)}>⚠ Confirmar eliminación total</Button>
                 )}
               </>
             ) : (
-              <AlertDialogAction onClick={() => executeDelete(false)}>
-                Eliminar
-              </AlertDialogAction>
+              <AlertDialogAction onClick={() => executeDelete(false)}>Eliminar</AlertDialogAction>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>

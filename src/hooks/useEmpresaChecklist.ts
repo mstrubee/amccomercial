@@ -5,6 +5,7 @@ import { toast } from "sonner";
 export interface ChecklistItem {
   id: string;
   empresa_id: string;
+  proyecto_id: string | null;
   text: string;
   is_completed: boolean;
   created_at: string;
@@ -13,15 +14,33 @@ export interface ChecklistItem {
   parent_id: string | null;
 }
 
-export function useEmpresaChecklistItems(empresaId: string | null) {
+/** Fetch checklist items for a specific proyecto + empresa combo */
+export function useEmpresaChecklistItems(empresaId: string | null, proyectoId?: string | null) {
   return useQuery({
-    queryKey: ["empresa-checklist", empresaId],
+    queryKey: ["empresa-checklist", empresaId, proyectoId],
     enabled: !!empresaId,
+    queryFn: async () => {
+      let q = supabase
+        .from("empresa_checklist_items")
+        .select("*")
+        .eq("empresa_id", empresaId!)
+        .order("created_at", { ascending: true });
+      if (proyectoId) q = q.eq("proyecto_id", proyectoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as ChecklistItem[];
+    },
+  });
+}
+
+/** Fetch ALL checklist items (for Reuniones page) */
+export function useAllChecklistItems() {
+  return useQuery({
+    queryKey: ["empresa-checklist-all"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("empresa_checklist_items")
         .select("*")
-        .eq("empresa_id", empresaId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data as ChecklistItem[];
@@ -31,13 +50,9 @@ export function useEmpresaChecklistItems(empresaId: string | null) {
 
 function parseDateFromText(raw: string): { date: Date | null; cleanText: string } {
   const patterns = [
-    // yyyy.mm.dd, yyyy-mm-dd, yyyy/mm/dd
     /^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\s*/,
-    // dd.mm.yyyy, dd-mm-yyyy, dd/mm/yyyy
     /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})\s*/,
-    // dd.mm.yy, dd-mm-yy, dd/mm/yy
     /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2})\s*/,
-    // dd de mes
     /^(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s*/i,
   ];
 
@@ -46,26 +61,22 @@ function parseDateFromText(raw: string): { date: Date | null; cleanText: string 
     julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11,
   };
 
-  // yyyy.mm.dd
   let m = raw.match(patterns[0]);
   if (m) {
     const d = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]), 12);
     return { date: d, cleanText: raw.slice(m[0].length).trim() };
   }
-  // dd.mm.yyyy
   m = raw.match(patterns[1]);
   if (m) {
     const d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]), 12);
     return { date: d, cleanText: raw.slice(m[0].length).trim() };
   }
-  // dd.mm.yy
   m = raw.match(patterns[2]);
   if (m) {
     const yr = 2000 + parseInt(m[3]);
     const d = new Date(yr, parseInt(m[2]) - 1, parseInt(m[1]), 12);
     return { date: d, cleanText: raw.slice(m[0].length).trim() };
   }
-  // dd de mes
   m = raw.match(patterns[3]);
   if (m) {
     const mon = monthNames[m[2].toLowerCase()];
@@ -78,13 +89,19 @@ function parseDateFromText(raw: string): { date: Date | null; cleanText: string 
 
 export { parseDateFromText };
 
+/** Check if text starts with a date pattern (yyyy.mm.dd) */
+export function startsWithDate(text: string): boolean {
+  return /^\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(text.trim());
+}
+
 export function useAddChecklistItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { empresa_id: string; text: string; parent_id?: string | null }) => {
+    mutationFn: async (input: { empresa_id: string; proyecto_id?: string | null; text: string; parent_id?: string | null }) => {
       const { date, cleanText } = parseDateFromText(input.text);
       const row: any = {
         empresa_id: input.empresa_id,
+        proyecto_id: input.proyecto_id || null,
         text: cleanText || input.text,
         parent_id: input.parent_id || null,
       };
@@ -94,7 +111,8 @@ export function useAddChecklistItem() {
       return data;
     },
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["empresa-checklist", data.empresa_id] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist"] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist-all"] });
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -115,7 +133,10 @@ export function useToggleChecklistItem() {
       const { error } = await supabase.from("empresa_checklist_items").update(update).eq("id", input.id);
       if (error) throw error;
     },
-    onSuccess: (_, v) => qc.invalidateQueries({ queryKey: ["empresa-checklist", v.empresa_id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["empresa-checklist"] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist-all"] });
+    },
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
@@ -127,7 +148,10 @@ export function useUpdateChecklistItemText() {
       const { error } = await supabase.from("empresa_checklist_items").update({ text: input.text }).eq("id", input.id);
       if (error) throw error;
     },
-    onSuccess: (_, v) => qc.invalidateQueries({ queryKey: ["empresa-checklist", v.empresa_id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["empresa-checklist"] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist-all"] });
+    },
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
@@ -139,7 +163,10 @@ export function useUpdateChecklistItemDate() {
       const { error } = await supabase.from("empresa_checklist_items").update({ created_at: input.created_at }).eq("id", input.id);
       if (error) throw error;
     },
-    onSuccess: (_, v) => qc.invalidateQueries({ queryKey: ["empresa-checklist", v.empresa_id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["empresa-checklist"] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist-all"] });
+    },
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
@@ -151,7 +178,10 @@ export function useDeleteChecklistItem() {
       const { error } = await supabase.from("empresa_checklist_items").delete().eq("id", input.id);
       if (error) throw error;
     },
-    onSuccess: (_, v) => qc.invalidateQueries({ queryKey: ["empresa-checklist", v.empresa_id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["empresa-checklist"] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist-all"] });
+    },
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
@@ -160,7 +190,6 @@ export function useDeleteChecklistItemRecursive() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; empresa_id: string; allItems: ChecklistItem[] }) => {
-      // Collect all descendant IDs
       const ids = new Set<string>();
       const collect = (parentId: string) => {
         ids.add(parentId);
@@ -170,7 +199,10 @@ export function useDeleteChecklistItemRecursive() {
       const { error } = await supabase.from("empresa_checklist_items").delete().in("id", Array.from(ids));
       if (error) throw error;
     },
-    onSuccess: (_, v) => qc.invalidateQueries({ queryKey: ["empresa-checklist", v.empresa_id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["empresa-checklist"] });
+      qc.invalidateQueries({ queryKey: ["empresa-checklist-all"] });
+    },
     onError: (e) => toast.error("Error: " + e.message),
   });
 }
