@@ -26,7 +26,7 @@ import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
 import RepositorioTipoPage from "@/pages/RepositorioTipoPage";
 import DrivePage from "@/pages/DrivePage";
 import Calendario from "@/pages/Calendario";
-import AtencionEmpresas from "@/pages/AtencionEmpresas";
+import ReunionesPage from "@/pages/AtencionEmpresas";
 import { cn } from "@/lib/utils";
 
 import { Loader2 } from "lucide-react";
