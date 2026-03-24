@@ -222,6 +222,16 @@ export default function Proyectos() {
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
   });
 
+  // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
+  const fullGroupSizes = useMemo(() => {
+    const sizes: Record<string, number> = {};
+    (proyectos || []).forEach((p) => {
+      const key = p.nombre.trim().toLowerCase();
+      sizes[key] = (sizes[key] || 0) + 1;
+    });
+    return sizes;
+  }, [proyectos]);
+
   // Group projects by name
   const groupedRows = useMemo(() => {
     const groups: Record<string, ProyectoWithEmpresas[]> = {};
