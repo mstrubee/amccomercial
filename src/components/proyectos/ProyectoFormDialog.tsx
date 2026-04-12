@@ -643,7 +643,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
                                   <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
                                 </div>
-                              )}
+                               )}
+                              <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />
                               </>
                             )}
                           </div>
