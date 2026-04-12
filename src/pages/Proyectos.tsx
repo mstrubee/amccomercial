@@ -370,7 +370,7 @@ export default function Proyectos() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nombre, comuna o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Buscar por nombre, comuna o cliente..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
