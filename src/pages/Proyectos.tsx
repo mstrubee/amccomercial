@@ -1380,12 +1380,9 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
               )}
             </span>
             {totalVentas !== 0 && (
-              <>
-                <br />
-                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(totalVentas)}</span>
-                <br />
-                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(totalVentas))}</span>
-              </>
+              <span className="ml-1 text-[11px] font-medium text-card-foreground">
+                {formatUF(totalVentas)} <span className="text-[10px] text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalVentas))}</span>
+              </span>
             )}
           </div>
         );
