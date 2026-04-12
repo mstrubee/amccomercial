@@ -60,6 +60,9 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
               <span className={`font-medium ${Number(v.monto_uf) < 0 ? "text-destructive" : "text-card-foreground"}`}>
                 {formatUF(Number(v.monto_uf))}
               </span>
+              {v.op && (
+                <span className="text-muted-foreground">OP: {v.op}</span>
+              )}
               {v.descripcion && (
                 <span className="text-muted-foreground truncate max-w-[200px]">— {v.descripcion}</span>
               )}
