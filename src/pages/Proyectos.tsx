@@ -1429,6 +1429,13 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
 
 /* ── Detail dialog component ── */
 function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWithEmpresas | null; onClose: () => void }) {
+  const peIds = viewTarget?.proyecto_empresas?.map(pe => pe.id) || [];
+  const { data: detailVentas } = useVentasByProyectoEmpresaIds(peIds);
+  const ventasByPeDetail = new Map<string, number>();
+  for (const v of detailVentas || []) {
+    ventasByPeDetail.set(v.proyecto_empresa_id, (ventasByPeDetail.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
+  }
+
   if (!viewTarget) return null;
 
   return (
