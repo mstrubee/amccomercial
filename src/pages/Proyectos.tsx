@@ -454,40 +454,31 @@ export default function Proyectos() {
             </PopoverContent>
           </Popover>
 
-          {/* 5. Estado AMC (x Empresa) — was Seguimiento */}
-          {(() => {
-            const allLabels = new Set<string>();
-            categorias?.forEach(cat => {
-              if ((cat as any).boton_label) allLabels.add((cat as any).boton_label);
-              cat.subcategorias_proyecto?.forEach(sub => {
-                if ((sub as any).boton_label) allLabels.add((sub as any).boton_label);
-              });
-            });
-            if (allLabels.size === 0) return null;
-            return (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                    <MousePointerClick className="w-3 h-3" />
-                    Estado AMC (x Empresa) {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-52 p-2" align="start">
-                  <div className="max-h-[400px] overflow-y-auto space-y-1">
-                    {Array.from(allLabels).map((label) => (
-                      <label key={label} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                        <Checkbox checked={filterBotones.includes(label)} onCheckedChange={() => toggleFilter(setFilterBotones, label)} />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                  {filterBotones.length > 0 && (
-                    <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterBotones([])}>Limpiar</Button>
-                  )}
-                </PopoverContent>
-              </Popover>
-            );
-          })()}
+          {/* 5. Estado AMC (x Empresa) */}
+          {estadosAmc && estadosAmc.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                  <MousePointerClick className="w-3 h-3" />
+                  Estado AMC (x Empresa) {filterBotones.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{filterBotones.length}</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-2" align="start">
+                <div className="max-h-[400px] overflow-y-auto space-y-1">
+                  {estadosAmc.map((ea) => (
+                    <label key={ea.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                      <Checkbox checked={filterBotones.includes(ea.nombre)} onCheckedChange={() => toggleFilter(setFilterBotones, ea.nombre)} />
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: ea.color }} />
+                      {ea.nombre}
+                    </label>
+                  ))}
+                </div>
+                {filterBotones.length > 0 && (
+                  <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterBotones([])}>Limpiar</Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
 
           {/* 6. Estatus (x Empresa) — was Categoría */}
           <Popover>
