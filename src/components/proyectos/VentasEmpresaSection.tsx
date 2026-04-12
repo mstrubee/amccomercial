@@ -104,7 +104,7 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
           <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleAdd} disabled={createVenta.isPending || !montoUf}>
             Guardar
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setShowForm(false); setMontoUf(""); setDescripcion(""); }}>
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setShowForm(false); setMontoUf(""); setDescripcion(""); setOp(""); }}>
             Cancelar
           </Button>
         </div>
