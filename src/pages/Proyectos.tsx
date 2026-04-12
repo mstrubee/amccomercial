@@ -1475,7 +1475,7 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
                 const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
                 const statusColor = sub?.color || cat?.color || null;
                 const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
-                const monto = (pe as any).monto_cotizacion || 0;
+                
                 return (
                   <div key={pe.id} className={`px-3 py-2 rounded-lg text-sm border ${isAdj ? "bg-success/10 border-success/30" : "bg-secondary/30 border-border"}`}>
                     <div className="flex items-center justify-between">
