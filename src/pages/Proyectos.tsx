@@ -1252,7 +1252,6 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
   return (
     <div className="space-y-1">
       {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
-        const monto = (pe as any).monto_cotizacion || 0;
         const totalVentas = ventasByPe.get(pe.id) || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
@@ -1287,20 +1286,12 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
             {statusName && (
               <span className="ml-1 text-[10px] text-muted-foreground">{statusName}</span>
             )}
-            {monto > 0 && (
-              <>
-                <br />
-                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
-                <br />
-                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
-              </>
-            )}
             {totalVentas !== 0 && (
               <>
                 <br />
-                <span className={`ml-0.5 text-[10px] font-medium ${totalVentas < 0 ? "text-destructive" : "text-emerald-600"}`}>
-                  Ventas: {formatUF(totalVentas)}
-                </span>
+                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(totalVentas)}</span>
+                <br />
+                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(totalVentas))}</span>
               </>
             )}
           </div>
