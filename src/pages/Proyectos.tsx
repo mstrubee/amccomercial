@@ -683,7 +683,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />;
                 }
 
                 // Grouped header
@@ -1234,7 +1234,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [] }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1246,6 +1246,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
   updateNotas: (data: { id: string; notas: string }) => void;
   filterBotones: string[];
   filterEmpresas?: string[];
+  ventasMap?: Map<string, number>;
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
   return (
