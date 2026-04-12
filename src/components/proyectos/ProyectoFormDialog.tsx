@@ -316,11 +316,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
 
   const handleGanadoConfirm = () => {
     if (!ganadoDialogEmpresaId) return;
-    updateEmpresaRow(ganadoDialogEmpresaId, {
-      ganado_presupuesto: ganadoPresupuesto ? parseFloat(ganadoPresupuesto) : null,
+    const presupuestoVal = ganadoPresupuesto ? parseFloat(ganadoPresupuesto) : null;
+    const row = empresaRows.find(r => r.empresa_id === ganadoDialogEmpresaId);
+    const updates: Partial<EmpresaRow> = {
+      ganado_presupuesto: presupuestoVal,
       ganado_op: ganadoOp || null,
       ganado_fecha: ganadoFecha || null,
-    });
+    };
+    // Sincronizar cotización UF con el presupuesto si aún no tiene valor
+    if (presupuestoVal && (!row?.monto || row.monto === 0)) {
+      updates.monto = presupuestoVal;
+    }
+    updateEmpresaRow(ganadoDialogEmpresaId, updates);
     setGanadoDialogOpen(false);
     setGanadoDialogEmpresaId(null);
   };
