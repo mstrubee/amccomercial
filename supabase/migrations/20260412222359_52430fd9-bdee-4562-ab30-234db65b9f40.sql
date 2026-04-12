@@ -1,0 +1,1 @@
+ALTER TABLE public.ventas_proyecto_empresa ADD COLUMN op text NOT NULL DEFAULT '';
