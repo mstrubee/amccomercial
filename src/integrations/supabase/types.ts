@@ -841,6 +841,27 @@ export type Database = {
         }
         Relationships: []
       }
+      estados_amc: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       estados_proyecto: {
         Row: {
           created_at: string

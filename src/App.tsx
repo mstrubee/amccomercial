@@ -23,6 +23,7 @@ import Clientes from "@/pages/Clientes";
 import CategoriasPage from "@/pages/CategoriasPage";
 import Reporteria from "@/pages/Reporteria";
 import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
+import EstadosAmcPage from "@/pages/EstadosAmcPage";
 import RepositorioTipoPage from "@/pages/RepositorioTipoPage";
 import DrivePage from "@/pages/DrivePage";
 import Calendario from "@/pages/Calendario";
@@ -62,6 +63,7 @@ function AppRoutes() {
         {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
         {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
         {isAdmin && <Route path="/estados-proyecto" element={<EstadosProyectoPage />} />}
+        {isAdmin && <Route path="/estados-amc" element={<EstadosAmcPage />} />}
         {isAdmin && <Route path="/repositorio-tipo" element={<RepositorioTipoPage />} />}
         {isAdmin && <Route path="/drive" element={<DrivePage />} />}
         {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
