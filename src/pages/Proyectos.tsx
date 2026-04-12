@@ -71,6 +71,7 @@ export default function Proyectos() {
   const updateNotas = useUpdateNotas();
   const updateNotaGrupo = useUpdateNotaGrupo();
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filterEstados, setFilterEstados] = useState<string[]>([]);
   const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
