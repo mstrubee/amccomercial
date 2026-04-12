@@ -285,6 +285,34 @@ export default function Proyectos() {
     return result;
   }, [filtered]);
 
+  // Lift ventas data: single query for all proyecto_empresa IDs
+  const allPeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const p of (proyectos || [])) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        ids.push(pe.id);
+      }
+    }
+    return ids;
+  }, [proyectos]);
+
+  const { data: allVentasData } = useVentasByProyectoEmpresaIds(allPeIds);
+
+  // Pre-compute ventas totals per proyecto_empresa ID (ppto + ventas adicionales)
+  const ventasMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of (proyectos || [])) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        const ppto = Number((pe as any).ganado_presupuesto) || 0;
+        if (ppto !== 0) map.set(pe.id, ppto);
+      }
+    }
+    for (const v of (allVentasData || [])) {
+      map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
+    }
+    return map;
+  }, [proyectos, allVentasData]);
+
   // KPI stats
   const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
 
@@ -689,7 +717,7 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3">
-                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} />
+                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
                       </td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
@@ -814,7 +842,7 @@ export default function Proyectos() {
                                 <td colSpan={2} className="px-5 py-2 align-top">
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                                 </td>
-                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} /></td>
+                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} /></td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {(() => {
                                     const sub = (pe as any).subcategorias_proyecto;
@@ -1230,7 +1258,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
-        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} /></td>
+        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
         <td className="px-5 py-3">
           {filterBotones.length > 0 && (
             <div className="flex flex-col items-center gap-1">
