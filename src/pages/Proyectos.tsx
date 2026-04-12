@@ -21,6 +21,7 @@ import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
+import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
