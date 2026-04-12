@@ -62,6 +62,7 @@ export default function Proyectos() {
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
+  const { data: estadosAmc } = useEstadosAmc();
   const { data: clasificacionesAlerta } = useClasificacionesAlerta();
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
