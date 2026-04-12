@@ -7,6 +7,7 @@ export interface VentaRow {
   proyecto_empresa_id: string;
   monto_uf: number;
   descripcion: string;
+  op: string;
   created_at: string;
 }
 
@@ -45,7 +46,7 @@ export function useVentasByProyectoEmpresaIds(ids: string[]) {
 export function useCreateVenta() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { proyecto_empresa_id: string; monto_uf: number; descripcion: string }) => {
+    mutationFn: async (input: { proyecto_empresa_id: string; monto_uf: number; descripcion: string; op: string }) => {
       const { data, error } = await supabase
         .from("ventas_proyecto_empresa")
         .insert(input)
