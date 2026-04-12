@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef, useCallback, memo } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -54,6 +54,30 @@ function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations
   return Array.from(seen.values());
 }
 
+/* ── Isolated DebouncedInput to prevent parent re-renders on every keystroke ── */
+const DebouncedInput = memo(function DebouncedInput({
+  value: externalValue,
+  onChange,
+  delay = 200,
+  ...props
+}: { value: string; onChange: (v: string) => void; delay?: number } & Omit<React.ComponentProps<typeof Input>, "value" | "onChange">) {
+  const [localValue, setLocalValue] = useState(externalValue);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => { setLocalValue(externalValue); }, [externalValue]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setLocalValue(v);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => onChange(v), delay);
+  }, [onChange, delay]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  return <Input {...props} value={localValue} onChange={handleChange} />;
+});
+
 // ESTADOS_AMC now loaded dynamically via useEstadosProyecto
 const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
@@ -71,7 +95,6 @@ export default function Proyectos() {
   const updateNotas = useUpdateNotas();
   const updateNotaGrupo = useUpdateNotaGrupo();
 
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filterEstados, setFilterEstados] = useState<string[]>([]);
   const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
@@ -131,11 +154,7 @@ export default function Proyectos() {
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
 
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput), 250);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  // (debounce moved into DebouncedInput component)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -208,7 +227,7 @@ export default function Proyectos() {
     setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   }, []);
 
-  const filtered = (proyectos || []).filter((p) => {
+  const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = search.toLowerCase();
     const matchSearch =
       p.nombre.toLowerCase().includes(searchLower) ||
@@ -233,7 +252,7 @@ export default function Proyectos() {
       return label && filterBotones.includes(label);
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  });
+  }), [proyectos, search, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, categorias]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -265,6 +284,34 @@ export default function Proyectos() {
     });
     return result;
   }, [filtered]);
+
+  // Lift ventas data: single query for all proyecto_empresa IDs
+  const allPeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const p of (proyectos || [])) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        ids.push(pe.id);
+      }
+    }
+    return ids;
+  }, [proyectos]);
+
+  const { data: allVentasData } = useVentasByProyectoEmpresaIds(allPeIds);
+
+  // Pre-compute ventas totals per proyecto_empresa ID (ppto + ventas adicionales)
+  const ventasMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of (proyectos || [])) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        const ppto = Number((pe as any).ganado_presupuesto) || 0;
+        if (ppto !== 0) map.set(pe.id, ppto);
+      }
+    }
+    for (const v of (allVentasData || [])) {
+      map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
+    }
+    return map;
+  }, [proyectos, allVentasData]);
 
   // KPI stats
   const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
@@ -369,8 +416,8 @@ export default function Proyectos() {
       {/* Filters */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nombre, comuna o cliente..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="pl-9" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <DebouncedInput value={search} onChange={setSearch} placeholder="Buscar por nombre, comuna o cliente..." className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
@@ -636,7 +683,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />;
                 }
 
                 // Grouped header
@@ -670,7 +717,7 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
                       <td className="px-5 py-3">
-                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} />
+                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
                       </td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
@@ -795,7 +842,7 @@ export default function Proyectos() {
                                 <td colSpan={2} className="px-5 py-2 align-top">
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                                 </td>
-                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} /></td>
+                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} /></td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {(() => {
                                     const sub = (pe as any).subcategorias_proyecto;
@@ -1187,7 +1234,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [] }: {
+function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1199,6 +1246,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
   updateNotas: (data: { id: string; notas: string }) => void;
   filterBotones: string[];
   filterEmpresas?: string[];
+  ventasMap?: Map<string, number>;
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
   return (
@@ -1211,7 +1259,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
-        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} /></td>
+        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
         <td className="px-5 py-3">
           {filterBotones.length > 0 && (
             <div className="flex flex-col items-center gap-1">
@@ -1242,22 +1290,7 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
 }
 
 /* ── Empresas cell component ── */
-function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[] }) {
-  const peIds = useMemo(() => (proyectoEmpresas || []).map((pe) => pe.id), [proyectoEmpresas]);
-  const { data: allVentas } = useVentasByProyectoEmpresaIds(peIds);
-
-  const ventasByPe = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const pe of (proyectoEmpresas || [])) {
-      const ppto = Number((pe as any).ganado_presupuesto) || 0;
-      if (ppto !== 0) map.set(pe.id, ppto);
-    }
-    for (const v of allVentas || []) {
-      map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
-    }
-    return map;
-  }, [proyectoEmpresas, allVentas]);
-
+const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
@@ -1265,7 +1298,7 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
   return (
     <div className="space-y-1">
       {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
-        const totalVentas = ventasByPe.get(pe.id) || 0;
+        const totalVentas = ventasMap?.get(pe.id) || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
@@ -1312,10 +1345,10 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
       })}
     </div>
   );
-}
+});
 
 /* ── Group header empresas cell (name + category + monto) ── */
-function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[] }) {
+const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
   const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
   const allEmpresas = useMemo(() => {
     const seen = new Set<string>();
@@ -1327,21 +1360,15 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
     });
   }, [allEmpresasRaw, filterEmpresas]);
 
-  const peIds = useMemo(() => allEmpresasRaw.map((pe) => pe.id), [allEmpresasRaw]);
-  const { data: allVentas } = useVentasByProyectoEmpresaIds(peIds);
-
+  // Aggregate ventas by empresa_id using the parent-level ventasMap
   const ventasByEmpresa = useMemo(() => {
     const map = new Map<string, number>();
     for (const pe of allEmpresasRaw) {
-      const ppto = Number((pe as any).ganado_presupuesto) || 0;
-      if (ppto !== 0) map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + ppto);
-    }
-    for (const v of allVentas || []) {
-      const pe = allEmpresasRaw.find((p) => p.id === v.proyecto_empresa_id);
-      if (pe) map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + Number(v.monto_uf));
+      const total = ventasMap?.get(pe.id) || 0;
+      if (total !== 0) map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + total);
     }
     return map;
-  }, [allEmpresasRaw, allVentas]);
+  }, [allEmpresasRaw, ventasMap]);
 
   if (allEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
@@ -1389,7 +1416,7 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
       })}
     </div>
   );
-}
+});
 
 /* ── Nota grupo cell (no char limit, only for parent row) ── */
 function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void; onCreateAlerta?: (texto: string) => void }) {
