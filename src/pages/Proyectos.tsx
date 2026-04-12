@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef, useCallback, memo, useDeferredValue } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -96,6 +96,7 @@ export default function Proyectos() {
   const updateNotaGrupo = useUpdateNotaGrupo();
 
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [filterEstados, setFilterEstados] = useState<string[]>([]);
   const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
   const [filterCategorias, setFilterCategorias] = useState<string[]>([]);
@@ -227,14 +228,35 @@ export default function Proyectos() {
     setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   }, []);
 
+  const projectSearchIndex = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const p of proyectos || []) {
+      const clientNames = (p.proyecto_clientes || [])
+        .map((pc) => pc.clientes?.nombre || "")
+        .filter(Boolean)
+        .join(" ");
+      index.set(p.id, `${p.nombre} ${p.comuna} ${clientNames}`.toLowerCase());
+    }
+    return index;
+  }, [proyectos]);
+
+  const buttonLabelsByLink = useMemo(() => {
+    const categoriaLabels = new Map<string, string>();
+    const subcategoriaLabels = new Map<string, string>();
+
+    for (const categoria of categorias || []) {
+      if ((categoria as any).boton_label) categoriaLabels.set(categoria.id, (categoria as any).boton_label);
+      for (const subcategoria of categoria.subcategorias_proyecto || []) {
+        if ((subcategoria as any).boton_label) subcategoriaLabels.set(subcategoria.id, (subcategoria as any).boton_label);
+      }
+    }
+
+    return { categoriaLabels, subcategoriaLabels };
+  }, [categorias]);
+
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
-    const searchLower = search.toLowerCase();
-    const matchSearch =
-      p.nombre.toLowerCase().includes(searchLower) ||
-      p.comuna.toLowerCase().includes(searchLower) ||
-      (p.proyecto_clientes || []).some(pc =>
-        pc.clientes?.nombre?.toLowerCase().includes(searchLower)
-      );
+    const searchLower = deferredSearch.trim().toLowerCase();
+    const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
     const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
     const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
     const matchEmpresa =
@@ -246,13 +268,13 @@ export default function Proyectos() {
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
-      const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
-      const cat = categorias?.find(c => c.id === pe.categoria_id);
-      const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
+      const label = buttonLabelsByLink.subcategoriaLabels.get(pe.subcategoria_id || "")
+        || buttonLabelsByLink.categoriaLabels.get(pe.categoria_id || "")
+        || null;
       return label && filterBotones.includes(label);
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  }), [proyectos, search, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, categorias]);
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -1234,7 +1256,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap }: {
+const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1287,7 +1309,9 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
       </tr>
     </>
   );
-}
+});
+
+ProjectRow.displayName = "ProjectRow";
 
 /* ── Empresas cell component ── */
 const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
