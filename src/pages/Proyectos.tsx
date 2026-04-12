@@ -1324,15 +1324,6 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
     }
   }
 
-  // Sum monto_cotizacion across child rows for same empresa
-  const montoByEmpresa = new Map<string, number>();
-  for (const pe of allEmpresasRaw) {
-    const m = (pe as any).monto_cotizacion || 0;
-    if (m > 0) {
-      montoByEmpresa.set(pe.empresa_id, (montoByEmpresa.get(pe.empresa_id) || 0) + m);
-    }
-  }
-
   if (allEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
@@ -1346,7 +1337,6 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
         const fechaCat = (pe as any).fecha_categoria || null;
-        const monto = montoByEmpresa.get(pe.empresa_id) || 0;
         const totalVentas = ventasByEmpresa.get(pe.empresa_id) || 0;
         return (
           <div key={pe.id} className="leading-tight">
@@ -1370,20 +1360,12 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
                 </span>
               )}
             </span>
-            {monto > 0 && (
-              <>
-                <br />
-                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
-                <br />
-                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
-              </>
-            )}
             {totalVentas !== 0 && (
               <>
                 <br />
-                <span className={`ml-0.5 text-[10px] font-medium ${totalVentas < 0 ? "text-destructive" : "text-emerald-600"}`}>
-                  Ventas: {formatUF(totalVentas)}
-                </span>
+                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(totalVentas)}</span>
+                <br />
+                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(totalVentas))}</span>
               </>
             )}
           </div>
@@ -1391,8 +1373,6 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
       })}
     </div>
   );
-}
-
 /* ── Nota grupo cell (no char limit, only for parent row) ── */
 function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void; onCreateAlerta?: (texto: string) => void }) {
   const [value, setValue] = useState((proyecto as any).nota_grupo || "");
