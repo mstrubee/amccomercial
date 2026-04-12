@@ -257,6 +257,12 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     setEmpresaRows((prev) => prev.map((r) => r.empresa_id === empresa_id ? { ...r, ...updates } : r));
   };
 
+  const parseMontoValue = (raw: string): number => {
+    const normalized = raw.replace(",", ".");
+    const val = parseFloat(normalized);
+    return isNaN(val) ? 0 : val;
+  };
+
   const categoryPermiteFecha = (catId: string | null, subId: string | null): boolean => {
     if (!categorias) return false;
     // Check subcategory's parent category
