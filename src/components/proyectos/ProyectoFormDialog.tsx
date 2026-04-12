@@ -296,7 +296,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       setGanadoDialogEmpresaId(empresa_id);
       setGanadoPrevCatId(row?.categoria_id || null);
       setGanadoPrevSubId(row?.subcategoria_id || null);
-      setGanadoPresupuesto(row?.ganado_presupuesto ? String(row.ganado_presupuesto) : "");
+      setGanadoPresupuesto(row?.ganado_presupuesto ? String(row.ganado_presupuesto) : row?.monto ? String(row.monto) : "");
       setGanadoOp(row?.ganado_op || "");
       setGanadoFecha(row?.ganado_fecha || new Date().toISOString().split("T")[0]);
       // Apply the category change optimistically
