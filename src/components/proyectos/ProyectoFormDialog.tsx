@@ -368,6 +368,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     return "none";
   };
 
+  /** Get the proyecto_empresas DB record ID for a given empresa_id */
+  const getProyectoEmpresaId = (empresaId: string): string | null => {
+    if (!initialData) return null;
+    const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
+    for (const item of sourceItems) {
+      const pe = (item.proyecto_empresas || []).find((p) => p.empresa_id === empresaId);
+      if (pe) return pe.id;
+    }
+    return null;
+  };
+
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
