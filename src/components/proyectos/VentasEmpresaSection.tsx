@@ -27,11 +27,12 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
     const monto = parseFloat(montoUf);
     if (isNaN(monto)) return;
     createVenta.mutate(
-      { proyecto_empresa_id: proyectoEmpresaId, monto_uf: monto, descripcion: descripcion.trim() },
+      { proyecto_empresa_id: proyectoEmpresaId, monto_uf: monto, descripcion: descripcion.trim(), op: op.trim() },
       {
         onSuccess: () => {
           setMontoUf("");
           setDescripcion("");
+          setOp("");
           setShowForm(false);
         },
       }
