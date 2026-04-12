@@ -257,6 +257,12 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     setEmpresaRows((prev) => prev.map((r) => r.empresa_id === empresa_id ? { ...r, ...updates } : r));
   };
 
+  const parseMontoValue = (raw: string): number => {
+    const normalized = raw.replace(",", ".");
+    const val = parseFloat(normalized);
+    return isNaN(val) ? 0 : val;
+  };
+
   const categoryPermiteFecha = (catId: string | null, subId: string | null): boolean => {
     if (!categorias) return false;
     // Check subcategory's parent category
@@ -545,7 +551,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   className="h-7 w-32 text-xs"
                                   placeholder="Cotización UF"
                                   value={row.monto || ""}
-                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
                                 />
                                 <span className="text-[10px] text-muted-foreground">UF</span>
                                 {row.monto > 0 && (
@@ -613,7 +619,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   className="h-7 w-32 text-xs"
                                   placeholder="Cotización UF"
                                   value={row.monto || ""}
-                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
                                 />
                                 <span className="text-[10px] text-muted-foreground">UF</span>
                                 {row.monto > 0 && (
@@ -673,7 +679,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 className="h-7 w-32 text-xs"
                                 placeholder="Cotización UF"
                                 value={row.monto || ""}
-                                onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
                               />
                               <span className="text-[10px] text-muted-foreground">UF</span>
                               {row.monto > 0 && (
