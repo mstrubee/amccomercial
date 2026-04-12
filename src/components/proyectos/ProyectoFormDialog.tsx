@@ -593,7 +593,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <div className="mt-1.5 pl-6 flex items-center gap-2 flex-wrap">
                                   <Trophy className="w-3 h-3 text-emerald-600" />
                                   <span className="text-[10px] text-muted-foreground">
-                                    {row.ganado_presupuesto != null && `Ppto: ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+                                    {row.ganado_presupuesto != null && `Ppto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
                                     {row.ganado_op && `OP: ${row.ganado_op} `}
                                     {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
                                   </span>
@@ -658,7 +658,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <div className="mt-1.5 pl-6 flex items-center gap-2 flex-wrap">
                                   <Trophy className="w-3 h-3 text-emerald-600" />
                                   <span className="text-[10px] text-muted-foreground">
-                                    {row.ganado_presupuesto != null && `Ppto: ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+                                    {row.ganado_presupuesto != null && `Ppto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
                                     {row.ganado_op && `OP: ${row.ganado_op} `}
                                     {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
                                   </span>
@@ -715,7 +715,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                                 <Trophy className="w-3 h-3 text-emerald-600" />
                                 <span className="text-[10px] text-muted-foreground">
-                                  {row.ganado_presupuesto != null && `Ppto: ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+                                  {row.ganado_presupuesto != null && `Ppto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
                                   {row.ganado_op && `OP: ${row.ganado_op} `}
                                   {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
                                 </span>
