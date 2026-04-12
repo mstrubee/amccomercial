@@ -116,9 +116,17 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
 
   const linkedProyectos = useMemo(() => {
     if (!cliente || !proyectos) return [];
-    return proyectos.filter(p =>
+    const all = proyectos.filter(p =>
       (p.proyecto_clientes || []).some(pc => pc.cliente_id === cliente.id)
     );
+    // Deduplicate by project name to avoid showing one card per empresa
+    const seen = new Set<string>();
+    return all.filter(p => {
+      const key = p.nombre.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [cliente, proyectos]);
 
   if (!cliente) return null;
