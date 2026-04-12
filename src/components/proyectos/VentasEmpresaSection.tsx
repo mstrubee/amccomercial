@@ -44,7 +44,7 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
       <div className="flex items-center gap-2 mb-1">
         <TrendingUp className="w-3 h-3 text-primary" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Ventas
+          Ventas Adicionales
         </span>
         {(ventas && ventas.length > 0) && (
           <span className="text-[11px] font-semibold text-card-foreground">
