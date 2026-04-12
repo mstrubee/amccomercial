@@ -1245,6 +1245,10 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
 
   // Group ventas by proyecto_empresa_id
   const ventasByPe = new Map<string, number>();
+  for (const pe of proyectoEmpresas) {
+    const monto = Number((pe as any).monto_cotizacion) || 0;
+    if (monto !== 0) ventasByPe.set(pe.id, monto);
+  }
   for (const v of allVentas || []) {
     ventasByPe.set(v.proyecto_empresa_id, (ventasByPe.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
   }
@@ -1317,6 +1321,10 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
 
   // Sum ventas by empresa_id (across all child proyecto_empresas for the same empresa)
   const ventasByEmpresa = new Map<string, number>();
+  for (const pe of allEmpresasRaw) {
+    const monto = Number((pe as any).monto_cotizacion) || 0;
+    if (monto !== 0) ventasByEmpresa.set(pe.empresa_id, (ventasByEmpresa.get(pe.empresa_id) || 0) + monto);
+  }
   for (const v of allVentas || []) {
     const pe = allEmpresasRaw.find((p) => p.id === v.proyecto_empresa_id);
     if (pe) {
@@ -1432,6 +1440,10 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
   const peIds = viewTarget?.proyecto_empresas?.map(pe => pe.id) || [];
   const { data: detailVentas } = useVentasByProyectoEmpresaIds(peIds);
   const ventasByPeDetail = new Map<string, number>();
+  for (const pe of (viewTarget?.proyecto_empresas || [])) {
+    const monto = Number((pe as any).monto_cotizacion) || 0;
+    if (monto !== 0) ventasByPeDetail.set(pe.id, monto);
+  }
   for (const v of detailVentas || []) {
     ventasByPeDetail.set(v.proyecto_empresa_id, (ventasByPeDetail.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
   }
