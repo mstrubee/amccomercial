@@ -1,0 +1,1 @@
+ALTER TABLE public.estados_amc ADD COLUMN color TEXT NOT NULL DEFAULT '#6b7280';

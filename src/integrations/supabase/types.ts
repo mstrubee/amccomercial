@@ -843,18 +843,21 @@ export type Database = {
       }
       estados_amc: {
         Row: {
+          color: string
           created_at: string
           id: string
           nombre: string
           orden: number
         }
         Insert: {
+          color?: string
           created_at?: string
           id?: string
           nombre: string
           orden?: number
         }
         Update: {
+          color?: string
           created_at?: string
           id?: string
           nombre?: string
