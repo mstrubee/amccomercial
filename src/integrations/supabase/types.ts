@@ -1579,6 +1579,38 @@ export type Database = {
         }
         Relationships: []
       }
+      ventas_proyecto_empresa: {
+        Row: {
+          created_at: string
+          descripcion: string
+          id: string
+          monto_uf: number
+          proyecto_empresa_id: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion?: string
+          id?: string
+          monto_uf?: number
+          proyecto_empresa_id: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string
+          id?: string
+          monto_uf?: number
+          proyecto_empresa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ventas_proyecto_empresa_proyecto_empresa_id_fkey"
+            columns: ["proyecto_empresa_id"]
+            isOneToOne: false
+            referencedRelation: "proyecto_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
