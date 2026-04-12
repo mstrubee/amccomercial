@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2 } from "lucide-react";
 import VentasEmpresaSection from "./VentasEmpresaSection";
+import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -62,6 +63,29 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
+
+  // Fetch ventas totals for all empresa links
+  const allPeIds = (() => {
+    const ids: string[] = [];
+    const sourceItems = groupItems && groupItems.length > 0 ? groupItems : initialData ? [initialData] : [];
+    for (const item of sourceItems) {
+      for (const pe of (item.proyecto_empresas || [])) ids.push(pe.id);
+    }
+    return ids;
+  })();
+  const { data: allVentasForm } = useVentasByProyectoEmpresaIds(allPeIds);
+  const ventasTotalByEmpresa = (() => {
+    const map = new Map<string, number>();
+    if (!allVentasForm) return map;
+    const sourceItems = groupItems && groupItems.length > 0 ? groupItems : initialData ? [initialData] : [];
+    for (const v of allVentasForm) {
+      for (const item of sourceItems) {
+        const pe = (item.proyecto_empresas || []).find((p) => p.id === v.proyecto_empresa_id);
+        if (pe) { map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + Number(v.monto_uf)); break; }
+      }
+    }
+    return map;
+  })();
 
   const [nombre, setNombre] = useState("");
   const [region, setRegion] = useState("");
@@ -384,8 +408,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     }
     return null;
   };
-
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
@@ -394,7 +416,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       .filter((r) => r.selected)
       .map((r) => ({
         empresa_id: r.empresa_id,
-        monto_cotizacion: r.monto,
+        monto_cotizacion: ventasTotalByEmpresa.get(r.empresa_id) || 0,
         adjudicado: isAdjudicado(r.categoria_id, r.subcategoria_id),
         categoria_id: r.categoria_id,
         subcategoria_id: r.subcategoria_id,
@@ -544,19 +566,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
                                 />
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step={0.01}
-                                  className="h-7 w-32 text-xs"
-                                  placeholder="Cotización UF"
-                                  value={row.monto || ""}
-                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-muted-foreground">UF</span>
-                                {row.monto > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
-                                )}
+                                {(() => {
+                                  const totalUf = ventasTotalByEmpresa.get(row.empresa_id) || 0;
+                                  return totalUf !== 0 ? (
+                                    <span className="text-[11px] font-medium text-card-foreground">
+                                      Total Ventas: {formatUF(totalUf)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalUf))}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
+                                  );
+                                })()}
                               </div>
                               {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
                                 <div className="mt-1.5 pl-6 space-y-1">
@@ -612,19 +631,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
                                 />
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step={0.01}
-                                  className="h-7 w-32 text-xs"
-                                  placeholder="Cotización UF"
-                                  value={row.monto || ""}
-                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-muted-foreground">UF</span>
-                                {row.monto > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
-                                )}
+                                {(() => {
+                                  const totalUf = ventasTotalByEmpresa.get(row.empresa_id) || 0;
+                                  return totalUf !== 0 ? (
+                                    <span className="text-[11px] font-medium text-card-foreground">
+                                      Total Ventas: {formatUF(totalUf)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalUf))}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
+                                  );
+                                })()}
                               </div>
                               {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
                                 <div className="mt-1.5 pl-6 space-y-1">
@@ -672,19 +688,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 value={getSelectValue(row)}
                                 onChange={(val) => handleCategoryChange(row.empresa_id, val)}
                               />
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                className="h-7 w-32 text-xs"
-                                placeholder="Cotización UF"
-                                value={row.monto || ""}
-                                onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
-                              />
-                              <span className="text-[10px] text-muted-foreground">UF</span>
-                              {row.monto > 0 && (
-                                <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
-                              )}
+                              {(() => {
+                                const totalUf = ventasTotalByEmpresa.get(row.empresa_id) || 0;
+                                return totalUf !== 0 ? (
+                                  <span className="text-[11px] font-medium text-card-foreground">
+                                    Total Ventas: {formatUF(totalUf)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalUf))}</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
+                                );
+                              })()}
                             </div>
                             {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
                               <div className="mt-1.5 space-y-1">

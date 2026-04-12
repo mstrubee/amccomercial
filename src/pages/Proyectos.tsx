@@ -1252,7 +1252,6 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
   return (
     <div className="space-y-1">
       {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
-        const monto = (pe as any).monto_cotizacion || 0;
         const totalVentas = ventasByPe.get(pe.id) || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
@@ -1287,20 +1286,12 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
             {statusName && (
               <span className="ml-1 text-[10px] text-muted-foreground">{statusName}</span>
             )}
-            {monto > 0 && (
-              <>
-                <br />
-                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
-                <br />
-                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
-              </>
-            )}
             {totalVentas !== 0 && (
               <>
                 <br />
-                <span className={`ml-0.5 text-[10px] font-medium ${totalVentas < 0 ? "text-destructive" : "text-emerald-600"}`}>
-                  Ventas: {formatUF(totalVentas)}
-                </span>
+                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(totalVentas)}</span>
+                <br />
+                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(totalVentas))}</span>
               </>
             )}
           </div>
@@ -1333,15 +1324,6 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
     }
   }
 
-  // Sum monto_cotizacion across child rows for same empresa
-  const montoByEmpresa = new Map<string, number>();
-  for (const pe of allEmpresasRaw) {
-    const m = (pe as any).monto_cotizacion || 0;
-    if (m > 0) {
-      montoByEmpresa.set(pe.empresa_id, (montoByEmpresa.get(pe.empresa_id) || 0) + m);
-    }
-  }
-
   if (allEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
@@ -1355,7 +1337,6 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
         const fechaCat = (pe as any).fecha_categoria || null;
-        const monto = montoByEmpresa.get(pe.empresa_id) || 0;
         const totalVentas = ventasByEmpresa.get(pe.empresa_id) || 0;
         return (
           <div key={pe.id} className="leading-tight">
@@ -1379,20 +1360,12 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
                 </span>
               )}
             </span>
-            {monto > 0 && (
-              <>
-                <br />
-                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
-                <br />
-                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
-              </>
-            )}
             {totalVentas !== 0 && (
               <>
                 <br />
-                <span className={`ml-0.5 text-[10px] font-medium ${totalVentas < 0 ? "text-destructive" : "text-emerald-600"}`}>
-                  Ventas: {formatUF(totalVentas)}
-                </span>
+                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(totalVentas)}</span>
+                <br />
+                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(totalVentas))}</span>
               </>
             )}
           </div>
@@ -1456,6 +1429,13 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
 
 /* ── Detail dialog component ── */
 function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWithEmpresas | null; onClose: () => void }) {
+  const peIds = viewTarget?.proyecto_empresas?.map(pe => pe.id) || [];
+  const { data: detailVentas } = useVentasByProyectoEmpresaIds(peIds);
+  const ventasByPeDetail = new Map<string, number>();
+  for (const v of detailVentas || []) {
+    ventasByPeDetail.set(v.proyecto_empresa_id, (ventasByPeDetail.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
+  }
+
   if (!viewTarget) return null;
 
   return (
@@ -1495,7 +1475,7 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
                 const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
                 const statusColor = sub?.color || cat?.color || null;
                 const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
-                const monto = (pe as any).monto_cotizacion || 0;
+                
                 return (
                   <div key={pe.id} className={`px-3 py-2 rounded-lg text-sm border ${isAdj ? "bg-success/10 border-success/30" : "bg-secondary/30 border-border"}`}>
                     <div className="flex items-center justify-between">
@@ -1505,11 +1485,14 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
                       </div>
                       {statusName && <span className="text-[10px] font-semibold uppercase" style={{ color: statusColor || undefined }}>{statusName}</span>}
                     </div>
-                    {monto > 0 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Cotización: {formatUF(monto)} <span className="ml-1">≈ {formatCLP(ufToCLP(monto))}</span>
-                      </p>
-                    )}
+                    {(() => {
+                      const totalVentas = ventasByPeDetail.get(pe.id) || 0;
+                      return totalVentas !== 0 ? (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Ventas: {formatUF(totalVentas)} <span className="ml-1">≈ {formatCLP(ufToCLP(totalVentas))}</span>
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 );
               })}
