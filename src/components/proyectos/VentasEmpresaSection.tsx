@@ -48,7 +48,7 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
         </span>
         {(ventas && ventas.length > 0) && (
           <span className="text-[11px] font-semibold text-card-foreground">
-            Total: {formatUF(total)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(total))}</span>
+            Subtotal: {formatUF(total)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(total))}</span>
           </span>
         )}
       </div>
