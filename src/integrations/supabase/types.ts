@@ -1585,6 +1585,7 @@ export type Database = {
           descripcion: string
           id: string
           monto_uf: number
+          op: string
           proyecto_empresa_id: string
         }
         Insert: {
@@ -1592,6 +1593,7 @@ export type Database = {
           descripcion?: string
           id?: string
           monto_uf?: number
+          op?: string
           proyecto_empresa_id: string
         }
         Update: {
@@ -1599,6 +1601,7 @@ export type Database = {
           descripcion?: string
           id?: string
           monto_uf?: number
+          op?: string
           proyecto_empresa_id?: string
         }
         Relationships: [

@@ -17,6 +17,7 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [montoUf, setMontoUf] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [op, setOp] = useState("");
 
   if (!proyectoEmpresaId) return null;
 
@@ -26,11 +27,12 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
     const monto = parseFloat(montoUf);
     if (isNaN(monto)) return;
     createVenta.mutate(
-      { proyecto_empresa_id: proyectoEmpresaId, monto_uf: monto, descripcion: descripcion.trim() },
+      { proyecto_empresa_id: proyectoEmpresaId, monto_uf: monto, descripcion: descripcion.trim(), op: op.trim() },
       {
         onSuccess: () => {
           setMontoUf("");
           setDescripcion("");
+          setOp("");
           setShowForm(false);
         },
       }
@@ -58,6 +60,9 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
               <span className={`font-medium ${Number(v.monto_uf) < 0 ? "text-destructive" : "text-card-foreground"}`}>
                 {formatUF(Number(v.monto_uf))}
               </span>
+              {v.op && (
+                <span className="text-muted-foreground">OP: {v.op}</span>
+              )}
               {v.descripcion && (
                 <span className="text-muted-foreground truncate max-w-[200px]">— {v.descripcion}</span>
               )}
@@ -85,6 +90,12 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
             autoFocus
           />
           <Input
+            className="h-7 w-24 text-xs"
+            placeholder="N° OP"
+            value={op}
+            onChange={(e) => setOp(e.target.value)}
+          />
+          <Input
             className="h-7 w-36 text-xs"
             placeholder="Descripción (opc.)"
             value={descripcion}
@@ -93,7 +104,7 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
           <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleAdd} disabled={createVenta.isPending || !montoUf}>
             Guardar
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setShowForm(false); setMontoUf(""); setDescripcion(""); }}>
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setShowForm(false); setMontoUf(""); setDescripcion(""); setOp(""); }}>
             Cancelar
           </Button>
         </div>
