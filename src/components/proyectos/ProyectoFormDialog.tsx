@@ -566,19 +566,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   value={getSelectValue(row)}
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
                                 />
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step={0.01}
-                                  className="h-7 w-32 text-xs"
-                                  placeholder="Cotización UF"
-                                  value={row.monto || ""}
-                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-muted-foreground">UF</span>
-                                {row.monto > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(row.monto))}</span>
-                                )}
+                                {(() => {
+                                  const totalUf = ventasTotalByEmpresa.get(row.empresa_id) || 0;
+                                  return totalUf !== 0 ? (
+                                    <span className="text-[11px] font-medium text-card-foreground">
+                                      Total Ventas: {formatUF(totalUf)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalUf))}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
+                                  );
+                                })()}
                               </div>
                               {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
                                 <div className="mt-1.5 pl-6 space-y-1">
