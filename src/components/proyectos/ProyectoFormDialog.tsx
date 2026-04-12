@@ -619,7 +619,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   className="h-7 w-32 text-xs"
                                   placeholder="Cotización UF"
                                   value={row.monto || ""}
-                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                  onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
                                 />
                                 <span className="text-[10px] text-muted-foreground">UF</span>
                                 {row.monto > 0 && (
@@ -679,7 +679,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 className="h-7 w-32 text-xs"
                                 placeholder="Cotización UF"
                                 value={row.monto || ""}
-                                onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: Number(e.target.value) })}
+                                onChange={(e) => updateEmpresaRow(row.empresa_id, { monto: parseMontoValue(e.target.value) })}
                               />
                               <span className="text-[10px] text-muted-foreground">UF</span>
                               {row.monto > 0 && (
