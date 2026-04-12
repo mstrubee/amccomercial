@@ -131,6 +131,12 @@ export default function Proyectos() {
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setCurrentUserId(data.user.id);
