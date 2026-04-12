@@ -71,6 +71,7 @@ export default function Proyectos() {
   const updateNotas = useUpdateNotas();
   const updateNotaGrupo = useUpdateNotaGrupo();
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filterEstados, setFilterEstados] = useState<string[]>([]);
   const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
@@ -129,6 +130,12 @@ export default function Proyectos() {
 
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -363,7 +370,7 @@ export default function Proyectos() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nombre, comuna o cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Buscar por nombre, comuna o cliente..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
@@ -1236,21 +1243,23 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
 
 /* ── Empresas cell component ── */
 function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[] }) {
-  const peIds = (proyectoEmpresas || []).map((pe) => pe.id);
+  const peIds = useMemo(() => (proyectoEmpresas || []).map((pe) => pe.id), [proyectoEmpresas]);
   const { data: allVentas } = useVentasByProyectoEmpresaIds(peIds);
+
+  const ventasByPe = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const pe of (proyectoEmpresas || [])) {
+      const ppto = Number((pe as any).ganado_presupuesto) || 0;
+      if (ppto !== 0) map.set(pe.id, ppto);
+    }
+    for (const v of allVentas || []) {
+      map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
+    }
+    return map;
+  }, [proyectoEmpresas, allVentas]);
 
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
-  }
-
-  // Group ventas by proyecto_empresa_id
-  const ventasByPe = new Map<string, number>();
-  for (const pe of proyectoEmpresas) {
-    const ppto = Number((pe as any).ganado_presupuesto) || 0;
-    if (ppto !== 0) ventasByPe.set(pe.id, ppto);
-  }
-  for (const v of allVentas || []) {
-    ventasByPe.set(v.proyecto_empresa_id, (ventasByPe.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
   }
 
   return (
@@ -1307,30 +1316,32 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
 
 /* ── Group header empresas cell (name + category + monto) ── */
 function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[] }) {
-  const allEmpresasRaw = items.flatMap((p) => p.proyecto_empresas || []);
-  const seen = new Set<string>();
-  const allEmpresas = allEmpresasRaw.filter((pe) => {
-    if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
-    seen.add(pe.empresa_id);
-    if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) return false;
-    return true;
-  });
+  const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
+  const allEmpresas = useMemo(() => {
+    const seen = new Set<string>();
+    return allEmpresasRaw.filter((pe) => {
+      if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
+      seen.add(pe.empresa_id);
+      if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) return false;
+      return true;
+    });
+  }, [allEmpresasRaw, filterEmpresas]);
 
-  const peIds = allEmpresasRaw.map((pe) => pe.id);
+  const peIds = useMemo(() => allEmpresasRaw.map((pe) => pe.id), [allEmpresasRaw]);
   const { data: allVentas } = useVentasByProyectoEmpresaIds(peIds);
 
-  // Sum ventas by empresa_id (across all child proyecto_empresas for the same empresa)
-  const ventasByEmpresa = new Map<string, number>();
-  for (const pe of allEmpresasRaw) {
-    const ppto = Number((pe as any).ganado_presupuesto) || 0;
-    if (ppto !== 0) ventasByEmpresa.set(pe.empresa_id, (ventasByEmpresa.get(pe.empresa_id) || 0) + ppto);
-  }
-  for (const v of allVentas || []) {
-    const pe = allEmpresasRaw.find((p) => p.id === v.proyecto_empresa_id);
-    if (pe) {
-      ventasByEmpresa.set(pe.empresa_id, (ventasByEmpresa.get(pe.empresa_id) || 0) + Number(v.monto_uf));
+  const ventasByEmpresa = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const pe of allEmpresasRaw) {
+      const ppto = Number((pe as any).ganado_presupuesto) || 0;
+      if (ppto !== 0) map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + ppto);
     }
-  }
+    for (const v of allVentas || []) {
+      const pe = allEmpresasRaw.find((p) => p.id === v.proyecto_empresa_id);
+      if (pe) map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + Number(v.monto_uf));
+    }
+    return map;
+  }, [allEmpresasRaw, allVentas]);
 
   if (allEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
