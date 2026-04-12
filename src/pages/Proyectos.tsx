@@ -54,6 +54,30 @@ function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations
   return Array.from(seen.values());
 }
 
+/* ── Isolated DebouncedInput to prevent parent re-renders on every keystroke ── */
+const DebouncedInput = memo(function DebouncedInput({
+  value: externalValue,
+  onChange,
+  delay = 200,
+  ...props
+}: { value: string; onChange: (v: string) => void; delay?: number } & Omit<React.ComponentProps<typeof Input>, "value" | "onChange">) {
+  const [localValue, setLocalValue] = useState(externalValue);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => { setLocalValue(externalValue); }, [externalValue]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setLocalValue(v);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => onChange(v), delay);
+  }, [onChange, delay]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  return <Input {...props} value={localValue} onChange={handleChange} />;
+});
+
 // ESTADOS_AMC now loaded dynamically via useEstadosProyecto
 const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
