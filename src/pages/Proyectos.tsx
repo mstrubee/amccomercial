@@ -1310,22 +1310,43 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
   );
 }
 
-/* ── Group header empresas cell (name + category, no monto) ── */
+/* ── Group header empresas cell (name + category + monto) ── */
 function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[] }) {
   const allEmpresasRaw = items.flatMap((p) => p.proyecto_empresas || []);
   const seen = new Set<string>();
   const allEmpresas = allEmpresasRaw.filter((pe) => {
     if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
     seen.add(pe.empresa_id);
-    // When empresa filter is active, only show matching empresas
     if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) return false;
     return true;
   });
+
+  const peIds = allEmpresasRaw.map((pe) => pe.id);
+  const { data: allVentas } = useVentasByProyectoEmpresaIds(peIds);
+
+  // Sum ventas by empresa_id (across all child proyecto_empresas for the same empresa)
+  const ventasByEmpresa = new Map<string, number>();
+  for (const v of allVentas || []) {
+    const pe = allEmpresasRaw.find((p) => p.id === v.proyecto_empresa_id);
+    if (pe) {
+      ventasByEmpresa.set(pe.empresa_id, (ventasByEmpresa.get(pe.empresa_id) || 0) + Number(v.monto_uf));
+    }
+  }
+
+  // Sum monto_cotizacion across child rows for same empresa
+  const montoByEmpresa = new Map<string, number>();
+  for (const pe of allEmpresasRaw) {
+    const m = (pe as any).monto_cotizacion || 0;
+    if (m > 0) {
+      montoByEmpresa.set(pe.empresa_id, (montoByEmpresa.get(pe.empresa_id) || 0) + m);
+    }
+  }
+
   if (allEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="space-y-1">
       {allEmpresas.map((pe) => {
         if (!pe.empresas) return null;
         const sub = (pe as any).subcategorias_proyecto;
@@ -1334,28 +1355,47 @@ function GroupEmpresasCell({ items, filterEmpresas = [] }: { items: ProyectoWith
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
         const fechaCat = (pe as any).fecha_categoria || null;
+        const monto = montoByEmpresa.get(pe.empresa_id) || 0;
+        const totalVentas = ventasByEmpresa.get(pe.empresa_id) || 0;
         return (
-          <span
-            key={pe.id}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
-              !isAdj && !statusColor ? "bg-secondary text-secondary-foreground" : ""
-            }`}
-            style={isAdj
-              ? { backgroundColor: "#22c55e", color: "#000" }
-              : statusColor
-                ? { backgroundColor: statusColor + "22", color: statusColor, border: `1px solid ${statusColor}44` }
-                : undefined
-            }
-          >
-            {statusColor && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />}
-            {pe.empresas.nombre.split(" ")[0]}
-            {statusName && <span className="text-[10px] opacity-80">· {statusName}</span>}
-            {fechaCat && (
-              <span className="text-[9px] opacity-75">
-                {new Date(fechaCat + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
-              </span>
+          <div key={pe.id} className="leading-tight">
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                !isAdj && !statusColor ? "bg-secondary text-secondary-foreground" : ""
+              }`}
+              style={isAdj
+                ? { backgroundColor: "#22c55e", color: "#000" }
+                : statusColor
+                  ? { backgroundColor: statusColor + "22", color: statusColor, border: `1px solid ${statusColor}44` }
+                  : undefined
+              }
+            >
+              {statusColor && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: statusColor }} />}
+              {pe.empresas.nombre.split(" ")[0]}
+              {statusName && <span className="text-[10px] opacity-80">· {statusName}</span>}
+              {fechaCat && (
+                <span className="text-[9px] opacity-75">
+                  {new Date(fechaCat + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
+                </span>
+              )}
+            </span>
+            {monto > 0 && (
+              <>
+                <br />
+                <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
+                <br />
+                <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
+              </>
             )}
-          </span>
+            {totalVentas !== 0 && (
+              <>
+                <br />
+                <span className={`ml-0.5 text-[10px] font-medium ${totalVentas < 0 ? "text-destructive" : "text-emerald-600"}`}>
+                  Ventas: {formatUF(totalVentas)}
+                </span>
+              </>
+            )}
+          </div>
         );
       })}
     </div>
