@@ -1,54 +1,40 @@
 
-Objetivo: salir del bucle de “no funciona” con una corrección verificable y evitar que vuelvas a perder créditos en pruebas ciegas.
 
-1) Diagnóstico confirmado (causa más probable)
-- La app sí genera correctamente la URL OAuth desde backend.
-- En tus capturas, los “redirect URI” configurados en Google aparecen con diferencias de texto respecto al URI real (hay caracteres cambiados y rutas truncadas).
-- URI real que está enviando la app:
-  `https://bprwbhvhuetjnmsjqfcm.supabase.co/functions/v1/google-calendar-auth`
-- Si en Google Cloud hay aunque sea 1 carácter distinto, Google devuelve 403/blocked antes de volver a la app.
+# Fix: Slow Search Input in Proyectos
 
-2) Desbloqueo inmediato (sin código, para validar ahora)
-- Dejar solo este Redirect URI exacto en el OAuth Client:
-  `https://bprwbhvhuetjnmsjqfcm.supabase.co/functions/v1/google-calendar-auth`
-- Eliminar entradas parecidas/duplicadas con typo.
-- Esperar 5–10 min por propagación y probar nuevamente.
+## Problem
+Typing in the search field is extremely slow because each keystroke triggers re-renders of the entire Proyectos page, including hundreds of table rows. Three root causes:
 
-3) Implementación propuesta para que no vuelva a pasar
-- Agregar diagnóstico OAuth visible en /calendario (UI):
-  - Mostrar “Redirect URI exacto en uso” con botón “Copiar”.
-  - Mostrar “Client ID en uso” (enmascarado parcial).
-  - Mostrar último error OAuth legible (ej. redirect_uri_mismatch, access_denied, app_not_configured).
-- Mejorar callback en `google-calendar-auth`:
-  - Si falla intercambio de código por token, redirigir a `/calendario?oauth_error=...` con mensaje claro.
-  - Registrar logs estructurados (sin exponer secretos) para saber exactamente en qué paso falla.
-- Mejorar robustez de autenticación de funciones:
-  - Migrar validación a `getClaims()` (alineado con signing keys) en lugar de `getUser(token)` para evitar falsos 401 por validación.
-- Mejorar redirect post-callback:
-  - Evitar URL hardcodeada fija; usar variable de entorno de app base URL (publicada) y fallback seguro.
-  - Soportar preview/publicado sin romper flujo.
+1. **No isolated search component**: The `searchInput` state lives in the parent, so every keystroke re-renders the entire page (1600+ lines of JSX)
+2. **`filtered` array not memoized**: The filtering logic (line 211) runs on every render instead of only when dependencies change
+3. **N+1 data fetching**: Each `EmpresasCell` and `GroupEmpresasCell` independently calls `useVentasByProyectoEmpresaIds`, creating dozens of parallel queries that all re-trigger on state changes
 
-4) Archivos a tocar
-- `supabase/functions/google-calendar-auth/index.ts`
-- `supabase/functions/google-calendar-api/index.ts` (solo ajuste de validación JWT)
-- `src/hooks/useGoogleCalendar.ts`
-- `src/pages/Calendario.tsx`
-- (Opcional) componente nuevo de diagnóstico en `src/components/calendario/`
+## Solution (based on LeaseFlow Pro pattern)
 
-5) Riesgos y controles
-- Riesgo: seguir probando con URI mal escrito en Google.
-  - Control: exponer en UI el URI exacto y copiar/pegar literal.
-- Riesgo: errores silenciosos de OAuth.
-  - Control: retorno de `oauth_error` + toast específico + logs backend.
+### Step 1 -- Create isolated `DebouncedInput` component
+Extract a `memo`'d `DebouncedInput` that manages its own local state internally, only propagating the value to the parent after a 200ms delay. This completely isolates keystroke renders from the parent component.
 
-6) Validación final (end-to-end)
-- Flujo completo: `/calendario` → “Conectar Google Calendar” → autorizar Google → volver a `/calendario?connected=true`.
-- Confirmar en UI estado conectado.
-- Crear, editar y eliminar 1 evento real.
-- Recargar página y verificar persistencia de conexión y listado.
+### Step 2 -- Memoize `filtered` array
+Wrap the filtering logic (line 211-236) in `useMemo` with proper dependencies (`proyectos`, `search`, `filterEstados`, etc.).
 
-Señal de éxito esperada:
-- Sin 403 en Google.
-- Callback llega al backend.
-- Token guardado para el usuario.
-- Estado “connected: true” y eventos visibles.
+### Step 3 -- Lift ventas data to parent level
+- Collect all `proyecto_empresa` IDs once at the parent level
+- Make a single `useVentasByProyectoEmpresaIds` call
+- Build a `ventasMap: Map<string, number>` and pass it as a prop to `EmpresasCell` / `GroupEmpresasCell`
+- Remove the individual `useVentasByProyectoEmpresaIds` hooks from those cell components
+
+### Step 4 -- Memoize cell components
+Wrap `EmpresasCell` and `GroupEmpresasCell` in `React.memo` so they only re-render when their props actually change.
+
+## Technical details
+
+**File changed**: `src/pages/Proyectos.tsx`
+
+- Add `DebouncedInput` component (identical pattern to LeaseFlow Pro) before the `Proyectos` default export
+- Replace `<Input ... value={searchInput} onChange={...} />` with `<DebouncedInput value={search} onChange={setSearch} />`
+- Remove `searchInput` state and the debounce `useEffect`
+- Wrap `filtered` in `useMemo`
+- Add a single `useVentasByProyectoEmpresaIds(allPeIds)` call at top level
+- Pass pre-computed `ventasMap` to cell components as a prop
+- Wrap cell components with `memo()`
+
