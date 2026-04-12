@@ -576,7 +576,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
                                 </div>
                                )}
-                              {mode === "edit" && <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />}
+                              <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />
                               </>
                             )}
                           </div>
