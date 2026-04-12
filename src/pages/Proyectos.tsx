@@ -21,6 +21,7 @@ import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
+import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
@@ -1235,14 +1236,24 @@ function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplat
 
 /* ── Empresas cell component ── */
 function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[] }) {
+  const peIds = (proyectoEmpresas || []).map((pe) => pe.id);
+  const { data: allVentas } = useVentasByProyectoEmpresaIds(peIds);
+
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
+  }
+
+  // Group ventas by proyecto_empresa_id
+  const ventasByPe = new Map<string, number>();
+  for (const v of allVentas || []) {
+    ventasByPe.set(v.proyecto_empresa_id, (ventasByPe.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
   }
 
   return (
     <div className="space-y-1">
       {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
         const monto = (pe as any).monto_cotizacion || 0;
+        const totalVentas = ventasByPe.get(pe.id) || 0;
         const sub = (pe as any).subcategorias_proyecto;
         const cat = (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
@@ -1282,6 +1293,14 @@ function EmpresasCell({ proyectoEmpresas, filterEmpresas = [] }: { proyectoEmpre
                 <span className="ml-0.5 text-[11px] font-medium text-card-foreground">{formatUF(monto)}</span>
                 <br />
                 <span className="ml-0.5 text-[10px] text-muted-foreground">{formatCLP(ufToCLP(monto))}</span>
+              </>
+            )}
+            {totalVentas !== 0 && (
+              <>
+                <br />
+                <span className={`ml-0.5 text-[10px] font-medium ${totalVentas < 0 ? "text-destructive" : "text-emerald-600"}`}>
+                  Ventas: {formatUF(totalVentas)}
+                </span>
               </>
             )}
           </div>

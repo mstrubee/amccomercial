@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2 } from "lucide-react";
+import VentasEmpresaSection from "./VentasEmpresaSection";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -367,6 +368,18 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     return "none";
   };
 
+  /** Get the proyecto_empresas DB record ID for a given empresa_id */
+  const getProyectoEmpresaId = (empresaId: string): string | null => {
+    if (!initialData) return null;
+    const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
+    for (const item of sourceItems) {
+      const pe = (item.proyecto_empresas || []).find((p) => p.empresa_id === empresaId);
+      if (pe) return pe.id;
+    }
+    return null;
+  };
+
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
@@ -562,7 +575,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
                                   <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
                                 </div>
-                              )}
+                               )}
+                              <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />
                               </>
                             )}
                           </div>
@@ -629,7 +643,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
                                   <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
                                 </div>
-                              )}
+                               )}
+                              <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />
                               </>
                             )}
                           </div>
@@ -688,7 +703,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
                                 <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
                               </div>
-                            )}
+                             )}
+                            <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />
                           </div>
                         );
                       })}
