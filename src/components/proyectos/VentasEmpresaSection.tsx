@@ -90,6 +90,12 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
             autoFocus
           />
           <Input
+            className="h-7 w-24 text-xs"
+            placeholder="N° OP"
+            value={op}
+            onChange={(e) => setOp(e.target.value)}
+          />
+          <Input
             className="h-7 w-36 text-xs"
             placeholder="Descripción (opc.)"
             value={descripcion}
