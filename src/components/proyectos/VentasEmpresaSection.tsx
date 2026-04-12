@@ -17,6 +17,7 @@ export default function VentasEmpresaSection({ proyectoEmpresaId }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [montoUf, setMontoUf] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [op, setOp] = useState("");
 
   if (!proyectoEmpresaId) return null;
 
