@@ -69,6 +69,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/clientes", label: "Clientes y Captadores", allowTipo1: true, icon: Users },
     { path: "/categorias", label: "Estatus (x Empresa)", allowTipo1: false, icon: Tags },
     { path: "/estados-proyecto", label: "Estado (x Proyecto)", allowTipo1: false, icon: ListChecks },
+    { path: "/estados-amc", label: "Estado AMC (x Empresa)", allowTipo1: false, icon: ListChecks },
     { path: "/reporteria", label: "Reportería", allowTipo1: false, icon: BarChart3 },
     { path: "/usuarios", label: "Usuarios", allowTipo1: false, icon: Users },
     { path: "/empresas", label: "Empresas", allowTipo1: false, icon: Building2 },
