@@ -34,12 +34,22 @@ export function useProyectos() {
   return useQuery({
     queryKey: ["proyectos"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("proyectos")
-        .select("*, proyecto_empresas(*, empresas(*), categorias_proyecto(*), subcategorias_proyecto(*)), clasificaciones_proyecto(*), proyecto_clientes(id, cliente_id, clientes(id, nombre)), proyecto_captadores(id, captador_id, captadores(id, nombre))")
-        .order("numero", { ascending: true });
-      if (error) throw error;
-      return data as ProyectoWithEmpresas[];
+      // Fetch all rows – Supabase caps each request at 1000, so we paginate
+      const pageSize = 1000;
+      let allData: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("proyectos")
+          .select("*, proyecto_empresas(*, empresas(*), categorias_proyecto(*), subcategorias_proyecto(*)), clasificaciones_proyecto(*), proyecto_clientes(id, cliente_id, clientes(id, nombre)), proyecto_captadores(id, captador_id, captadores(id, nombre))")
+          .order("numero", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        allData = allData.concat(page || []);
+        if (!page || page.length < pageSize) break;
+        from += pageSize;
+      }
+      return allData as ProyectoWithEmpresas[];
     },
   });
 }
