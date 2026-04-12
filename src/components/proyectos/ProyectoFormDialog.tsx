@@ -76,12 +76,21 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const { data: allVentasForm } = useVentasByProyectoEmpresaIds(allPeIds);
   const ventasTotalByEmpresa = (() => {
     const map = new Map<string, number>();
-    if (!allVentasForm) return map;
     const sourceItems = groupItems && groupItems.length > 0 ? groupItems : initialData ? [initialData] : [];
-    for (const v of allVentasForm) {
-      for (const item of sourceItems) {
-        const pe = (item.proyecto_empresas || []).find((p) => p.id === v.proyecto_empresa_id);
-        if (pe) { map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + Number(v.monto_uf)); break; }
+    // Start with monto_cotizacion from proyecto_empresas
+    for (const item of sourceItems) {
+      for (const pe of (item.proyecto_empresas || [])) {
+        const monto = Number((pe as any).monto_cotizacion) || 0;
+        if (monto !== 0) map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + monto);
+      }
+    }
+    // Add ventas from ventas_proyecto_empresa
+    if (allVentasForm) {
+      for (const v of allVentasForm) {
+        for (const item of sourceItems) {
+          const pe = (item.proyecto_empresas || []).find((p) => p.id === v.proyecto_empresa_id);
+          if (pe) { map.set(pe.empresa_id, (map.get(pe.empresa_id) || 0) + Number(v.monto_uf)); break; }
+        }
       }
     }
     return map;
