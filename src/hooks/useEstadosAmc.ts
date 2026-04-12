@@ -6,6 +6,7 @@ export interface EstadoAmc {
   id: string;
   nombre: string;
   orden: number;
+  color: string;
   created_at: string;
 }
 
@@ -26,7 +27,7 @@ export function useEstadosAmc() {
 export function useCreateEstadoAmc() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { nombre: string; orden: number }) => {
+    mutationFn: async (input: { nombre: string; orden: number; color?: string }) => {
       const { data, error } = await supabase
         .from("estados_amc" as any)
         .insert(input)
@@ -46,7 +47,7 @@ export function useCreateEstadoAmc() {
 export function useUpdateEstadoAmc() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; nombre: string }) => {
+    mutationFn: async (input: { id: string; nombre?: string; color?: string }) => {
       const { id, ...rest } = input;
       const { error } = await supabase
         .from("estados_amc" as any)
