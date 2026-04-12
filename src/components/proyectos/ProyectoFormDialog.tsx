@@ -416,7 +416,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       .filter((r) => r.selected)
       .map((r) => ({
         empresa_id: r.empresa_id,
-        monto_cotizacion: r.monto,
+        monto_cotizacion: ventasTotalByEmpresa.get(r.empresa_id) || 0,
         adjudicado: isAdjudicado(r.categoria_id, r.subcategoria_id),
         categoria_id: r.categoria_id,
         subcategoria_id: r.subcategoria_id,
