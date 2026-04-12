@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { parseLocalDate } from "@/lib/date-utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface EmpresaOption {
   id: string;
@@ -67,19 +68,23 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
             <CheckCircle2 className="w-3 h-3" />
           </button>
         )}
-        <button
-          className="flex-1 min-w-0 text-left"
-          onClick={(e) => { e.stopPropagation(); setLocalTexto(!isTextoVisible); }}
-        >
-          <div className="flex items-center gap-1">
-            {titulo && (
-              <span className="text-[11px] font-semibold text-amber-700 truncate max-w-[160px]">{titulo}</span>
-            )}
-            {!titulo && (
-              <span className="text-[11px] text-card-foreground truncate max-w-[160px]">{alerta.texto}</span>
-            )}
-            {isTextoVisible ? <ChevronUp className="w-2.5 h-2.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />}
-          </div>
+        <div className="flex-1 min-w-0 text-left">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1 max-w-full" onClick={(e) => e.stopPropagation()}>
+                {titulo ? (
+                  <span className="text-[11px] font-semibold text-amber-700 truncate max-w-[160px]">{titulo}</span>
+                ) : (
+                  <span className="text-[11px] text-card-foreground truncate max-w-[160px]">{alerta.texto}</span>
+                )}
+                <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-3 text-xs text-card-foreground" align="start" side="bottom" onClick={(e) => e.stopPropagation()}>
+              {titulo && <p className="font-semibold text-amber-700 mb-1">{titulo}</p>}
+              <p className="whitespace-pre-wrap break-words">{alerta.texto}</p>
+            </PopoverContent>
+          </Popover>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <span className={cn(isOverdue && "text-destructive font-medium")}>
               {format(fechaDate, "dd MMM yyyy", { locale: es })}
@@ -87,14 +92,8 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
             </span>
             <span className="font-medium">{alerta.responsable_profile?.display_name || alerta.responsable_profile?.email || "—"}</span>
           </div>
-        </button>
-      </div>
-
-      {isTextoVisible && titulo && (
-        <div className="mt-1 text-[10px] text-card-foreground bg-secondary/30 rounded px-2 py-1">
-          {alerta.texto}
         </div>
-      )}
+      </div>
 
       <div className="flex gap-1 mt-0.5 items-center flex-wrap">
         {onComplete && (
