@@ -1485,11 +1485,14 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
                       </div>
                       {statusName && <span className="text-[10px] font-semibold uppercase" style={{ color: statusColor || undefined }}>{statusName}</span>}
                     </div>
-                    {monto > 0 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Cotización: {formatUF(monto)} <span className="ml-1">≈ {formatCLP(ufToCLP(monto))}</span>
-                      </p>
-                    )}
+                    {(() => {
+                      const totalVentas = ventasByPeDetail.get(pe.id) || 0;
+                      return totalVentas !== 0 ? (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Ventas: {formatUF(totalVentas)} <span className="ml-1">≈ {formatCLP(ufToCLP(totalVentas))}</span>
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 );
               })}
