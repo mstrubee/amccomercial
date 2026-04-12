@@ -116,9 +116,14 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
 
   const linkedProyectos = useMemo(() => {
     if (!cliente || !proyectos) return [];
-    return proyectos.filter(p =>
+    const matched = proyectos.filter(p =>
       (p.proyecto_clientes || []).some(pc => pc.cliente_id === cliente.id)
     );
+    const seen = new Map<string, typeof matched[0]>();
+    for (const p of matched) {
+      if (!seen.has(p.nombre)) seen.set(p.nombre, p);
+    }
+    return Array.from(seen.values());
   }, [cliente, proyectos]);
 
   if (!cliente) return null;
@@ -244,23 +249,20 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                   <p className="text-sm text-muted-foreground text-center py-4">Sin proyectos vinculados</p>
                 ) : (
                   <div className="space-y-2">
-                    {linkedProyectos.map(p => {
-                      const cat = p.proyecto_empresas?.[0]?.categorias_proyecto?.nombre;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
-                          onClick={() => {
-                            onOpenChange(false);
-                            navigate(`/proyectos?highlight=${p.id}`);
-                          }}
-                        >
-                          <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
-                          {cat && <p className="text-xs text-muted-foreground">Categoría: {cat}</p>}
-                        </button>
-                      );
-                    })}
+                    {linkedProyectos.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                        onClick={() => {
+                          onOpenChange(false);
+                          navigate(`/proyectos?highlight=${p.id}`);
+                        }}
+                      >
+                        <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
+                        {p.estado_obra && <p className="text-xs text-muted-foreground">Estado: {p.estado_obra}</p>}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
