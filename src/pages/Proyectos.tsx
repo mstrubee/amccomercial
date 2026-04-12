@@ -71,7 +71,6 @@ export default function Proyectos() {
   const updateNotas = useUpdateNotas();
   const updateNotaGrupo = useUpdateNotaGrupo();
 
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filterEstados, setFilterEstados] = useState<string[]>([]);
   const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
@@ -131,11 +130,7 @@ export default function Proyectos() {
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
 
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput), 250);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  // (debounce moved into DebouncedInput component)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -208,7 +203,7 @@ export default function Proyectos() {
     setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   }, []);
 
-  const filtered = (proyectos || []).filter((p) => {
+  const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = search.toLowerCase();
     const matchSearch =
       p.nombre.toLowerCase().includes(searchLower) ||
@@ -233,7 +228,7 @@ export default function Proyectos() {
       return label && filterBotones.includes(label);
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  });
+  }), [proyectos, search, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, categorias]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -369,8 +364,8 @@ export default function Proyectos() {
       {/* Filters */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nombre, comuna o cliente..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="pl-9" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <DebouncedInput value={search} onChange={setSearch} placeholder="Buscar por nombre, comuna o cliente..." className="pl-9" />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
