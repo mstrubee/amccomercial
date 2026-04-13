@@ -719,7 +719,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} estadosAmc={estadosAmc} onUpdateEstadoAmc={handleUpdateEstadoAmc} />;
                 }
 
                 // Grouped header
@@ -1334,7 +1334,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
                   <button
                     key={ea.id}
                     className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", p.estado_amc === ea.nombre && "bg-accent font-semibold")}
-                    onClick={() => handleUpdateEstadoAmc([p.id], ea.nombre)}
+                    onClick={() => onUpdateEstadoAmc([p.id], ea.nombre)}
                   >
                     <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
                     {ea.nombre}
