@@ -9,7 +9,22 @@ const statusColors: Record<string, string> = {
   Inactiva: "bg-muted text-muted-foreground border-border",
 };
 
-export default function StatusBadge({ status }: { status: string }) {
+export default function StatusBadge({ status, color }: { status: string; color?: string }) {
+  if (color) {
+    return (
+      <span
+        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
+        style={{
+          backgroundColor: `${color}18`,
+          color: color,
+          borderColor: `${color}33`,
+        }}
+      >
+        {status}
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn(
