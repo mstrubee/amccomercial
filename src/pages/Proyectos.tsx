@@ -96,12 +96,10 @@ export default function Proyectos() {
   const updateNotaGrupo = useUpdateNotaGrupo();
   const qcMain = useQueryClient();
 
-  const handleUpdateEstadoAmc = useCallback(async (proyectoIds: string[], nuevoEstado: string) => {
+  const handleUpdateEstadoAmcPE = useCallback(async (proyectoEmpresaId: string, nuevoEstado: string) => {
     try {
-      for (const pid of proyectoIds) {
-        const { error } = await supabase.from("proyectos").update({ estado_amc: nuevoEstado } as any).eq("id", pid);
-        if (error) throw error;
-      }
+      const { error } = await supabase.from("proyecto_empresas").update({ estado_amc: nuevoEstado } as any).eq("id", proyectoEmpresaId);
+      if (error) throw error;
       qcMain.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success(`Estado AMC actualizado a "${nuevoEstado}"`);
     } catch (e: any) {
@@ -282,10 +280,7 @@ export default function Proyectos() {
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
-      const label = buttonLabelsByLink.subcategoriaLabels.get(pe.subcategoria_id || "")
-        || buttonLabelsByLink.categoriaLabels.get(pe.categoria_id || "")
-        || null;
-      return label && filterBotones.includes(label);
+      return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
   }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink]);
@@ -369,10 +364,7 @@ export default function Proyectos() {
       if (g.some(p => p.adjudicado)) adjudicados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
-        const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
-        const cat = categorias?.find(c => c.id === pe.categoria_id);
-        const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
-        return label === OBRAS_LABEL;
+        return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
