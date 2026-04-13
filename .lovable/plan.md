@@ -1,65 +1,35 @@
 
 
-# Bidirectional Sync: Project Contacts and Clients
+# Complementar información de contactos bidireccionalmente
 
-## Current Architecture Problem
+## Problema actual
+La auto-completación actual solo funciona en una dirección: si el proyecto tiene un campo vacío y el cliente lo tiene, se rellena el campo del proyecto. Pero si el **cliente** tiene campos vacíos que **sí existen en el proyecto**, esos no se actualizan en el cliente. Además, solo se ejecuta al abrir el formulario del proyecto, no al abrir el detalle del cliente.
 
-Contact data lives in **two disconnected places**:
-1. **Proyectos table**: Denormalized text fields (`arq_nombre`, `arq_contacto`, `arq_mail`, `arq_telefono`, etc.) using " / " as delimiter for multiple entries
-2. **Clientes table**: Normalized records with `contactos_cliente` sub-records
+## Solución
 
-When a user selects a client via ClientePicker, the data is copied into the project text fields. After that, the two are disconnected — editing in one place does not update the other.
+### 1. Al abrir el formulario del proyecto: complementar en ambas direcciones
+**Archivo: `src/components/proyectos/ProyectoFormDialog.tsx` (ContactosSection)**
 
-## Solution
+- El `useEffect` actual ya rellena campos vacíos del proyecto desde el cliente
+- Agregar lógica inversa: si el proyecto tiene datos que el cliente NO tiene, actualizar el cliente automáticamente (vía `syncProyectoToClientes`)
+- Ejemplo: si el proyecto tiene teléfono pero el cliente no, actualizar el registro del cliente con ese teléfono
 
-### Approach: Link-based sync on save
+### 2. Al abrir el detalle de un cliente: complementar desde proyectos vinculados
+**Archivo: `src/components/clientes/ClienteDetailDialog.tsx`**
 
-Instead of real-time two-way binding (which would be fragile given the denormalized text fields), we implement sync at **save time** in both directions:
+- Agregar un `useEffect` que al abrir el diálogo, revise los proyectos vinculados
+- Si algún campo del cliente está vacío pero el proyecto lo tiene, rellenar el formulario del cliente con esos datos
+- Marcar `hasChanges` para que el usuario pueda guardar los cambios detectados
 
-### 1. Project form save → Update linked clients
+### 3. Mejorar la función de merge en `useSyncClienteProyecto.ts`
+**Archivo: `src/hooks/useSyncClienteProyecto.ts`**
 
-**File: `src/components/proyectos/ProyectoFormDialog.tsx`**
+- Agregar nueva función `complementClienteFromProyectos`: consulta proyectos vinculados y complementa campos vacíos del cliente
+- Agregar nueva función `complementProyectoFromClientes`: complementa campos vacíos del proyecto desde el cliente (refactorizar la lógica existente del useEffect)
+- Ambas funciones solo rellenan campos **vacíos**, nunca sobreescriben datos existentes
 
-- Track which client was selected for each contact row (store `cliente_id` alongside the row data)
-- On project save (`onSubmit`), for each contact row that has a linked `cliente_id`, call `useUpdateCliente` to update the client's `contactos_cliente` with the edited values (contacto, email, telefono)
-- Only sync rows where the user actually modified the data (compare against the original client data)
-
-### 2. Client edit → Update linked projects
-
-**File: `src/hooks/useClientes.ts` (useUpdateCliente mutation)**
-
-- After updating a client, query `proyecto_clientes` to find all linked projects
-- For each linked project, check the contact text fields (arq_nombre, const_nombre, etc.) to find where this client's name appears
-- Update the corresponding contacto/email/telefono fields in those projects with the new client data
-
-### 3. Track client-row association in the form
-
-**File: `src/components/proyectos/ProyectoFormDialog.tsx`**
-
-- Extend `ContactoRow` to include an optional `clienteId` field
-- When `applyCliente` is called, store the client ID alongside the row
-- When manually editing a row that was populated from a client, preserve the `clienteId` so we know which client to update on save
-- Pass the client associations up to the submit handler
-
-### 4. New hook: `useSyncClienteProyecto`
-
-**File: `src/hooks/useSyncClienteProyecto.ts` (new)**
-
-- Centralized utility with two functions:
-  - `syncProjectToClientes(proyectoId, contactSections)`: Updates clients whose data was modified in the project form
-  - `syncClienteToProyectos(clienteId, newData)`: Updates all projects linked to this client with the new contact info
-
-## Technical Details
-
-- The `CONTACTO_CAT_MAP` already maps section titles (Arquitectura, Constructora, ITO, Dueños) to client categories — this is used to determine which client category to search
-- The " / " delimiter pattern in project fields means a single section can have multiple clients; each must be tracked independently
-- The `proyecto_clientes` junction table already exists and links projects to clients, providing the relationship data needed for reverse sync
-- Client sync will use the existing `useUpdateCliente` and `useProyectos` update mutations
-- Toast notifications will inform the user when cross-updates occur (e.g., "Cliente 'X' actualizado desde proyecto")
-
-## Files Changed
-- `src/hooks/useSyncClienteProyecto.ts` — new hook with sync logic
-- `src/components/proyectos/ProyectoFormDialog.tsx` — track clienteId per row, call sync on save
-- `src/hooks/useClientes.ts` — add reverse sync in `useUpdateCliente`
-- `src/components/clientes/ClienteDetailDialog.tsx` — call reverse sync on client save
+## Archivos a modificar
+- `src/hooks/useSyncClienteProyecto.ts` — agregar funciones de complemento bidireccional
+- `src/components/proyectos/ProyectoFormDialog.tsx` — al detectar cliente vinculado, también actualizar el cliente si le faltan datos
+- `src/components/clientes/ClienteDetailDialog.tsx` — al abrir, complementar datos desde proyectos vinculados
 
