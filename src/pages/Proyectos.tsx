@@ -1257,6 +1257,35 @@ export default function Proyectos() {
   );
 }
 
+/* ── Estado AMC Popover with controlled close ── */
+function EstadoAmcPopoverInline({ currentStatus, estadosAmc, onUpdate }: { currentStatus: string; estadosAmc: { id: string; nombre: string; color: string }[]; onUpdate: (estado: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const matchedColor = estadosAmc.find(ea => ea.nombre === currentStatus)?.color;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => e.stopPropagation()}>
+          <StatusBadge status={currentStatus} color={matchedColor} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-48 p-1" align="start" onClick={(e) => e.stopPropagation()}>
+        <div className="space-y-0.5">
+          {estadosAmc.map((ea) => (
+            <button
+              key={ea.id}
+              className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", currentStatus === ea.nombre && "bg-accent font-semibold")}
+              onClick={() => { onUpdate(ea.nombre); setOpen(false); }}
+            >
+              <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
+              {ea.nombre}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /* ── Single project row ── */
 const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, estadosAmc, onUpdateEstadoAmcPE }: {
   p: ProyectoWithEmpresas;
@@ -1288,33 +1317,17 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3">
           {/* Estado (x Proyecto) — project-level estado_amc */}
-          <StatusBadge status={p.estado_amc} />
+          <StatusBadge status={p.estado_amc} color={(estadosAmc || []).find(ea => ea.nombre === p.estado_amc)?.color} />
         </td>
         <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
         <td className="px-5 py-3">
           {/* Estado AMC per empresa */}
           {pe0 && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="cursor-pointer hover:opacity-80 transition-opacity">
-                  <StatusBadge status={(pe0 as any).estado_amc || "Vigente"} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48 p-1" align="start">
-                <div className="space-y-0.5">
-                  {(estadosAmc || []).map((ea) => (
-                    <button
-                      key={ea.id}
-                      className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", ((pe0 as any).estado_amc || "Vigente") === ea.nombre && "bg-accent font-semibold")}
-                      onClick={() => onUpdateEstadoAmcPE(pe0.id, ea.nombre)}
-                    >
-                      <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
-                      {ea.nombre}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <EstadoAmcPopoverInline
+              currentStatus={(pe0 as any).estado_amc || "Vigente"}
+              estadosAmc={estadosAmc || []}
+              onUpdate={(nuevo) => onUpdateEstadoAmcPE(pe0.id, nuevo)}
+            />
           )}
         </td>
         <td className="px-5 py-3 text-right">
