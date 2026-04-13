@@ -94,7 +94,7 @@ export default function Proyectos() {
   const deleteProyecto = useDeleteProyecto();
   const updateNotas = useUpdateNotas();
   const updateNotaGrupo = useUpdateNotaGrupo();
-  const qc = useQueryClient();
+  const qcMain = useQueryClient();
 
   const handleUpdateEstadoAmc = useCallback(async (proyectoIds: string[], nuevoEstado: string) => {
     try {
