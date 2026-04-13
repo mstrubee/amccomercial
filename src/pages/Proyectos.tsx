@@ -96,12 +96,10 @@ export default function Proyectos() {
   const updateNotaGrupo = useUpdateNotaGrupo();
   const qcMain = useQueryClient();
 
-  const handleUpdateEstadoAmc = useCallback(async (proyectoIds: string[], nuevoEstado: string) => {
+  const handleUpdateEstadoAmcPE = useCallback(async (proyectoEmpresaId: string, nuevoEstado: string) => {
     try {
-      for (const pid of proyectoIds) {
-        const { error } = await supabase.from("proyectos").update({ estado_amc: nuevoEstado } as any).eq("id", pid);
-        if (error) throw error;
-      }
+      const { error } = await supabase.from("proyecto_empresas").update({ estado_amc: nuevoEstado } as any).eq("id", proyectoEmpresaId);
+      if (error) throw error;
       qcMain.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success(`Estado AMC actualizado a "${nuevoEstado}"`);
     } catch (e: any) {
@@ -282,10 +280,7 @@ export default function Proyectos() {
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
-      const label = buttonLabelsByLink.subcategoriaLabels.get(pe.subcategoria_id || "")
-        || buttonLabelsByLink.categoriaLabels.get(pe.categoria_id || "")
-        || null;
-      return label && filterBotones.includes(label);
+      return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
   }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink]);
@@ -369,10 +364,7 @@ export default function Proyectos() {
       if (g.some(p => p.adjudicado)) adjudicados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
-        const sub = categorias?.flatMap(c => c.subcategorias_proyecto).find(s => s.id === pe.subcategoria_id);
-        const cat = categorias?.find(c => c.id === pe.categoria_id);
-        const label = (sub as any)?.boton_label || (cat as any)?.boton_label || null;
-        return label === OBRAS_LABEL;
+        return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
@@ -703,9 +695,9 @@ export default function Proyectos() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingreso</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado (x Proyecto)</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estatus</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas / Cotización</th>
-                <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider"></th>
+                <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -719,7 +711,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} estadosAmc={estadosAmc} onUpdateEstadoAmc={handleUpdateEstadoAmc} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
                 }
 
                 // Grouped header
@@ -752,30 +744,34 @@ export default function Proyectos() {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="cursor-pointer hover:opacity-80 transition-opacity">
-                              <StatusBadge status={first.estado_amc} />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-48 p-1" align="start">
-                            <div className="space-y-0.5">
-                              {(estadosAmc || []).map((ea) => (
-                                <button
-                                  key={ea.id}
-                                  className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", first.estado_amc === ea.nombre && "bg-accent font-semibold")}
-                                  onClick={() => {
-                                    const ids = items.map(i => i.id);
-                                    handleUpdateEstadoAmc(ids, ea.nombre);
-                                  }}
-                                >
-                                  <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
-                                  {ea.nombre}
-                                </button>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                        {/* Estatus (x Empresa) summary on parent row */}
+                        <div className="flex flex-wrap gap-1">
+                          {(() => {
+                            const seen = new Set<string>();
+                            const badges: { label: string; bg: string; text: string }[] = [];
+                            for (const item of items) {
+                              for (const pe of (item.proyecto_empresas || [])) {
+                                if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
+                                const sub = (pe as any).subcategorias_proyecto;
+                                const cat = (pe as any).categorias_proyecto;
+                                const botonLabel = sub?.boton_label || cat?.boton_label;
+                                if (!botonLabel || seen.has(botonLabel)) continue;
+                                seen.add(botonLabel);
+                                badges.push({
+                                  label: botonLabel,
+                                  bg: sub?.boton_bg_color || cat?.boton_bg_color || "#3b82f6",
+                                  text: sub?.boton_text_color || cat?.boton_text_color || "#fff",
+                                });
+                              }
+                            }
+                            if (badges.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                            return badges.map((b) => (
+                              <span key={b.label} className="inline-block px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap" style={{ backgroundColor: b.bg, color: b.text }}>
+                                {b.label}
+                              </span>
+                            ));
+                          })()}
+                        </div>
                       </td>
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
@@ -905,19 +901,28 @@ export default function Proyectos() {
                                 </td>
                                 <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} /></td>
                                 <td className="px-5 py-2 align-top text-center">
-                                  {(() => {
-                                    const sub = (pe as any).subcategorias_proyecto;
-                                    const cat = (pe as any).categorias_proyecto;
-                                    const botonLabel = sub?.boton_label || cat?.boton_label;
-                                    const botonBg = sub?.boton_bg_color || cat?.boton_bg_color;
-                                    const botonText = sub?.boton_text_color || cat?.boton_text_color;
-                                    if (!botonLabel) return null;
-                                    return (
-                                      <span className="inline-block px-3 py-1 rounded text-xs font-medium whitespace-nowrap" style={{ backgroundColor: botonBg || "#3b82f6", color: botonText || "#fff" }}>
-                                        {botonLabel}
-                                      </span>
-                                    );
-                                  })()}
+                                  {/* Estado AMC per empresa */}
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className="cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                        <StatusBadge status={(pe as any).estado_amc || "Vigente"} />
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-48 p-1" align="start" onClick={(e) => e.stopPropagation()}>
+                                      <div className="space-y-0.5">
+                                        {(estadosAmc || []).map((ea) => (
+                                          <button
+                                            key={ea.id}
+                                            className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", ((pe as any).estado_amc || "Vigente") === ea.nombre && "bg-accent font-semibold")}
+                                            onClick={() => handleUpdateEstadoAmcPE(pe.id, ea.nombre)}
+                                          >
+                                            <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
+                                            {ea.nombre}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 </td>
                                 <td className="px-5 py-2 text-right align-top">
                                   <div className="flex justify-end gap-1">
@@ -1295,7 +1300,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, estadosAmc, onUpdateEstadoAmc }: {
+const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, estadosAmc, onUpdateEstadoAmcPE }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1309,9 +1314,11 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   filterEmpresas?: string[];
   ventasMap?: Map<string, number>;
   estadosAmc?: { id: string; nombre: string; color: string }[];
-  onUpdateEstadoAmc: (ids: string[], estado: string) => void;
+  onUpdateEstadoAmcPE: (peId: string, estado: string) => void;
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
+  // For single-project rows: show Estatus summary in col 7, Estado AMC per empresa in col 8
+  const pe0 = p.proyecto_empresas?.[0];
   return (
     <>
       <tr className={`hover:bg-secondary/30 transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`}>
@@ -1322,38 +1329,48 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3">
-          <Popover>
-            <PopoverTrigger asChild>
-              <button className="cursor-pointer hover:opacity-80 transition-opacity">
-                <StatusBadge status={p.estado_amc} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 p-1" align="start">
-              <div className="space-y-0.5">
-                {(estadosAmc || []).map((ea) => (
-                  <button
-                    key={ea.id}
-                    className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", p.estado_amc === ea.nombre && "bg-accent font-semibold")}
-                    onClick={() => onUpdateEstadoAmc([p.id], ea.nombre)}
-                  >
-                    <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
-                    {ea.nombre}
-                  </button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {/* Estatus (boton_label) summary */}
+          <div className="flex flex-wrap gap-1">
+            {(p.proyecto_empresas || []).filter((pe, i, arr) => (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id)) && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i).map((pe) => {
+              const sub = (pe as any).subcategorias_proyecto;
+              const cat = (pe as any).categorias_proyecto;
+              const botonLabel = sub?.boton_label || cat?.boton_label;
+              if (!botonLabel) return null;
+              const botonBg = sub?.boton_bg_color || cat?.boton_bg_color || "#3b82f6";
+              const botonText = sub?.boton_text_color || cat?.boton_text_color || "#fff";
+              return (
+                <span key={pe.id} className="inline-block px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap" style={{ backgroundColor: botonBg, color: botonText }}>
+                  {botonLabel}
+                </span>
+              );
+            })}
+          </div>
         </td>
         <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
         <td className="px-5 py-3">
-          {filterBotones.length > 0 && (
-            <div className="flex flex-col items-center gap-1">
-              {filterBotones.map((label) => (
-                <span key={label} className="inline-block px-3 py-1 rounded text-xs font-medium whitespace-nowrap bg-primary text-primary-foreground">
-                  {label}
-                </span>
-              ))}
-            </div>
+          {/* Estado AMC per empresa */}
+          {pe0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="cursor-pointer hover:opacity-80 transition-opacity">
+                  <StatusBadge status={(pe0 as any).estado_amc || "Vigente"} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-1" align="start">
+                <div className="space-y-0.5">
+                  {(estadosAmc || []).map((ea) => (
+                    <button
+                      key={ea.id}
+                      className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", ((pe0 as any).estado_amc || "Vigente") === ea.nombre && "bg-accent font-semibold")}
+                      onClick={() => onUpdateEstadoAmcPE(pe0.id, ea.nombre)}
+                    >
+                      <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
+                      {ea.nombre}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
         </td>
         <td className="px-5 py-3 text-right">
@@ -1580,7 +1597,12 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
         </DialogHeader>
         <div className="space-y-5 mt-2">
           <div className="flex gap-3 flex-wrap">
-            <StatusBadge status={viewTarget.estado_amc} />
+            {viewTarget.proyecto_empresas?.map((pe) => (
+              <div key={pe.id} className="flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground">{pe.empresas?.nombre?.split(" ")[0]}:</span>
+                <StatusBadge status={(pe as any).estado_amc || "Vigente"} />
+              </div>
+            ))}
           </div>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>

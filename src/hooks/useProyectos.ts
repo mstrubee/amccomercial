@@ -28,6 +28,7 @@ export interface EmpresaLink {
   ganado_presupuesto: number | null;
   ganado_op: string | null;
   ganado_fecha: string | null;
+  estado_amc?: string;
 }
 
 export function useProyectos() {
