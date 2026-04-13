@@ -1024,25 +1024,63 @@ function ContactosSection(props: ContactosSectionProps) {
   ];
 
   // Auto-detect existing client associations on mount by matching names
+  // AND fill in missing fields (contacto, email, telefono) from the client record
+  const hasAutoFilled = useRef(false);
   useEffect(() => {
     if (!clientes || !categoriasCliente) return;
+    // Only auto-fill once per dialog open
+    if (hasAutoFilled.current) return;
+
     const newMap = new Map<string, string>();
+    const fieldsToFill: { setters: ((v: string) => void)[]; values: string[]; rows: ContactoRow[] }[] = [];
+    let needsUpdate = false;
+
     for (const section of sections) {
       const rows = splitToRows(section.values[0], section.values[1], section.values[2], section.values[3]);
       const cat = categoriasCliente.find((c) => c.nombre === CONTACTO_CAT_MAP[section.title]);
       if (!cat) continue;
       const catClientes = clientes.filter((c) => c.categoria_id === cat.id);
+      let sectionChanged = false;
+
       rows.forEach((row, idx) => {
         if (!row.nombre) return;
         const match = catClientes.find(
           (c) => c.nombre.trim().toLowerCase() === row.nombre.trim().toLowerCase()
         );
-        if (match) {
-          newMap.set(`${section.title}:${idx}`, match.id);
-        }
+        if (!match) return;
+
+        newMap.set(`${section.title}:${idx}`, match.id);
+
+        // Fill in missing fields from the client's contactos
+        const clientContactos = match.contactos_cliente || [];
+        const clientContacto = clientContactos.map(c => c.contacto).filter(Boolean).join(" / ");
+        const clientEmail = clientContactos.map(c => c.email).filter(Boolean).join(" / ");
+        const clientTelefono = clientContactos.map(c => c.telefono).filter(Boolean).join(" / ");
+
+        if (!row.contacto && clientContacto) { row.contacto = clientContacto; sectionChanged = true; }
+        if (!row.email && clientEmail) { row.email = clientEmail; sectionChanged = true; }
+        if (!row.telefono && clientTelefono) { row.telefono = clientTelefono; sectionChanged = true; }
       });
+
+      if (sectionChanged) {
+        fieldsToFill.push({ setters: section.setters, values: section.values, rows });
+        needsUpdate = true;
+      }
     }
+
     if (newMap.size > 0) setClienteMap(newMap);
+
+    // Apply the filled-in data back to the form
+    if (needsUpdate) {
+      hasAutoFilled.current = true;
+      for (const { setters, rows } of fieldsToFill) {
+        const [n, c, e, t] = rowsToStrings(rows);
+        setters[0](n);
+        setters[1](c);
+        setters[2](e);
+        setters[3](t);
+      }
+    }
   }, [clientes, categoriasCliente]);
 
   // Notify parent of current client mappings whenever they change
