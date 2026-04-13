@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,33 +7,49 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
 import AppLayout from "@/components/layout/AppLayout";
-import Dashboard from "@/pages/Dashboard";
-import Empresas from "@/pages/Empresas";
-import Proyectos from "@/pages/Proyectos";
-import Finanzas from "@/pages/Finanzas";
-import Alertas from "@/pages/Alertas";
-import Usuarios from "@/pages/Usuarios";
 import Auth from "@/pages/Auth";
-import NotFound from "./pages/NotFound";
 import AlertaWidget from "@/components/alertas/AlertaWidget";
 import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
 import FloatingChat from "@/components/mensajeria/FloatingChat";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
-import CargaMasiva from "@/pages/CargaMasiva";
-import Clientes from "@/pages/Clientes";
-import CategoriasPage from "@/pages/CategoriasPage";
-import Reporteria from "@/pages/Reporteria";
-import EstadosProyectoPage from "@/pages/EstadosProyectoPage";
-import EstadosAmcPage from "@/pages/EstadosAmcPage";
-import RepositorioTipoPage from "@/pages/RepositorioTipoPage";
-import DrivePage from "@/pages/DrivePage";
-import Calendario from "@/pages/Calendario";
-import ReunionesPage from "@/pages/AtencionEmpresas";
 import { cn } from "@/lib/utils";
-
 import { Loader2 } from "lucide-react";
 
-const queryClient = new QueryClient();
+// Lazy-loaded pages
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Empresas = lazy(() => import("@/pages/Empresas"));
+const Proyectos = lazy(() => import("@/pages/Proyectos"));
+const Finanzas = lazy(() => import("@/pages/Finanzas"));
+const Alertas = lazy(() => import("@/pages/Alertas"));
+const Usuarios = lazy(() => import("@/pages/Usuarios"));
+const CargaMasiva = lazy(() => import("@/pages/CargaMasiva"));
+const Clientes = lazy(() => import("@/pages/Clientes"));
+const CategoriasPage = lazy(() => import("@/pages/CategoriasPage"));
+const Reporteria = lazy(() => import("@/pages/Reporteria"));
+const EstadosProyectoPage = lazy(() => import("@/pages/EstadosProyectoPage"));
+const EstadosAmcPage = lazy(() => import("@/pages/EstadosAmcPage"));
+const RepositorioTipoPage = lazy(() => import("@/pages/RepositorioTipoPage"));
+const DrivePage = lazy(() => import("@/pages/DrivePage"));
+const Calendario = lazy(() => import("@/pages/Calendario"));
+const ReunionesPage = lazy(() => import("@/pages/AtencionEmpresas"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+
+const PageFallback = () => (
+  <div className="flex flex-1 items-center justify-center py-20">
+    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+  </div>
+);
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 2 * 60 * 1000, // 2 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 function AppRoutes() {
   const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
@@ -53,30 +70,31 @@ function AppRoutes() {
 
   return (
     <AppLayout isAdmin={isAdmin} isUsuarioTipo1={isUsuarioTipo1} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
-      <Routes>
-        <Route path="/" element={canAccessSection("dashboard") ? <Dashboard /> : <Navigate to={canAccessSection("proyectos") ? "/proyectos" : canAccessSection("empresas") ? "/empresas" : canAccessSection("finanzas") ? "/finanzas" : canAccessSection("alertas") ? "/alertas" : "/"} replace />} />
-        {canAccessSection("empresas") && <Route path="/empresas" element={<Empresas />} />}
-        {canAccessSection("proyectos") && <Route path="/proyectos" element={<Proyectos />} />}
-        {canAccessSection("finanzas") && <Route path="/finanzas" element={<Finanzas />} />}
-        {canAccessSection("alertas") && <Route path="/alertas" element={<Alertas />} />}
-        {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
-        {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
-        {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
-        {isAdmin && <Route path="/estados-proyecto" element={<EstadosProyectoPage />} />}
-        {isAdmin && <Route path="/estados-amc" element={<EstadosAmcPage />} />}
-        {isAdmin && <Route path="/repositorio-tipo" element={<RepositorioTipoPage />} />}
-        {isAdmin && <Route path="/drive" element={<DrivePage />} />}
-        {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
-        {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
-        <Route path="/calendario" element={<Calendario />} />
-        {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}
-        
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/" element={canAccessSection("dashboard") ? <Dashboard /> : <Navigate to={canAccessSection("proyectos") ? "/proyectos" : canAccessSection("empresas") ? "/empresas" : canAccessSection("finanzas") ? "/finanzas" : canAccessSection("alertas") ? "/alertas" : "/"} replace />} />
+          {canAccessSection("empresas") && <Route path="/empresas" element={<Empresas />} />}
+          {canAccessSection("proyectos") && <Route path="/proyectos" element={<Proyectos />} />}
+          {canAccessSection("finanzas") && <Route path="/finanzas" element={<Finanzas />} />}
+          {canAccessSection("alertas") && <Route path="/alertas" element={<Alertas />} />}
+          {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
+          {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
+          {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}
+          {isAdmin && <Route path="/estados-proyecto" element={<EstadosProyectoPage />} />}
+          {isAdmin && <Route path="/estados-amc" element={<EstadosAmcPage />} />}
+          {isAdmin && <Route path="/repositorio-tipo" element={<RepositorioTipoPage />} />}
+          {isAdmin && <Route path="/drive" element={<DrivePage />} />}
+          {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
+          {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
+          <Route path="/calendario" element={<Calendario />} />
+          {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}
+          
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
       <AlertaWidget />
       {(() => {
         const pos = theme?.theme_floating_position || "left-14";
-        // Parse dynamic position: "left-N", "right-N", "bottom-N"
         const [side, idxStr] = pos.split("-");
         const idx = parseInt(idxStr || "14", 10);
         let style: React.CSSProperties = {};
