@@ -1,35 +1,50 @@
 
 
-# Complementar información de contactos bidireccionalmente
+# Intercambiar posición de badges: Estado AMC → fila hija, Estatus → fila madre
 
-## Problema actual
-La auto-completación actual solo funciona en una dirección: si el proyecto tiene un campo vacío y el cliente lo tiene, se rellena el campo del proyecto. Pero si el **cliente** tiene campos vacíos que **sí existen en el proyecto**, esos no se actualizan en el cliente. Además, solo se ejecuta al abrir el formulario del proyecto, no al abrir el detalle del cliente.
+## Situación actual
+- **Fila madre (parent row)**: Muestra el badge de `estado_amc` con popover para cambiar (columna "Estado (x Proyecto)")
+- **Fila hija (child row)**: Muestra el botón de Estatus (boton_label de categorias_proyecto/subcategorias_proyecto)
 
-## Solución
+## Cambio solicitado
+- **Fila madre**: Mostrar los badges de **Estatus (x Empresa)** — un resumen de los boton_label de las empresas hijas
+- **Fila hija**: Mostrar el badge de **Estado AMC** con popover editable para cambiar el estado por empresa
 
-### 1. Al abrir el formulario del proyecto: complementar en ambas direcciones
-**Archivo: `src/components/proyectos/ProyectoFormDialog.tsx` (ContactosSection)**
+## Problema técnico
+El campo `estado_amc` está en la tabla `proyectos`, no en `proyecto_empresas`. Para que cada empresa hija tenga su propio Estado AMC, se necesita una migración para agregar `estado_amc` a la tabla `proyecto_empresas`.
 
-- El `useEffect` actual ya rellena campos vacíos del proyecto desde el cliente
-- Agregar lógica inversa: si el proyecto tiene datos que el cliente NO tiene, actualizar el cliente automáticamente (vía `syncProyectoToClientes`)
-- Ejemplo: si el proyecto tiene teléfono pero el cliente no, actualizar el registro del cliente con ese teléfono
+## Plan de implementación
 
-### 2. Al abrir el detalle de un cliente: complementar desde proyectos vinculados
-**Archivo: `src/components/clientes/ClienteDetailDialog.tsx`**
+### 1. Migración de base de datos
+- Agregar columna `estado_amc` (text, default 'Vigente') a `proyecto_empresas`
+- Migrar los valores existentes: copiar `proyectos.estado_amc` a todos los `proyecto_empresas` vinculados
 
-- Agregar un `useEffect` que al abrir el diálogo, revise los proyectos vinculados
-- Si algún campo del cliente está vacío pero el proyecto lo tiene, rellenar el formulario del cliente con esos datos
-- Marcar `hasChanges` para que el usuario pueda guardar los cambios detectados
+### 2. Modificar fila madre (parent row) — `Proyectos.tsx` ~línea 754-778
+- Reemplazar el popover de `estado_amc` por un resumen de Estatus (boton_labels) de las empresas hijas
+- Mostrar los badges coloreados de cada empresa agrupada (similar a lo que hoy se ve en las filas hijas)
 
-### 3. Mejorar la función de merge en `useSyncClienteProyecto.ts`
-**Archivo: `src/hooks/useSyncClienteProyecto.ts`**
+### 3. Modificar fila hija (child row) — `Proyectos.tsx` ~línea 907-921
+- Reemplazar el boton_label de Estatus por el badge de Estado AMC con popover editable
+- El popover actualiza `proyecto_empresas.estado_amc` en vez de `proyectos.estado_amc`
+- Actualizar `handleUpdateEstadoAmc` para que opere sobre `proyecto_empresas` en lugar de `proyectos`
 
-- Agregar nueva función `complementClienteFromProyectos`: consulta proyectos vinculados y complementa campos vacíos del cliente
-- Agregar nueva función `complementProyectoFromClientes`: complementa campos vacíos del proyecto desde el cliente (refactorizar la lógica existente del useEffect)
-- Ambas funciones solo rellenan campos **vacíos**, nunca sobreescriben datos existentes
+### 4. Modificar ProjectRow (proyecto sin grupo) — `Proyectos.tsx` ~línea 1324-1346
+- Mostrar ambos: el Estatus y el Estado AMC en las columnas correspondientes
+
+### 5. Actualizar filtros
+- **Filtro "Estado AMC (x Empresa)"** (#5): Actualmente usa `filterBotones` que filtra por boton_label — corregir para que filtre por `proyecto_empresas.estado_amc`
+- **Filtro "Estatus (x Empresa)"** (#6): Ya filtra por categorias — mantener igual
+- La columna header "Estado (x Proyecto)" se mantiene, pero lo que muestra cambia según fila madre vs fila hija
+
+### 6. Actualizar la query de proyectos
+- En `useProyectos.ts`, incluir el nuevo campo `estado_amc` de `proyecto_empresas` en el select
+
+### 7. Vista de detalle — ~línea 1581-1584
+- Ajustar el `StatusBadge` en el diálogo de vista para reflejar los estados AMC por empresa
 
 ## Archivos a modificar
-- `src/hooks/useSyncClienteProyecto.ts` — agregar funciones de complemento bidireccional
-- `src/components/proyectos/ProyectoFormDialog.tsx` — al detectar cliente vinculado, también actualizar el cliente si le faltan datos
-- `src/components/clientes/ClienteDetailDialog.tsx` — al abrir, complementar datos desde proyectos vinculados
+- **Migración SQL** — nueva columna en `proyecto_empresas`
+- `src/pages/Proyectos.tsx` — intercambiar badges, actualizar handler, corregir filtro
+- `src/hooks/useProyectos.ts` — ajustar query y tipos si necesario
+- `src/hooks/useEstadosAmc.ts` — sin cambios (ya funciona)
 
