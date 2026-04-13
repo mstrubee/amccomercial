@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ClienteWithCategoria, CategoriaCliente, useUpdateCliente } from "@/hooks/useClientes";
 import { useProyectos } from "@/hooks/useProyectos";
+import { useSyncClienteProyecto } from "@/hooks/useSyncClienteProyecto";
 
 interface ContactoForm {
   id?: string;
