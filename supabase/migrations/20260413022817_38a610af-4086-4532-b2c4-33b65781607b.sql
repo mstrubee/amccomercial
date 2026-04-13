@@ -1,0 +1,1 @@
+ALTER TABLE proyectos ALTER COLUMN estado_amc SET DEFAULT 'Vigente';
