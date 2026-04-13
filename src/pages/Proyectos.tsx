@@ -1303,22 +1303,8 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3">
-          {/* Estatus (boton_label) summary */}
-          <div className="flex flex-wrap gap-1">
-            {(p.proyecto_empresas || []).filter((pe, i, arr) => (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id)) && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i).map((pe) => {
-              const sub = (pe as any).subcategorias_proyecto;
-              const cat = (pe as any).categorias_proyecto;
-              const botonLabel = sub?.boton_label || cat?.boton_label;
-              if (!botonLabel) return null;
-              const botonBg = sub?.boton_bg_color || cat?.boton_bg_color || "#3b82f6";
-              const botonText = sub?.boton_text_color || cat?.boton_text_color || "#fff";
-              return (
-                <span key={pe.id} className="inline-block px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap" style={{ backgroundColor: botonBg, color: botonText }}>
-                  {botonLabel}
-                </span>
-              );
-            })}
-          </div>
+          {/* Estado (x Proyecto) — project-level estado_amc */}
+          <StatusBadge status={p.estado_amc} />
         </td>
         <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
         <td className="px-5 py-3">
