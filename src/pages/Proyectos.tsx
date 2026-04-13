@@ -94,6 +94,20 @@ export default function Proyectos() {
   const deleteProyecto = useDeleteProyecto();
   const updateNotas = useUpdateNotas();
   const updateNotaGrupo = useUpdateNotaGrupo();
+  const qc = useQueryClient();
+
+  const handleUpdateEstadoAmc = useCallback(async (proyectoIds: string[], nuevoEstado: string) => {
+    try {
+      for (const pid of proyectoIds) {
+        const { error } = await supabase.from("proyectos").update({ estado_amc: nuevoEstado } as any).eq("id", pid);
+        if (error) throw error;
+      }
+      qc.invalidateQueries({ queryKey: ["proyectos"] });
+      toast.success(`Estado AMC actualizado a "${nuevoEstado}"`);
+    } catch (e: any) {
+      toast.error("Error al actualizar estado: " + e.message);
+    }
+  }, [qc]);
 
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -737,7 +751,32 @@ export default function Proyectos() {
                           <div className="text-[10px] text-muted-foreground/70">{new Date(first.fecha_estado_obra).toLocaleDateString("es-CL")}</div>
                         )}
                       </td>
-                      <td className="px-5 py-3"><StatusBadge status={first.estado_amc} /></td>
+                      <td className="px-5 py-3">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="cursor-pointer hover:opacity-80 transition-opacity">
+                              <StatusBadge status={first.estado_amc} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-48 p-1" align="start">
+                            <div className="space-y-0.5">
+                              {(estadosAmc || []).map((ea) => (
+                                <button
+                                  key={ea.id}
+                                  className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", first.estado_amc === ea.nombre && "bg-accent font-semibold")}
+                                  onClick={() => {
+                                    const ids = items.map(i => i.id);
+                                    handleUpdateEstadoAmc(ids, ea.nombre);
+                                  }}
+                                >
+                                  <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
+                                  {ea.nombre}
+                                </button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </td>
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
                       </td>
@@ -1280,7 +1319,29 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
         <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
-        <td className="px-5 py-3"><StatusBadge status={p.estado_amc} /></td>
+        <td className="px-5 py-3">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="cursor-pointer hover:opacity-80 transition-opacity">
+                <StatusBadge status={p.estado_amc} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1" align="start">
+              <div className="space-y-0.5">
+                {(estadosAmc || []).map((ea) => (
+                  <button
+                    key={ea.id}
+                    className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", p.estado_amc === ea.nombre && "bg-accent font-semibold")}
+                    onClick={() => handleUpdateEstadoAmc([p.id], ea.nombre)}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
+                    {ea.nombre}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </td>
         <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
         <td className="px-5 py-3">
           {filterBotones.length > 0 && (
