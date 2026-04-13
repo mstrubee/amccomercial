@@ -110,6 +110,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const [empresaRows, setEmpresaRows] = useState<EmpresaRow[]>([]);
   const [crearAlertaEmpresaIds, setCrearAlertaEmpresaIds] = useState<Set<string>>(new Set());
   const [showCategoriasManager, setShowCategoriasManager] = useState(false);
+  const [clienteMappings, setClienteMappings] = useState<Map<string, ContactoRow>>(new Map());
+  const { syncProyectoToLinkedClientes } = useSyncClienteProyecto();
+  const handleClienteMappingsChange = useCallback((mappings: Map<string, ContactoRow>) => {
+    setClienteMappings(mappings);
+  }, []);
 
   // Ganado dialog state
   const [ganadoDialogOpen, setGanadoDialogOpen] = useState(false);
