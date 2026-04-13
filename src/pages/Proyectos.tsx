@@ -102,12 +102,12 @@ export default function Proyectos() {
         const { error } = await supabase.from("proyectos").update({ estado_amc: nuevoEstado } as any).eq("id", pid);
         if (error) throw error;
       }
-      qc.invalidateQueries({ queryKey: ["proyectos"] });
+      qcMain.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success(`Estado AMC actualizado a "${nuevoEstado}"`);
     } catch (e: any) {
       toast.error("Error al actualizar estado: " + e.message);
     }
-  }, [qc]);
+  }, [qcMain]);
 
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
