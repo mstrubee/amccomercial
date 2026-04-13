@@ -40,16 +40,23 @@ const PageFallback = () => (
   </div>
 );
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 2 * 60 * 1000, // 2 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
+// Stable singleton — survives HMR reloads
+let _qc: QueryClient | null = null;
+function getQueryClient() {
+  if (!_qc) {
+    _qc = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 2 * 60 * 1000,
+          gcTime: 10 * 60 * 1000,
+          refetchOnWindowFocus: false,
+          retry: 1,
+        },
+      },
+    });
+  }
+  return _qc;
+}
 
 function AppRoutes() {
   const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
@@ -120,7 +127,7 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={getQueryClient()}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
