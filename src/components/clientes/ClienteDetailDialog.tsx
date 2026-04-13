@@ -91,12 +91,22 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const handleSave = () => {
     if (!cliente || !nombre.trim() || !categoriaId) return;
     const validContactos = contactos.filter(c => c.contacto || c.email || c.telefono);
+    const oldNombre = cliente.nombre;
+    const catNombreForSync = categorias.find(c => c.id === categoriaId)?.nombre || "";
     updateCliente.mutate(
       { id: cliente.id, categoria_id: categoriaId, nombre: nombre.trim(), contactos: validContactos },
       {
         onSuccess: () => {
           setHasChanges(false);
           setEditing(false);
+          // Sync client data to linked projects
+          syncClienteToLinkedProyectos(
+            cliente.id,
+            oldNombre,
+            nombre.trim(),
+            catNombreForSync,
+            validContactos
+          );
         },
       }
     );
