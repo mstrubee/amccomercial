@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -26,6 +26,7 @@ import CategoriasManagerDialog from "./CategoriasManagerDialog";
 import { REGIONES_CHILE } from "@/data/chile-geo";
 import { useClientes, useCategoriasCliente, useCreateCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
 import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
+import { useSyncClienteProyecto } from "@/hooks/useSyncClienteProyecto";
 
 interface Props {
   open: boolean;
@@ -109,6 +110,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const [empresaRows, setEmpresaRows] = useState<EmpresaRow[]>([]);
   const [crearAlertaEmpresaIds, setCrearAlertaEmpresaIds] = useState<Set<string>>(new Set());
   const [showCategoriasManager, setShowCategoriasManager] = useState(false);
+  const [clienteMappings, setClienteMappings] = useState<Map<string, ContactoRow>>(new Map());
+  const { syncProyectoToLinkedClientes } = useSyncClienteProyecto();
+  const handleClienteMappingsChange = useCallback((mappings: Map<string, ContactoRow>) => {
+    setClienteMappings(mappings);
+  }, []);
 
   // Ganado dialog state
   const [ganadoDialogOpen, setGanadoDialogOpen] = useState(false);
@@ -450,6 +456,22 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       }
     }
     setCrearAlertaEmpresaIds(new Set());
+
+    // Sync contact changes back to linked clients
+    if (clienteMappings.size > 0) {
+      const updates = Array.from(clienteMappings.entries()).map(([clienteId, row]) => ({
+        clienteId,
+        nombre: row.nombre,
+        contactos: row.contacto
+          ? row.contacto.split(" / ").map((c, i) => ({
+              contacto: c || "",
+              email: (row.email?.split(" / ") || [])[i] || "",
+              telefono: (row.telefono?.split(" / ") || [])[i] || "",
+            }))
+          : [],
+      }));
+      syncProyectoToLinkedClientes(updates);
+    }
 
     onSubmit({
       nombre: nombre.trim(),
@@ -851,6 +873,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   setItoNombre={setItoNombre} setItoContacto={setItoContacto} setItoMail={setItoMail} setItoTelefono={setItoTelefono}
                   duenosNombre={duenosNombre} duenosContacto={duenosContacto} duenosMail={duenosMail} duenosTelefono={duenosTelefono}
                   setDuenosNombre={setDuenosNombre} setDuenosContacto={setDuenosContacto} setDuenosMail={setDuenosMail} setDuenosTelefono={setDuenosTelefono}
+                  onClienteMappingsChange={handleClienteMappingsChange}
                 />
               </CollapsibleSection>
               </>)}
@@ -940,6 +963,7 @@ interface ContactosSectionProps {
   setItoNombre: (v: string) => void; setItoContacto: (v: string) => void; setItoMail: (v: string) => void; setItoTelefono: (v: string) => void;
   duenosNombre: string; duenosContacto: string; duenosMail: string; duenosTelefono: string;
   setDuenosNombre: (v: string) => void; setDuenosContacto: (v: string) => void; setDuenosMail: (v: string) => void; setDuenosTelefono: (v: string) => void;
+  onClienteMappingsChange?: (mappings: Map<string, ContactoRow>) => void;
 }
 
 const CONTACTO_CAT_MAP: Record<string, string> = {
@@ -949,11 +973,12 @@ const CONTACTO_CAT_MAP: Record<string, string> = {
   "Dueños": "Dueños",
 };
 
-interface ContactoRow {
+export interface ContactoRow {
   nombre: string;
   contacto: string;
   email: string;
   telefono: string;
+  clienteId?: string;
 }
 
 function splitToRows(nombre: string, contacto: string, email: string, telefono: string): ContactoRow[] {
@@ -988,12 +1013,57 @@ function ContactosSection(props: ContactosSectionProps) {
   const { data: clientes } = useClientes();
   const { data: categoriasCliente } = useCategoriasCliente();
 
+  // Track which client populates each row: key = "sectionTitle:rowIndex", value = clienteId
+  const [clienteMap, setClienteMap] = useState<Map<string, string>>(new Map());
+
   const sections = [
     { title: "Arquitectura", values: [props.arqNombre, props.arqContacto, props.arqMail, props.arqTelefono], setters: [props.setArqNombre, props.setArqContacto, props.setArqMail, props.setArqTelefono] },
     { title: "Constructora", values: [props.constNombre, props.constContacto, props.constMail, props.constTelefono], setters: [props.setConstNombre, props.setConstContacto, props.setConstMail, props.setConstTelefono] },
     { title: "ITO", values: [props.itoNombre, props.itoContacto, props.itoMail, props.itoTelefono], setters: [props.setItoNombre, props.setItoContacto, props.setItoMail, props.setItoTelefono] },
     { title: "Dueños", values: [props.duenosNombre, props.duenosContacto, props.duenosMail, props.duenosTelefono], setters: [props.setDuenosNombre, props.setDuenosContacto, props.setDuenosMail, props.setDuenosTelefono] },
   ];
+
+  // Auto-detect existing client associations on mount by matching names
+  useEffect(() => {
+    if (!clientes || !categoriasCliente) return;
+    const newMap = new Map<string, string>();
+    for (const section of sections) {
+      const rows = splitToRows(section.values[0], section.values[1], section.values[2], section.values[3]);
+      const cat = categoriasCliente.find((c) => c.nombre === CONTACTO_CAT_MAP[section.title]);
+      if (!cat) continue;
+      const catClientes = clientes.filter((c) => c.categoria_id === cat.id);
+      rows.forEach((row, idx) => {
+        if (!row.nombre) return;
+        const match = catClientes.find(
+          (c) => c.nombre.trim().toLowerCase() === row.nombre.trim().toLowerCase()
+        );
+        if (match) {
+          newMap.set(`${section.title}:${idx}`, match.id);
+        }
+      });
+    }
+    if (newMap.size > 0) setClienteMap(newMap);
+  }, [clientes, categoriasCliente]);
+
+  // Notify parent of current client mappings whenever they change
+  useEffect(() => {
+    if (!props.onClienteMappingsChange) return;
+    const mappings = new Map<string, ContactoRow>();
+    for (const [key, clienteId] of clienteMap.entries()) {
+      const [title, idxStr] = key.split(":");
+      const idx = parseInt(idxStr, 10);
+      const section = sections.find((s) => s.title === title);
+      if (!section) continue;
+      const rows = splitToRows(section.values[0], section.values[1], section.values[2], section.values[3]);
+      if (rows[idx]) {
+        mappings.set(clienteId, { ...rows[idx], clienteId });
+      }
+    }
+    props.onClienteMappingsChange(mappings);
+  }, [clienteMap, props.arqNombre, props.arqContacto, props.arqMail, props.arqTelefono,
+      props.constNombre, props.constContacto, props.constMail, props.constTelefono,
+      props.itoNombre, props.itoContacto, props.itoMail, props.itoTelefono,
+      props.duenosNombre, props.duenosContacto, props.duenosMail, props.duenosTelefono]);
 
   const getClientesForCategory = (title: string): ClienteWithCategoria[] => {
     if (!clientes || !categoriasCliente) return [];
@@ -1002,7 +1072,7 @@ function ContactosSection(props: ContactosSectionProps) {
     return clientes.filter((c) => c.categoria_id === cat.id);
   };
 
-  const applyCliente = (cliente: ClienteWithCategoria, setters: ((v: string) => void)[], values: string[]) => {
+  const applyCliente = (cliente: ClienteWithCategoria, setters: ((v: string) => void)[], values: string[], sectionTitle: string) => {
     const rows = splitToRows(values[0], values[1], values[2], values[3]);
 
     const contactos = cliente.contactos_cliente || [];
@@ -1011,12 +1081,16 @@ function ContactosSection(props: ContactosSectionProps) {
       contacto: contactos.map(c => c.contacto).filter(Boolean).join(" / "),
       email: contactos.map(c => c.email).filter(Boolean).join(" / "),
       telefono: contactos.map(c => c.telefono).filter(Boolean).join(" / "),
+      clienteId: cliente.id,
     };
 
+    let newIdx: number;
     if (rows.length === 1 && !rows[0].nombre && !rows[0].contacto && !rows[0].email && !rows[0].telefono) {
       rows[0] = newRow;
+      newIdx = 0;
     } else {
       rows.push(newRow);
+      newIdx = rows.length - 1;
     }
 
     const [n, c, e, t] = rowsToStrings(rows);
@@ -1024,6 +1098,13 @@ function ContactosSection(props: ContactosSectionProps) {
     setters[1](c);
     setters[2](e);
     setters[3](t);
+
+    // Track the client association
+    setClienteMap((prev) => {
+      const next = new Map(prev);
+      next.set(`${sectionTitle}:${newIdx}`, cliente.id);
+      return next;
+    });
   };
 
   const updateRow = (setters: ((v: string) => void)[], values: string[], rowIndex: number, field: keyof ContactoRow, newValue: string) => {
@@ -1038,7 +1119,7 @@ function ContactosSection(props: ContactosSectionProps) {
     setters[3](t);
   };
 
-  const removeRow = (setters: ((v: string) => void)[], values: string[], rowIndex: number) => {
+  const removeRow = (setters: ((v: string) => void)[], values: string[], rowIndex: number, sectionTitle: string) => {
     const rows = splitToRows(values[0], values[1], values[2], values[3]);
     rows.splice(rowIndex, 1);
     if (rows.length === 0) {
@@ -1049,6 +1130,23 @@ function ContactosSection(props: ContactosSectionProps) {
     setters[1](c);
     setters[2](e);
     setters[3](t);
+
+    // Remove and reindex client mappings for this section
+    setClienteMap((prev) => {
+      const next = new Map<string, string>();
+      for (const [key, cid] of prev.entries()) {
+        const [t, iStr] = key.split(":");
+        if (t !== sectionTitle) {
+          next.set(key, cid);
+        } else {
+          const i = parseInt(iStr, 10);
+          if (i < rowIndex) next.set(key, cid);
+          else if (i > rowIndex) next.set(`${t}:${i - 1}`, cid);
+          // i === rowIndex is the removed one, skip
+        }
+      }
+      return next;
+    });
   };
 
   return (
@@ -1063,7 +1161,7 @@ function ContactosSection(props: ContactosSectionProps) {
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</Label>
               <ClientePicker
                 clientes={availableClientes}
-                onSelect={(c) => applyCliente(c, setters, values)}
+                onSelect={(c) => applyCliente(c, setters, values, title)}
                 categoryId={catForTitle?.id}
               />
             </div>
@@ -1073,7 +1171,7 @@ function ContactosSection(props: ContactosSectionProps) {
                   <button
                     type="button"
                     className="absolute -right-1 -top-1 z-10 rounded-full bg-destructive/10 p-0.5 text-destructive hover:bg-destructive/20 transition-colors"
-                    onClick={() => removeRow(setters, values, idx)}
+                    onClick={() => removeRow(setters, values, idx, title)}
                     title="Eliminar contacto"
                   >
                     <Trash2 className="w-3 h-3" />
