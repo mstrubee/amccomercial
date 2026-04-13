@@ -150,7 +150,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
 
           <div className="space-y-3">
             {/* Name */}
-            <Collapsible defaultOpen={false} open={editing ? true : undefined}>
+            <Collapsible defaultOpen={true} open={editing ? true : undefined}>
               <CollapsibleTrigger className="flex items-center gap-1.5 group cursor-pointer w-full">
                 <ChevronRight className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Nombre</Label>
@@ -165,7 +165,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
             </Collapsible>
 
             {/* Category */}
-            <Collapsible defaultOpen={false} open={editing ? true : undefined}>
+            <Collapsible defaultOpen={true} open={editing ? true : undefined}>
               <CollapsibleTrigger className="flex items-center gap-1.5 group cursor-pointer w-full">
                 <ChevronRight className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Categoría</Label>
