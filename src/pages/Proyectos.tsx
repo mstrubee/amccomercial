@@ -1295,7 +1295,7 @@ export default function Proyectos() {
 }
 
 /* ── Single project row ── */
-const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap }: {
+const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, estadosAmc, onUpdateEstadoAmc }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1308,6 +1308,8 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   filterBotones: string[];
   filterEmpresas?: string[];
   ventasMap?: Map<string, number>;
+  estadosAmc?: { id: string; nombre: string; color: string }[];
+  onUpdateEstadoAmc: (ids: string[], estado: string) => void;
 }) {
   const evenBg = isEven ? "bg-muted/40" : "";
   return (
