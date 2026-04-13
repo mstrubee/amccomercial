@@ -457,6 +457,22 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     }
     setCrearAlertaEmpresaIds(new Set());
 
+    // Sync contact changes back to linked clients
+    if (clienteMappings.size > 0) {
+      const updates = Array.from(clienteMappings.entries()).map(([clienteId, row]) => ({
+        clienteId,
+        nombre: row.nombre,
+        contactos: row.contacto
+          ? row.contacto.split(" / ").map((c, i) => ({
+              contacto: c || "",
+              email: (row.email?.split(" / ") || [])[i] || "",
+              telefono: (row.telefono?.split(" / ") || [])[i] || "",
+            }))
+          : [],
+      }));
+      syncProyectoToLinkedClientes(updates);
+    }
+
     onSubmit({
       nombre: nombre.trim(),
       region, direccion, comuna, estado_obra: estadoObra,
