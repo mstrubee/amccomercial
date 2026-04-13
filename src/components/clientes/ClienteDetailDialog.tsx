@@ -35,6 +35,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const updateCliente = useUpdateCliente();
   const navigate = useNavigate();
   const { data: proyectos } = useProyectos();
+  const { syncClienteToLinkedProyectos } = useSyncClienteProyecto();
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
