@@ -695,7 +695,7 @@ export default function Proyectos() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingreso</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estatus</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado (x Proyecto)</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas / Cotización</th>
                 <th className="text-center px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado AMC</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
@@ -744,34 +744,8 @@ export default function Proyectos() {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        {/* Estatus (x Empresa) summary on parent row */}
-                        <div className="flex flex-wrap gap-1">
-                          {(() => {
-                            const seen = new Set<string>();
-                            const badges: { label: string; bg: string; text: string }[] = [];
-                            for (const item of items) {
-                              for (const pe of (item.proyecto_empresas || [])) {
-                                if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
-                                const sub = (pe as any).subcategorias_proyecto;
-                                const cat = (pe as any).categorias_proyecto;
-                                const botonLabel = sub?.boton_label || cat?.boton_label;
-                                if (!botonLabel || seen.has(botonLabel)) continue;
-                                seen.add(botonLabel);
-                                badges.push({
-                                  label: botonLabel,
-                                  bg: sub?.boton_bg_color || cat?.boton_bg_color || "#3b82f6",
-                                  text: sub?.boton_text_color || cat?.boton_text_color || "#fff",
-                                });
-                              }
-                            }
-                            if (badges.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
-                            return badges.map((b) => (
-                              <span key={b.label} className="inline-block px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap" style={{ backgroundColor: b.bg, color: b.text }}>
-                                {b.label}
-                              </span>
-                            ));
-                          })()}
-                        </div>
+                        {/* Estado (x Proyecto) — project-level estado_amc */}
+                        <StatusBadge status={first.estado_amc} />
                       </td>
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
