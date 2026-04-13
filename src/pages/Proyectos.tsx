@@ -711,7 +711,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} estadosAmc={estadosAmc} onUpdateEstadoAmc={handleUpdateEstadoAmc} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
                 }
 
                 // Grouped header
@@ -744,30 +744,34 @@ export default function Proyectos() {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="cursor-pointer hover:opacity-80 transition-opacity">
-                              <StatusBadge status={first.estado_amc} />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-48 p-1" align="start">
-                            <div className="space-y-0.5">
-                              {(estadosAmc || []).map((ea) => (
-                                <button
-                                  key={ea.id}
-                                  className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", first.estado_amc === ea.nombre && "bg-accent font-semibold")}
-                                  onClick={() => {
-                                    const ids = items.map(i => i.id);
-                                    handleUpdateEstadoAmc(ids, ea.nombre);
-                                  }}
-                                >
-                                  <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
-                                  {ea.nombre}
-                                </button>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                        {/* Estatus (x Empresa) summary on parent row */}
+                        <div className="flex flex-wrap gap-1">
+                          {(() => {
+                            const seen = new Set<string>();
+                            const badges: { label: string; bg: string; text: string }[] = [];
+                            for (const item of items) {
+                              for (const pe of (item.proyecto_empresas || [])) {
+                                if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
+                                const sub = (pe as any).subcategorias_proyecto;
+                                const cat = (pe as any).categorias_proyecto;
+                                const botonLabel = sub?.boton_label || cat?.boton_label;
+                                if (!botonLabel || seen.has(botonLabel)) continue;
+                                seen.add(botonLabel);
+                                badges.push({
+                                  label: botonLabel,
+                                  bg: sub?.boton_bg_color || cat?.boton_bg_color || "#3b82f6",
+                                  text: sub?.boton_text_color || cat?.boton_text_color || "#fff",
+                                });
+                              }
+                            }
+                            if (badges.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                            return badges.map((b) => (
+                              <span key={b.label} className="inline-block px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap" style={{ backgroundColor: b.bg, color: b.text }}>
+                                {b.label}
+                              </span>
+                            ));
+                          })()}
+                        </div>
                       </td>
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
