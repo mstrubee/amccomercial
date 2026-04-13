@@ -940,6 +940,7 @@ interface ContactosSectionProps {
   setItoNombre: (v: string) => void; setItoContacto: (v: string) => void; setItoMail: (v: string) => void; setItoTelefono: (v: string) => void;
   duenosNombre: string; duenosContacto: string; duenosMail: string; duenosTelefono: string;
   setDuenosNombre: (v: string) => void; setDuenosContacto: (v: string) => void; setDuenosMail: (v: string) => void; setDuenosTelefono: (v: string) => void;
+  onClienteMappingsChange?: (mappings: Map<string, ContactoRow>) => void;
 }
 
 const CONTACTO_CAT_MAP: Record<string, string> = {
