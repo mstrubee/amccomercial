@@ -44,11 +44,40 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const [hasChanges, setHasChanges] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
+  const hasComplemented = useRef<string | null>(null);
+
   useEffect(() => {
     if (cliente) {
       resetForm();
     }
   }, [cliente]);
+
+  // Complement empty client fields from linked projects on dialog open
+  useEffect(() => {
+    if (!open || !cliente) return;
+    // Only run once per client open
+    if (hasComplemented.current === cliente.id) return;
+    hasComplemented.current = cliente.id;
+
+    const catNombre = categorias.find(c => c.id === cliente.categoria_id)?.nombre || "";
+    const currentContactos = (cliente.contactos_cliente || []).map(c => ({
+      contacto: c.contacto,
+      email: c.email,
+      telefono: c.telefono,
+    }));
+
+    complementClienteFromProyectos(cliente.id, cliente.nombre, catNombre, currentContactos).then(merged => {
+      if (merged) {
+        setContactos(merged.map((c, i) => ({
+          id: (cliente.contactos_cliente || [])[i]?.id,
+          contacto: c.contacto,
+          email: c.email,
+          telefono: c.telefono,
+        })));
+        setHasChanges(true);
+      }
+    });
+  }, [open, cliente, categorias]);
 
   const resetForm = () => {
     if (!cliente) return;
