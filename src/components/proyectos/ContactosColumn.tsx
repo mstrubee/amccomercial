@@ -17,13 +17,24 @@ interface Props {
 
 export default function ContactosColumn({ proyecto, groupItems }: Props) {
   const items = groupItems || [proyecto];
+  const { data: categoriasCliente } = useCategoriasCliente();
   
+  // Build a map from categoria_id to short label
+  const catLabelMap = new Map<string, string>();
+  for (const cat of (categoriasCliente || [])) {
+    catLabelMap.set(cat.id, cat.nombre);
+  }
+
   // Gather unique linked clientes and captadores across all group items
   const linkedClientes = new Map<string, string>();
   const linkedCaptadores = new Map<string, string>();
   for (const p of items) {
     for (const pc of (p.proyecto_clientes || [])) {
-      if (pc.clientes) linkedClientes.set(pc.clientes.id, pc.clientes.nombre);
+      if (pc.clientes) {
+        const catLabel = catLabelMap.get(pc.clientes.categoria_id) || "";
+        const display = catLabel ? `${pc.clientes.nombre} (${catLabel})` : pc.clientes.nombre;
+        linkedClientes.set(pc.clientes.id, display);
+      }
     }
     for (const pc of (p.proyecto_captadores || [])) {
       if (pc.captadores) linkedCaptadores.set(pc.captadores.id, pc.captadores.nombre);
