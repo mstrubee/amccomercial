@@ -1024,16 +1024,18 @@ function ContactosSection(props: ContactosSectionProps) {
   ];
 
   // Auto-detect existing client associations on mount by matching names
-  // AND fill in missing fields (contacto, email, telefono) from the client record
+  // AND fill in missing fields bidirectionally (project ↔ client)
   const hasAutoFilled = useRef(false);
+  const { complementClienteFromProject } = useSyncClienteProyecto();
+
   useEffect(() => {
     if (!clientes || !categoriasCliente) return;
-    // Only auto-fill once per dialog open
     if (hasAutoFilled.current) return;
 
     const newMap = new Map<string, string>();
     const fieldsToFill: { setters: ((v: string) => void)[]; values: string[]; rows: ContactoRow[] }[] = [];
     let needsUpdate = false;
+    const clientsToComplement: { clienteId: string; clienteNombre: string; catNombre: string; contacto: string; email: string; telefono: string }[] = [];
 
     for (const section of sections) {
       const rows = splitToRows(section.values[0], section.values[1], section.values[2], section.values[3]);
@@ -1057,9 +1059,26 @@ function ContactosSection(props: ContactosSectionProps) {
         const clientEmail = clientContactos.map(c => c.email).filter(Boolean).join(" / ");
         const clientTelefono = clientContactos.map(c => c.telefono).filter(Boolean).join(" / ");
 
+        // Project ← Client: fill empty project fields
         if (!row.contacto && clientContacto) { row.contacto = clientContacto; sectionChanged = true; }
         if (!row.email && clientEmail) { row.email = clientEmail; sectionChanged = true; }
         if (!row.telefono && clientTelefono) { row.telefono = clientTelefono; sectionChanged = true; }
+
+        // Client ← Project: if client is missing data but project has it
+        const needsClientUpdate =
+          (!clientContacto && row.contacto) ||
+          (!clientEmail && row.email) ||
+          (!clientTelefono && row.telefono);
+        if (needsClientUpdate) {
+          clientsToComplement.push({
+            clienteId: match.id,
+            clienteNombre: match.nombre,
+            catNombre: section.title,
+            contacto: row.contacto,
+            email: row.email,
+            telefono: row.telefono,
+          });
+        }
       });
 
       if (sectionChanged) {
@@ -1070,7 +1089,6 @@ function ContactosSection(props: ContactosSectionProps) {
 
     if (newMap.size > 0) setClienteMap(newMap);
 
-    // Apply the filled-in data back to the form
     if (needsUpdate) {
       hasAutoFilled.current = true;
       for (const { setters, rows } of fieldsToFill) {
@@ -1079,6 +1097,17 @@ function ContactosSection(props: ContactosSectionProps) {
         setters[1](c);
         setters[2](e);
         setters[3](t);
+      }
+    }
+
+    // Push project data to clients with empty fields (fire-and-forget)
+    if (clientsToComplement.length > 0) {
+      hasAutoFilled.current = true;
+      for (const item of clientsToComplement) {
+        complementClienteFromProject(
+          item.clienteId, item.clienteNombre, item.catNombre,
+          item.contacto, item.email, item.telefono
+        );
       }
     }
   }, [clientes, categoriasCliente]);
