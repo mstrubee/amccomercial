@@ -1186,6 +1186,7 @@ export type Database = {
           adjudicado: boolean
           categoria_id: string | null
           empresa_id: string
+          estado_amc: string
           fecha_categoria: string | null
           ganado_fecha: string | null
           ganado_op: string | null
@@ -1199,6 +1200,7 @@ export type Database = {
           adjudicado?: boolean
           categoria_id?: string | null
           empresa_id: string
+          estado_amc?: string
           fecha_categoria?: string | null
           ganado_fecha?: string | null
           ganado_op?: string | null
@@ -1212,6 +1214,7 @@ export type Database = {
           adjudicado?: boolean
           categoria_id?: string | null
           empresa_id?: string
+          estado_amc?: string
           fecha_categoria?: string | null
           ganado_fecha?: string | null
           ganado_op?: string | null
