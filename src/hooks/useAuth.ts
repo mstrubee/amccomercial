@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -17,6 +17,26 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [permissions, setPermissions] = useState<UserPermissionsData | null>(null);
+  const fetchedUserId = useRef<string | null>(null);
+
+  const fetchUserData = useCallback(async (userId: string) => {
+    // Avoid duplicate fetches for the same user
+    if (fetchedUserId.current === userId) return;
+    fetchedUserId.current = userId;
+
+    const [rolesRes, permsRes] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", userId),
+      supabase.from("user_permissions")
+        .select("empresas_visibles, secciones_visibles, dashboard_widgets, puede_editar")
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ]);
+
+    if (rolesRes.data) {
+      setRoles(rolesRes.data.map((r) => r.role as AppRole));
+    }
+    setPermissions(permsRes.data as UserPermissionsData | null);
+  }, []);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -24,11 +44,9 @@ export function useAuth() {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => {
-            fetchRoles(session.user.id);
-            fetchPermissions(session.user.id);
-          }, 0);
+          fetchUserData(session.user.id);
         } else {
+          fetchedUserId.current = null;
           setRoles([]);
           setPermissions(null);
         }
@@ -40,58 +58,30 @@ export function useAuth() {
       setUser(session?.user ?? null);
       setLoading(false);
       if (session?.user) {
-        fetchRoles(session.user.id);
-        fetchPermissions(session.user.id);
+        fetchUserData(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchRoles = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (data) {
-      setRoles(data.map((r) => r.role as AppRole));
-    }
-  };
-
-  const fetchPermissions = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_permissions")
-      .select("empresas_visibles, secciones_visibles, dashboard_widgets, puede_editar")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (data) {
-      setPermissions(data as UserPermissionsData);
-    } else {
-      setPermissions(null); // null = all access
-    }
-  };
+  }, [fetchUserData]);
 
   const isAdmin = roles.includes("admin");
   const isUsuarioTipo1 = roles.includes("usuario_tipo_1");
 
-  // Helper: check if a section is visible
   const canAccessSection = (sectionKey: string): boolean => {
     if (isAdmin) return true;
     if (!permissions || permissions.secciones_visibles === null) return true;
     return permissions.secciones_visibles.includes(sectionKey);
   };
 
-  // Helper: check if a dashboard widget is visible
   const canSeeDashboardWidget = (widgetKey: string): boolean => {
     if (isAdmin) return true;
     if (!permissions || permissions.dashboard_widgets === null) return true;
     return permissions.dashboard_widgets.includes(widgetKey);
   };
 
-  // Helper: check if user can edit
   const canEdit = isAdmin || !permissions || permissions.puede_editar;
 
-  // Helper: check if an empresa is visible
   const canSeeEmpresa = (empresaId: string): boolean => {
     if (isAdmin) return true;
     if (!permissions || permissions.empresas_visibles === null) return true;
