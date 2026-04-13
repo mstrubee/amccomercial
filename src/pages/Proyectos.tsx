@@ -1597,7 +1597,12 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
         </DialogHeader>
         <div className="space-y-5 mt-2">
           <div className="flex gap-3 flex-wrap">
-            <StatusBadge status={viewTarget.estado_amc} />
+            {viewTarget.proyecto_empresas?.map((pe) => (
+              <div key={pe.id} className="flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground">{pe.empresas?.nombre?.split(" ")[0]}:</span>
+                <StatusBadge status={(pe as any).estado_amc || "Vigente"} />
+              </div>
+            ))}
           </div>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
