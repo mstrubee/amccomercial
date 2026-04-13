@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Save, X, Mail, Phone, User, FolderOpen } from "lucide-react";
+import { Plus, Trash2, Save, X, Mail, Phone, User, FolderOpen, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,131 +148,149 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Name */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Nombre</Label>
-              {editing ? (
-                <Input value={nombre} onChange={(e) => { setNombre(e.target.value); setHasChanges(true); }} />
-              ) : (
-                <p className="text-base font-semibold text-card-foreground">{nombre}</p>
-              )}
-            </div>
+            <Collapsible defaultOpen={false} open={editing ? true : undefined}>
+              <CollapsibleTrigger className="flex items-center gap-1.5 group cursor-pointer w-full">
+                <ChevronRight className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Nombre</Label>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                {editing ? (
+                  <Input value={nombre} onChange={(e) => { setNombre(e.target.value); setHasChanges(true); }} />
+                ) : (
+                  <p className="text-base font-semibold text-card-foreground">{nombre}</p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Category */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Categoría</Label>
-              {editing ? (
-                <select
-                  className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={categoriaId}
-                  onChange={(e) => { setCategoriaId(e.target.value); setHasChanges(true); }}
-                >
-                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              ) : (
-                <p className="text-sm text-card-foreground">{catNombre}</p>
-              )}
-            </div>
+            <Collapsible defaultOpen={false} open={editing ? true : undefined}>
+              <CollapsibleTrigger className="flex items-center gap-1.5 group cursor-pointer w-full">
+                <ChevronRight className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Categoría</Label>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                {editing ? (
+                  <select
+                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={categoriaId}
+                    onChange={(e) => { setCategoriaId(e.target.value); setHasChanges(true); }}
+                  >
+                    {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                ) : (
+                  <p className="text-sm text-card-foreground">{catNombre}</p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Contacts */}
-            <div className="space-y-3">
+            <Collapsible defaultOpen={false} open={editing ? true : undefined}>
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Contactos</Label>
+                <CollapsibleTrigger className="flex items-center gap-1.5 group cursor-pointer">
+                  <ChevronRight className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Contactos</Label>
+                </CollapsibleTrigger>
                 {editing && (
                   <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addContacto}>
                     <Plus className="w-3 h-3" /> Agregar
                   </Button>
                 )}
               </div>
-
-              {contactos.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">Sin contactos registrados</p>
-              )}
-
-              <AnimatePresence>
-                {contactos.map((ct, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="rounded-lg border border-border p-3 space-y-2"
-                  >
-                    {editing ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground font-medium">Contacto {idx + 1}</span>
-                          {canDelete && (
-                            <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive hover:text-destructive" onClick={() => confirmDeleteContacto(idx)}>
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          )}
+              <CollapsibleContent className="pt-2 space-y-3">
+                {contactos.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Sin contactos registrados</p>
+                )}
+                <AnimatePresence>
+                  {contactos.map((ct, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="rounded-lg border border-border p-3 space-y-2"
+                    >
+                      {editing ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium">Contacto {idx + 1}</span>
+                            {canDelete && (
+                              <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive hover:text-destructive" onClick={() => confirmDeleteContacto(idx)}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <Input placeholder="Nombre contacto" value={ct.contacto} onChange={(e) => updateContacto(idx, "contacto", e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <Input placeholder="Email" type="email" value={ct.email} onChange={(e) => updateContacto(idx, "email", e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <Input placeholder="Teléfono" value={ct.telefono} onChange={(e) => updateContacto(idx, "telefono", e.target.value)} className="h-8 text-sm" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium text-card-foreground">{ct.contacto || "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-sm text-muted-foreground">{ct.email || "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-sm text-muted-foreground">{ct.telefono || "—"}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <Input placeholder="Nombre contacto" value={ct.contacto} onChange={(e) => updateContacto(idx, "contacto", e.target.value)} className="h-8 text-sm" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <Input placeholder="Email" type="email" value={ct.email} onChange={(e) => updateContacto(idx, "email", e.target.value)} className="h-8 text-sm" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <Input placeholder="Teléfono" value={ct.telefono} onChange={(e) => updateContacto(idx, "telefono", e.target.value)} className="h-8 text-sm" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-sm font-medium text-card-foreground">{ct.contacto || "—"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-sm text-muted-foreground">{ct.email || "—"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-sm text-muted-foreground">{ct.telefono || "—"}</span>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Proyectos Vinculados */}
             {!editing && (
-              <div className="space-y-3">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                  <FolderOpen className="w-3.5 h-3.5" /> Proyectos Vinculados
-                </Label>
-                {linkedProyectos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Sin proyectos vinculados</p>
-                ) : (
-                  <div className="space-y-2">
-                    {linkedProyectos.map(p => {
-                      const cat = p.proyecto_empresas?.[0]?.categorias_proyecto?.nombre;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
-                          onClick={() => {
-                            onOpenChange(false);
-                            navigate(`/proyectos?highlight=${p.id}`);
-                          }}
-                        >
-                          <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
-                          {cat && <p className="text-xs text-muted-foreground">Categoría: {cat}</p>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger className="flex items-center gap-1.5 group cursor-pointer w-full">
+                  <ChevronRight className="w-3 h-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer flex items-center gap-1">
+                    <FolderOpen className="w-3.5 h-3.5" /> Proyectos Vinculados
+                  </Label>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  {linkedProyectos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Sin proyectos vinculados</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {linkedProyectos.map(p => {
+                        const cat = p.proyecto_empresas?.[0]?.categorias_proyecto?.nombre;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                            onClick={() => {
+                              onOpenChange(false);
+                              navigate(`/proyectos?highlight=${p.id}`);
+                            }}
+                          >
+                            <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
+                            {cat && <p className="text-xs text-muted-foreground">Categoría: {cat}</p>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {editing && (
