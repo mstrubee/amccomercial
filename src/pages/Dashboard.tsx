@@ -336,52 +336,7 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* Recent projects */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
-        className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
-      >
-        <div className="p-6 pb-3">
-          <h3 className="text-sm font-semibold text-card-foreground">Proyectos Recientes</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">N°</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Comuna</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado (x Proyecto)</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Estado Obra</th>
-                <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Cotización UF</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {stats.recentProjects.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Sin proyectos</td></tr>
-              ) : (
-                stats.recentProjects.map((p) => {
-                  const totalUF = (p.proyecto_empresas || []).reduce((s, pe) => s + (pe.monto_cotizacion || 0), 0);
-                  return (
-                    <tr key={p.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="px-6 py-3 text-muted-foreground">{p.numero}</td>
-                      <td className="px-6 py-3 font-medium text-card-foreground">{p.nombre}</td>
-                      <td className="px-6 py-3 text-muted-foreground">{p.comuna}</td>
-                      <td className="px-6 py-3"><StatusBadge status={p.estado_amc} /></td>
-                      <td className="px-6 py-3 text-muted-foreground text-xs">{p.estado_obra || "—"}</td>
-                      <td className="px-6 py-3 text-right font-medium text-card-foreground">
-                        {totalUF > 0 ? formatUF(totalUF) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </motion.div>
+
     </div>
   );
 }
