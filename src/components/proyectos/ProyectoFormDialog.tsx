@@ -949,11 +949,12 @@ const CONTACTO_CAT_MAP: Record<string, string> = {
   "Dueños": "Dueños",
 };
 
-interface ContactoRow {
+export interface ContactoRow {
   nombre: string;
   contacto: string;
   email: string;
   telefono: string;
+  clienteId?: string;
 }
 
 function splitToRows(nombre: string, contacto: string, email: string, telefono: string): ContactoRow[] {
