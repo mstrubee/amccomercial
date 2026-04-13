@@ -745,7 +745,7 @@ export default function Proyectos() {
                       </td>
                       <td className="px-5 py-3">
                         {/* Estado (x Proyecto) — project-level estado_amc */}
-                        <StatusBadge status={first.estado_amc} />
+                        <StatusBadge status={first.estado_amc} color={(estadosAmc || []).find(ea => ea.nombre === first.estado_amc)?.color} />
                       </td>
                       <td className="px-5 py-3">
                         <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
@@ -876,27 +876,11 @@ export default function Proyectos() {
                                 <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} /></td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {/* Estado AMC per empresa */}
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <button className="cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                        <StatusBadge status={(pe as any).estado_amc || "Vigente"} />
-                                      </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-48 p-1" align="start" onClick={(e) => e.stopPropagation()}>
-                                      <div className="space-y-0.5">
-                                        {(estadosAmc || []).map((ea) => (
-                                          <button
-                                            key={ea.id}
-                                            className={cn("w-full text-left px-3 py-1.5 rounded text-xs hover:bg-accent transition-colors", ((pe as any).estado_amc || "Vigente") === ea.nombre && "bg-accent font-semibold")}
-                                            onClick={() => handleUpdateEstadoAmcPE(pe.id, ea.nombre)}
-                                          >
-                                            <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: ea.color }} />
-                                            {ea.nombre}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
+                                  <EstadoAmcPopoverInline
+                                    currentStatus={(pe as any).estado_amc || "Vigente"}
+                                    estadosAmc={estadosAmc || []}
+                                    onUpdate={(nuevo) => handleUpdateEstadoAmcPE(pe.id, nuevo)}
+                                  />
                                 </td>
                                 <td className="px-5 py-2 text-right align-top">
                                   <div className="flex justify-end gap-1">
