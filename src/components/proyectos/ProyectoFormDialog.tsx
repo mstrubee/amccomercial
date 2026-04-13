@@ -26,6 +26,7 @@ import CategoriasManagerDialog from "./CategoriasManagerDialog";
 import { REGIONES_CHILE } from "@/data/chile-geo";
 import { useClientes, useCategoriasCliente, useCreateCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
 import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
+import { useSyncClienteProyecto } from "@/hooks/useSyncClienteProyecto";
 
 interface Props {
   open: boolean;
