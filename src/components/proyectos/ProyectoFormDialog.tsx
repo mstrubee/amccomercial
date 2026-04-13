@@ -873,6 +873,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   setItoNombre={setItoNombre} setItoContacto={setItoContacto} setItoMail={setItoMail} setItoTelefono={setItoTelefono}
                   duenosNombre={duenosNombre} duenosContacto={duenosContacto} duenosMail={duenosMail} duenosTelefono={duenosTelefono}
                   setDuenosNombre={setDuenosNombre} setDuenosContacto={setDuenosContacto} setDuenosMail={setDuenosMail} setDuenosTelefono={setDuenosTelefono}
+                  onClienteMappingsChange={handleClienteMappingsChange}
                 />
               </CollapsibleSection>
               </>)}
