@@ -127,7 +127,7 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={getQueryClient()}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
