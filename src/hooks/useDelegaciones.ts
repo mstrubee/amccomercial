@@ -91,3 +91,42 @@ export function useRevokeDelegacion() {
     onError: (e) => toast.error("Error al revocar: " + e.message),
   });
 }
+
+export function useUpdateDelegacion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; delegado_id?: string; fecha_fin?: string }) => {
+      const patch: any = {};
+      if (input.delegado_id) patch.delegado_id = input.delegado_id;
+      if (input.fecha_fin) patch.fecha_fin = input.fecha_fin;
+      const { error } = await (supabase.from("delegaciones_alerta") as any)
+        .update(patch)
+        .eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["delegaciones-activas"] });
+      qc.invalidateQueries({ queryKey: ["delegaciones-por-delegante"] });
+      toast.success("Delegación actualizada");
+    },
+    onError: (e) => toast.error("Error al actualizar: " + e.message),
+  });
+}
+
+export function useDeleteDelegacion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase.from("delegaciones_alerta") as any)
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["delegaciones-activas"] });
+      qc.invalidateQueries({ queryKey: ["delegaciones-por-delegante"] });
+      toast.success("Delegación eliminada");
+    },
+    onError: (e) => toast.error("Error al eliminar: " + e.message),
+  });
+}
