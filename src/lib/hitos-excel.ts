@@ -139,14 +139,14 @@ export function exportTemplateToExcel(template: HitosTemplate, fileName = "hitos
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  // column widths — meta columns ocultas para no distraer al usuario
+  // column widths — meta columns ocultas (Excel preserva los datos al ocultar columnas)
   ws["!cols"] = [
     { wch: 8 },
     ...cols.map((c) => ({ wch: c.tipo === "select" ? 32 : 24 })),
-    { hidden: true, wch: 0 },
-    { hidden: true, wch: 0 },
-    { hidden: true, wch: 0 },
-    { hidden: true, wch: 0 },
+    { hidden: true, wch: 12 },
+    { hidden: true, wch: 12 },
+    { hidden: true, wch: 8 },
+    { hidden: true, wch: 10 },
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
