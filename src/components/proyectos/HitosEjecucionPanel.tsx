@@ -200,6 +200,17 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
       try { const p = JSON.parse(raw); return !!p.checked; } catch { return false; }
     });
   }, [checkboxCols, stagedValueFor, valueMap, defaultsMap]);
+
+  // Discarded row = has any "descartar" checkbox column marked
+  const isRowDescartado = useCallback((prefix: "r" | "e", rowId: string) => {
+    return checkboxCols.some(c => {
+      if (c.checkbox_action !== "descartar") return false;
+      const k = `${prefix}:${rowId}|c:${c.id}`;
+      const raw = stagedValueFor(k, valueMap.get(k) ?? (prefix === "r" ? defaultsMap.get(`${rowId}|${c.id}`) : "") ?? "");
+      if (!raw) return false;
+      try { const p = JSON.parse(raw); return !!p.checked; } catch { return false; }
+    });
+  }, [checkboxCols, stagedValueFor, valueMap, defaultsMap]);
   const completedHitos = useMemo(() => {
     let n = 0;
     leafTplRows.forEach(r => { if (isRowCompleted("r", r.id)) n++; });
