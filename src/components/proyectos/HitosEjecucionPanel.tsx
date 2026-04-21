@@ -42,45 +42,34 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
 
   // Children map and collapse state for hierarchical template rows
   const childrenMap = useMemo(() => {
-    const m = new Map<string, string[]>();
+    const m = new Map<string | null, typeof tplRows>();
     tplRows.forEach(r => {
-      if (r.parent_id) {
-        const arr = m.get(r.parent_id) || [];
-        arr.push(r.id);
-        m.set(r.parent_id, arr);
-      }
+      const key = r.parent_id ?? null;
+      const arr = m.get(key) || [];
+      arr.push(r);
+      m.set(key, arr);
     });
+    m.forEach(arr => arr.sort((a, b) => a.orden - b.orden));
     return m;
   }, [tplRows]);
-  const depthMap = useMemo(() => {
-    const byId = new Map(tplRows.map(r => [r.id, r] as const));
-    const cache = new Map<string, number>();
-    const depth = (id: string): number => {
-      if (cache.has(id)) return cache.get(id)!;
-      const r = byId.get(id);
-      if (!r || !r.parent_id) { cache.set(id, 0); return 0; }
-      const d = depth(r.parent_id) + 1;
-      cache.set(id, d);
-      return d;
+  const orderedTplRows = useMemo(() => {
+    const out: { row: typeof tplRows[number]; depth: number; numbering: string; hasChildren: boolean }[] = [];
+    const walk = (parentId: string | null, depth: number, prefix: string) => {
+      const list = childrenMap.get(parentId) || [];
+      list.forEach((r, i) => {
+        const numbering = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+        const hasChildren = (childrenMap.get(r.id) || []).length > 0;
+        out.push({ row: r, depth, numbering, hasChildren });
+        walk(r.id, depth + 1, numbering);
+      });
     };
-    tplRows.forEach(r => depth(r.id));
-    return cache;
-  }, [tplRows]);
-  // Hierarchical numbering: 1, 1.1, 1.1.1, 1.2, 2, ...
-  const numberMap = useMemo(() => {
-    const m = new Map<string, string>();
-    const roots = tplRows.filter(r => !r.parent_id);
-    const assign = (id: string, prefix: string) => {
-      m.set(id, prefix);
-      const kids = (childrenMap.get(id) || [])
-        .map(cid => tplRows.find(r => r.id === cid)!)
-        .filter(Boolean)
-        .sort((a, b) => a.orden - b.orden);
-      kids.forEach((k, i) => assign(k.id, `${prefix}.${i + 1}`));
-    };
-    roots.forEach((r, i) => assign(r.id, String(i + 1)));
-    return m;
-  }, [tplRows, childrenMap]);
+    walk(null, 0, "");
+    return out;
+  }, [childrenMap]);
+  const numberMap = useMemo(
+    () => new Map(orderedTplRows.map(({ row, numbering }) => [row.id, numbering] as const)),
+    [orderedTplRows],
+  );
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const isRowVisible = useCallback((id: string): boolean => {
     const byId = new Map(tplRows.map(r => [r.id, r] as const));
