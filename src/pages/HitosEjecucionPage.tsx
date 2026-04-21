@@ -129,7 +129,7 @@ export default function HitosEjecucionPage() {
                   <td key={col.id} className="px-2 py-1.5">
                     {col.tipo === "fecha" || col.tipo === "checkbox" ? (
                       <span className="text-[11px] text-muted-foreground italic">
-                        {col.tipo === "fecha" ? "(fecha — se elige por proyecto)" : `(checkbox — ${col.checkbox_action.replaceAll("_", " ")})`}
+                        {col.tipo === "fecha" ? "(fecha — se elige por proyecto)" : `(checkbox — ${col.checkbox_action.split("_").join(" ")})`}
                       </span>
                     ) : (
                       <DefaultCellEditor
