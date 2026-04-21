@@ -13,7 +13,7 @@ export type HitosColumn = {
   checkbox_action: CheckboxAction;
   checkbox_color: string;
 };
-export type HitosRow = { id: string; orden: number };
+export type HitosRow = { id: string; orden: number; parent_id: string | null };
 export type HitosRowDefault = { id: string; row_id: string; column_id: string; valor: string };
 
 export type HitosTemplate = {
@@ -48,7 +48,7 @@ export function useHitosTemplate() {
         checkbox_action: (c.checkbox_action || "fijar_fecha_y_completar") as CheckboxAction,
         checkbox_color: c.checkbox_color || "#22c55e",
       }));
-      const rows: HitosRow[] = (rowsRes.data || []).map((r: any) => ({ id: r.id, orden: r.orden }));
+      const rows: HitosRow[] = (rowsRes.data || []).map((r: any) => ({ id: r.id, orden: r.orden, parent_id: r.parent_id ?? null }));
       const defaults: HitosRowDefault[] = (defRes.data || []).map((d: any) => ({
         id: d.id, row_id: d.row_id, column_id: d.column_id, valor: d.valor || "",
       }));
@@ -120,16 +120,19 @@ export function useHitosTemplateMutations() {
   });
 
   const addRow = useMutation({
-    mutationFn: async (orden: number) => {
-      const { error } = await supabase.from("hitos_template_rows").insert({ orden });
+    mutationFn: async ({ orden, parent_id = null }: { orden: number; parent_id?: string | null }) => {
+      const { error } = await supabase.from("hitos_template_rows").insert({ orden, parent_id } as any);
       if (error) throw error;
     },
     onSuccess: invalidate,
   });
 
   const updateRow = useMutation({
-    mutationFn: async ({ id, orden }: { id: string; orden: number }) => {
-      const { error } = await supabase.from("hitos_template_rows").update({ orden }).eq("id", id);
+    mutationFn: async ({ id, orden, parent_id }: { id: string; orden?: number; parent_id?: string | null }) => {
+      const updates: any = {};
+      if (orden !== undefined) updates.orden = orden;
+      if (parent_id !== undefined) updates.parent_id = parent_id;
+      const { error } = await supabase.from("hitos_template_rows").update(updates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,

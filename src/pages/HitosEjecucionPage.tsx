@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings, CalendarIcon } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon } from "lucide-react";
 import { Check } from "lucide-react";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -15,7 +15,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn, type ColumnTipo, type CheckboxAction } from "@/hooks/useHitosTemplate";
+import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn, type ColumnTipo, type CheckboxAction, type HitosRow } from "@/hooks/useHitosTemplate";
 
 export default function HitosEjecucionPage() {
   const { data, isLoading } = useHitosTemplate();
@@ -38,8 +38,6 @@ export default function HitosEjecucionPage() {
     defaults.forEach(d => m.set(`${d.row_id}|${d.column_id}`, d.valor));
     return m;
   }, [defaults]);
-
-  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
 
   const handleAddColumn = async () => {
     const name = newColName.trim();
@@ -74,12 +72,14 @@ export default function HitosEjecucionPage() {
     );
   };
 
-  const moveRow = async (rowId: string, currOrden: number, dir: -1 | 1) => {
-    const sorted = [...rows].sort((a, b) => a.orden - b.orden);
-    const idx = sorted.findIndex(r => r.id === rowId);
+  // Move a row up/down within its sibling group (same parent_id)
+  const moveRow = async (row: HitosRow, dir: -1 | 1) => {
+    const siblings = rows.filter(r => (r.parent_id ?? null) === (row.parent_id ?? null))
+      .sort((a, b) => a.orden - b.orden);
+    const idx = siblings.findIndex(r => r.id === row.id);
     const targetIdx = idx + dir;
-    if (targetIdx < 0 || targetIdx >= sorted.length) return;
-    const reordered = [...sorted];
+    if (targetIdx < 0 || targetIdx >= siblings.length) return;
+    const reordered = [...siblings];
     [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
     await Promise.all(
       reordered.map((r, i) =>
@@ -87,6 +87,64 @@ export default function HitosEjecucionPage() {
       )
     );
   };
+
+  // Demote: become child of previous sibling
+  const demoteRow = async (row: HitosRow) => {
+    const siblings = rows.filter(r => (r.parent_id ?? null) === (row.parent_id ?? null))
+      .sort((a, b) => a.orden - b.orden);
+    const idx = siblings.findIndex(r => r.id === row.id);
+    if (idx <= 0) { toast.error("No hay fila previa para anidar"); return; }
+    const newParent = siblings[idx - 1];
+    const newSiblings = rows.filter(r => r.parent_id === newParent.id).sort((a, b) => a.orden - b.orden);
+    await m.updateRow.mutateAsync({ id: row.id, parent_id: newParent.id, orden: newSiblings.length });
+    // Resequence old siblings
+    const remaining = siblings.filter(r => r.id !== row.id);
+    await Promise.all(remaining.map((r, i) => r.orden === i ? Promise.resolve() : m.updateRow.mutateAsync({ id: r.id, orden: i })));
+  };
+
+  // Promote: move out one level (become sibling of its parent)
+  const promoteRow = async (row: HitosRow) => {
+    if (!row.parent_id) { toast.error("Ya está en el nivel raíz"); return; }
+    const parent = rows.find(r => r.id === row.parent_id);
+    if (!parent) return;
+    const grandParentId = parent.parent_id ?? null;
+    const newSiblings = rows.filter(r => (r.parent_id ?? null) === grandParentId).sort((a, b) => a.orden - b.orden);
+    const parentIdx = newSiblings.findIndex(r => r.id === parent.id);
+    // Insert right after parent
+    const insertAt = parentIdx + 1;
+    // Shift siblings >= insertAt by +1, set row to insertAt
+    await m.updateRow.mutateAsync({ id: row.id, parent_id: grandParentId, orden: insertAt });
+    await Promise.all(newSiblings.slice(insertAt).map(r => m.updateRow.mutateAsync({ id: r.id, orden: r.orden + 1 })));
+    // Resequence old siblings (children of original parent)
+    const oldSiblings = rows.filter(r => r.parent_id === parent.id && r.id !== row.id).sort((a, b) => a.orden - b.orden);
+    await Promise.all(oldSiblings.map((r, i) => r.orden === i ? Promise.resolve() : m.updateRow.mutateAsync({ id: r.id, orden: i })));
+  };
+
+  // Build flat hierarchical list with depth
+  type FlatRow = { row: HitosRow; depth: number; numbering: string };
+  const flatRows = useMemo(() => {
+    const childrenMap = new Map<string | null, HitosRow[]>();
+    rows.forEach(r => {
+      const key = r.parent_id ?? null;
+      const arr = childrenMap.get(key) || [];
+      arr.push(r);
+      childrenMap.set(key, arr);
+    });
+    childrenMap.forEach(arr => arr.sort((a, b) => a.orden - b.orden));
+    const result: FlatRow[] = [];
+    const walk = (parentId: string | null, depth: number, prefix: string) => {
+      const list = childrenMap.get(parentId) || [];
+      list.forEach((r, i) => {
+        const numbering = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+        result.push({ row: r, depth, numbering });
+        walk(r.id, depth + 1, numbering);
+      });
+    };
+    walk(null, 0, "");
+    return result;
+  }, [rows]);
+
+  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
 
   return (
     <div className="space-y-6">
@@ -99,7 +157,10 @@ export default function HitosEjecucionPage() {
 
       <div className="flex gap-2">
         <Button onClick={() => setShowAddCol(true)} size="sm"><Plus className="w-4 h-4 mr-1" /> Agregar columna</Button>
-        <Button variant="outline" size="sm" onClick={() => m.addRow.mutate(rows.length)}>
+        <Button variant="outline" size="sm" onClick={() => {
+          const rootRows = rows.filter(r => !r.parent_id);
+          m.addRow.mutate({ orden: rootRows.length, parent_id: null });
+        }}>
           <Plus className="w-4 h-4 mr-1" /> Agregar fila
         </Button>
       </div>
@@ -135,9 +196,9 @@ export default function HitosEjecucionPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.sort((a, b) => a.orden - b.orden).map((row, i) => (
+            {flatRows.map(({ row, depth, numbering }) => (
               <tr key={row.id} className="border-t border-border">
-                <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
+                <td className="px-3 py-2 text-muted-foreground" style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}>{numbering}</td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                   <td key={col.id} className="px-2 py-1.5">
                     {col.tipo === "checkbox" ? (
@@ -158,10 +219,16 @@ export default function HitosEjecucionPage() {
                 ))}
                 <td className="px-2 py-2">
                   <div className="flex gap-0.5">
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveRow(row.id, row.orden, -1)}><ArrowUp className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveRow(row.id, row.orden, 1)}><ArrowDown className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Subir" onClick={() => moveRow(row, -1)}><ArrowUp className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Bajar" onClick={() => moveRow(row, 1)}><ArrowDown className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Subir nivel (promover)" onClick={() => promoteRow(row)}><ArrowLeft className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Bajar nivel (anidar)" onClick={() => demoteRow(row)}><ArrowRight className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Agregar sub-fila" onClick={() => {
+                      const children = rows.filter(r => r.parent_id === row.id);
+                      m.addRow.mutate({ orden: children.length, parent_id: row.id });
+                    }}><Plus className="w-3 h-3" /></Button>
                     <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={async () => {
-                      if (confirm("¿Eliminar fila?")) {
+                      if (confirm("¿Eliminar fila? Se eliminarán también sus sub-filas.")) {
                         await m.deleteRow.mutateAsync(row.id);
                         toast.success("Fila eliminada");
                       }

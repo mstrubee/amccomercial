@@ -9,6 +9,7 @@ type: feature
 - El valor de celdas tipo `checkbox` se guarda como JSON `{checked, fecha?}` en `valor`. El de `fecha` como `YYYY-MM-DD`.
 - Las filas TIPO tienen contenido editable por celda en Admin (`hitos_template_row_defaults`); estos valores se cargan como defaults en cualquier proyecto y son sobrescribibles por empresa.
 - Tablas: `hitos_template_columns`, `hitos_template_column_options`, `hitos_template_rows`, `hitos_template_row_defaults`, `hitos_proyecto_empresa_values`, `hitos_proyecto_empresa_extra_rows`.
+- Las filas TIPO admiten jerarquía sin límite (`hitos_template_rows.parent_id` self-FK con ON DELETE CASCADE). En Admin se renderizan en árbol con numeración tipo "1.2.3" e indentación; cada fila tiene botones para subir/bajar dentro de su grupo de hermanos, promover (subir nivel/`ArrowLeft`), anidar (bajar nivel/`ArrowRight` → se vuelve hija de la fila previa) y agregar sub-fila.
 - El panel `HitosEjecucionPanel` se muestra **colapsado** bajo cada línea de empresa (child row, NUNCA en línea madre) cuando `proyectos.estado_obra === "Obra/Ejecución"`.
 - Cada empresa puede agregar filas extra propias sin afectar la plantilla. NUNCA columnas.
 - Autoguardado debounced 600ms en celdas de texto; selects guardan al instante.

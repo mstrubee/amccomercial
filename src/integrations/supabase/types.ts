@@ -1176,18 +1176,29 @@ export type Database = {
           created_at: string
           id: string
           orden: number
+          parent_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           orden?: number
+          parent_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           orden?: number
+          parent_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "hitos_template_rows_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_template_rows"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
