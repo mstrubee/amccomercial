@@ -362,9 +362,10 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     if (!ganadoDialogEmpresaId) return;
     const presupuestoVal = ganadoPresupuesto ? parseFloat(ganadoPresupuesto) : null;
     const row = empresaRows.find(r => r.empresa_id === ganadoDialogEmpresaId);
+    const isGanado = row?.subcategoria_id === GANADO_SUBCATEGORIA_ID;
     const updates: Partial<EmpresaRow> = {
       ganado_presupuesto: presupuestoVal,
-      ganado_op: ganadoOp || null,
+      ganado_op: isGanado ? (ganadoOp || null) : null,
       ganado_fecha: ganadoFecha || null,
     };
     // Sincronizar cotización UF con el presupuesto si aún no tiene valor
@@ -372,6 +373,19 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       updates.monto = presupuestoVal;
     }
     updateEmpresaRow(ganadoDialogEmpresaId, updates);
+
+    // Save snapshot to historial (only if we have an existing proyecto_empresa link)
+    const peId = getProyectoEmpresaId(ganadoDialogEmpresaId);
+    if (peId) {
+      createHistorial.mutate({
+        proyecto_empresa_id: peId,
+        categoria_id: row?.categoria_id || null,
+        subcategoria_id: row?.subcategoria_id || null,
+        monto_uf: presupuestoVal || 0,
+        fecha: ganadoFecha || new Date().toISOString().split("T")[0],
+      });
+    }
+
     setGanadoDialogOpen(false);
     setGanadoDialogEmpresaId(null);
   };
