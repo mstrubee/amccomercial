@@ -407,10 +407,11 @@ export default function HitosEjecucionPage() {
                       <SelectItem value="fijar_fecha_y_completar">Fijar fecha y pintar como completada</SelectItem>
                       <SelectItem value="solo_fecha">Solo fijar fecha</SelectItem>
                       <SelectItem value="solo_completar">Solo marcar como completada</SelectItem>
+                      <SelectItem value="descartar">Descartar (tachar la fila completa)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {newColAction !== "solo_fecha" && (
+                {newColAction !== "solo_fecha" && newColAction !== "descartar" && (
                   <div>
                     <label className="text-xs text-muted-foreground">Color de completado</label>
                     <div className="flex items-center gap-2">
