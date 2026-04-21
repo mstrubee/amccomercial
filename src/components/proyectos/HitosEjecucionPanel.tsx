@@ -325,7 +325,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   })}
                   {extraRows.map((row, idx) => (
                     <tr key={row.id} className="border-t border-border">
-                      <td className="px-2 py-1 text-muted-foreground">{tplRows.length + idx + 1}</td>
+                      <td className="px-2 py-1 text-muted-foreground">{tplRows.filter(r => !r.parent_id).length + idx + 1}</td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
