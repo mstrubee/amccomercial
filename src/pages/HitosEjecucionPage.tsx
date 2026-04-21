@@ -26,6 +26,7 @@ export default function HitosEjecucionPage() {
   const [newColTipo, setNewColTipo] = useState<ColumnTipo>("texto");
   const [newColAction, setNewColAction] = useState<CheckboxAction>("fijar_fecha_y_completar");
   const [newColColor, setNewColColor] = useState("#22c55e");
+  const [newColEditable, setNewColEditable] = useState<boolean>(true);
 
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
@@ -78,8 +79,9 @@ export default function HitosEjecucionPage() {
         nombre: name, tipo: newColTipo, orden: columns.length,
         checkbox_action: newColTipo === "checkbox" ? newColAction : undefined,
         checkbox_color: newColTipo === "checkbox" ? newColColor : undefined,
+        editable_en_proyecto: newColEditable,
       });
-      setNewColName(""); setNewColTipo("texto"); setNewColAction("fijar_fecha_y_completar"); setNewColColor("#22c55e");
+      setNewColName(""); setNewColTipo("texto"); setNewColAction("fijar_fecha_y_completar"); setNewColColor("#22c55e"); setNewColEditable(true);
       setShowAddCol(false);
       toast.success("Columna agregada");
     } catch (e: any) { toast.error(e.message); }
