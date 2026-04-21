@@ -22,6 +22,9 @@ import { useQueryClient } from "@tanstack/react-query";
 export default function HitosEjecucionPage() {
   const { data, isLoading } = useHitosTemplate();
   const m = useHitosTemplateMutations();
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const [showAddCol, setShowAddCol] = useState(false);
   const [newColName, setNewColName] = useState("");
