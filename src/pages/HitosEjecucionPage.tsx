@@ -56,23 +56,30 @@ export default function HitosEjecucionPage() {
   const moveColumn = async (col: HitosColumn, dir: -1 | 1) => {
     const sorted = [...columns].sort((a, b) => a.orden - b.orden);
     const idx = sorted.findIndex(c => c.id === col.id);
-    const swap = sorted[idx + dir];
-    if (!swap) return;
-    await Promise.all([
-      m.updateColumn.mutateAsync({ id: col.id, orden: swap.orden }),
-      m.updateColumn.mutateAsync({ id: swap.id, orden: col.orden }),
-    ]);
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    // Reorder the array, then re-assign sequential orden values to all columns
+    const reordered = [...sorted];
+    [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+    await Promise.all(
+      reordered.map((c, i) =>
+        c.orden === i ? Promise.resolve() : m.updateColumn.mutateAsync({ id: c.id, orden: i })
+      )
+    );
   };
 
   const moveRow = async (rowId: string, currOrden: number, dir: -1 | 1) => {
     const sorted = [...rows].sort((a, b) => a.orden - b.orden);
     const idx = sorted.findIndex(r => r.id === rowId);
-    const swap = sorted[idx + dir];
-    if (!swap) return;
-    await Promise.all([
-      m.updateRow.mutateAsync({ id: rowId, orden: swap.orden }),
-      m.updateRow.mutateAsync({ id: swap.id, orden: currOrden }),
-    ]);
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    const reordered = [...sorted];
+    [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+    await Promise.all(
+      reordered.map((r, i) =>
+        r.orden === i ? Promise.resolve() : m.updateRow.mutateAsync({ id: r.id, orden: i })
+      )
+    );
   };
 
   return (
