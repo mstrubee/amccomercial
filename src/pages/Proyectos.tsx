@@ -79,7 +79,7 @@ const DebouncedInput = memo(function DebouncedInput({
 });
 
 // ESTADOS_AMC now loaded dynamically via useEstadosProyecto
-const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
+const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra/Ejecución", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();

@@ -32,6 +32,7 @@ const RepositorioTipoPage = lazy(() => import("@/pages/RepositorioTipoPage"));
 const DrivePage = lazy(() => import("@/pages/DrivePage"));
 const Calendario = lazy(() => import("@/pages/Calendario"));
 const ReunionesPage = lazy(() => import("@/pages/AtencionEmpresas"));
+const HitosEjecucionPage = lazy(() => import("@/pages/HitosEjecucionPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const PageFallback = () => (
@@ -91,6 +92,7 @@ function AppRoutes() {
           {isAdmin && <Route path="/estados-amc" element={<EstadosAmcPage />} />}
           {isAdmin && <Route path="/repositorio-tipo" element={<RepositorioTipoPage />} />}
           {isAdmin && <Route path="/drive" element={<DrivePage />} />}
+          {isAdmin && <Route path="/hitos-ejecucion" element={<HitosEjecucionPage />} />}
           {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
           {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
           <Route path="/calendario" element={<Calendario />} />

@@ -21,6 +21,7 @@ import {
     FolderTree,
     HardDrive,
     ClipboardCheck,
+    ClipboardList,
     type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -76,7 +77,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/carga-masiva", label: "Carga Masiva", allowTipo1: false, icon: Upload },
     { path: "/repositorio-tipo", label: "Repositorio Tipo", allowTipo1: false, icon: FolderTree },
     { path: "/drive", label: "Drive", allowTipo1: false, icon: HardDrive },
-    
+    { path: "/hitos-ejecucion", label: "Hitos Ejecución Proyectos", allowTipo1: false, icon: ClipboardList },
   ];
 
   const adminSubItems = isAdmin
