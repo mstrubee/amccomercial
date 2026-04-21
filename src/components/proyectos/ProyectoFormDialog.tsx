@@ -1316,6 +1316,79 @@ function ContactosSection(props: ContactosSectionProps) {
   );
 }
 
+/* ── Estatus info block: monto, OP (only Ganado), fecha + brief history ── */
+function EstatusInfoBlock({
+  row,
+  historialItems,
+  categorias,
+  onEdit,
+  onClear,
+  isGanado,
+}: {
+  row: EmpresaRow;
+  historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string }[];
+  categorias: CategoriaWithSubs[];
+  onEdit: () => void;
+  onClear: () => void;
+  isGanado: boolean;
+}) {
+  const hasInline = row.ganado_presupuesto != null || row.ganado_op || row.ganado_fecha;
+  if (!hasInline && historialItems.length === 0) return null;
+
+  const labelFor = (catId: string | null, subId: string | null): string => {
+    if (subId) {
+      for (const cat of categorias) {
+        const sub = cat.subcategorias_proyecto.find(s => s.id === subId);
+        if (sub) return sub.nombre;
+      }
+    }
+    if (catId) {
+      const cat = categorias.find(c => c.id === catId);
+      if (cat) return cat.nombre;
+    }
+    return "—";
+  };
+
+  return (
+    <div className="mt-1.5 space-y-1">
+      {hasInline && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {isGanado && <Trophy className="w-3 h-3 text-emerald-600" />}
+          <span className="text-[10px] text-muted-foreground">
+            {row.ganado_presupuesto != null && `Monto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
+            {row.ganado_op && `OP: ${row.ganado_op} `}
+            {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
+          </span>
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onEdit}><Pencil className="w-3 h-3" /></button>
+          <button type="button" className="text-muted-foreground hover:text-destructive" onClick={onClear}><Trash2 className="w-3 h-3" /></button>
+        </div>
+      )}
+      {historialItems.length > 0 && (
+        <div className="rounded border border-border/60 bg-muted/30 px-2 py-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
+            Historial de estatus
+          </div>
+          <ul className="space-y-0.5">
+            {historialItems.slice(0, 6).map((h) => (
+              <li key={h.id} className="text-[10px] text-muted-foreground flex items-center gap-2">
+                <span className="font-medium text-card-foreground">{h.fecha}</span>
+                <span>·</span>
+                <span>{labelFor(h.categoria_id, h.subcategoria_id)}</span>
+                {h.monto_uf > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{formatUF(h.monto_uf)}</span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Client Picker Popover with create new ── */
 function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWithCategoria[]; onSelect: (c: ClienteWithCategoria) => void; categoryId?: string }) {
   const [open, setOpen] = useState(false);
