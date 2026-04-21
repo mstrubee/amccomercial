@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
-import { ChevronDown, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -39,6 +39,50 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
   const columns = useMemo(() => (template?.columns || []).slice().sort((a, b) => a.orden - b.orden), [template]);
   const tplRows = useMemo(() => (template?.rows || []).slice().sort((a, b) => a.orden - b.orden), [template]);
   const extraRows = useMemo(() => (peData?.extraRows || []).slice().sort((a, b) => a.orden - b.orden), [peData]);
+
+  // Children map and collapse state for hierarchical template rows
+  const childrenMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    tplRows.forEach(r => {
+      if (r.parent_id) {
+        const arr = m.get(r.parent_id) || [];
+        arr.push(r.id);
+        m.set(r.parent_id, arr);
+      }
+    });
+    return m;
+  }, [tplRows]);
+  const depthMap = useMemo(() => {
+    const byId = new Map(tplRows.map(r => [r.id, r] as const));
+    const cache = new Map<string, number>();
+    const depth = (id: string): number => {
+      if (cache.has(id)) return cache.get(id)!;
+      const r = byId.get(id);
+      if (!r || !r.parent_id) { cache.set(id, 0); return 0; }
+      const d = depth(r.parent_id) + 1;
+      cache.set(id, d);
+      return d;
+    };
+    tplRows.forEach(r => depth(r.id));
+    return cache;
+  }, [tplRows]);
+  const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
+  const isRowVisible = useCallback((id: string): boolean => {
+    const byId = new Map(tplRows.map(r => [r.id, r] as const));
+    let cur = byId.get(id);
+    while (cur?.parent_id) {
+      if (collapsedRows.has(cur.parent_id)) return false;
+      cur = byId.get(cur.parent_id);
+    }
+    return true;
+  }, [tplRows, collapsedRows]);
+  const toggleRow = useCallback((id: string) => {
+    setCollapsedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Resolve effective color per template row (own or ancestor's, faded for inherited)
   const rowColorMap = useMemo(() => {
@@ -150,13 +194,34 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   </tr>
                 </thead>
                 <tbody>
-                  {tplRows.map((row, idx) => (
+                  {tplRows.map((row, idx) => {
+                    if (!isRowVisible(row.id)) return null;
+                    const hasChildren = (childrenMap.get(row.id) || []).length > 0;
+                    const collapsed = collapsedRows.has(row.id);
+                    const depth = depthMap.get(row.id) || 0;
+                    return (
                     <tr key={row.id} className="border-t border-border" style={(() => {
                       const c = rowColorMap.get(row.id);
                       if (!c?.color) return undefined;
                       return { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` };
                     })()}>
-                      <td className="px-2 py-1 text-muted-foreground">{idx + 1}</td>
+                      <td className="px-2 py-1 text-muted-foreground">
+                        <div className="flex items-center gap-1" style={{ paddingLeft: depth * 10 }}>
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleRow(row.id)}
+                              className="h-4 w-4 inline-flex items-center justify-center rounded hover:bg-muted"
+                              title={collapsed ? "Expandir" : "Colapsar"}
+                            >
+                              {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                          ) : (
+                            <span className="inline-block w-4" />
+                          )}
+                          <span>{idx + 1}</span>
+                        </div>
+                      </td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
@@ -175,7 +240,8 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                       ))}
                       <td></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {extraRows.map((row, idx) => (
                     <tr key={row.id} className="border-t border-border">
                       <td className="px-2 py-1 text-muted-foreground">{tplRows.length + idx + 1}</td>
