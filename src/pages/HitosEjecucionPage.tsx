@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,16 @@ export default function HitosEjecucionPage() {
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
-
   const columns = data?.columns || [];
   const rows = data?.rows || [];
+  const defaults = data?.defaults || [];
+  const defaultsMap = useMemo(() => {
+    const m = new Map<string, string>();
+    defaults.forEach(d => m.set(`${d.row_id}|${d.column_id}`, d.valor));
+    return m;
+  }, [defaults]);
+
+  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
 
   const handleAddColumn = async () => {
     const name = newColName.trim();
@@ -67,7 +73,7 @@ export default function HitosEjecucionPage() {
       <div>
         <h1 className="text-2xl font-bold text-card-foreground">Hitos Ejecución Proyectos</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Define la plantilla global de checklist que aparecerá bajo cada empresa cuando un proyecto esté en fase «Obra/Ejecución».
+          Define la plantilla global TIPO de checklist. Las columnas son fijas (solo se gestionan aquí). El contenido de las filas funciona como valores por defecto que se cargan en cada proyecto. En cada proyecto se pueden agregar filas extra, pero no columnas.
         </p>
       </div>
 
@@ -113,8 +119,13 @@ export default function HitosEjecucionPage() {
               <tr key={row.id} className="border-t border-border">
                 <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
-                  <td key={col.id} className="px-3 py-2 text-muted-foreground italic text-xs">
-                    {col.tipo === "select" ? `(lista: ${col.options.map(o => o.valor).join(", ") || "sin opciones"})` : "(texto libre)"}
+                  <td key={col.id} className="px-2 py-1.5">
+                    <DefaultCellEditor
+                      tipo={col.tipo}
+                      options={col.options.map(o => o.valor)}
+                      value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
+                      onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
+                    />
                   </td>
                 ))}
                 <td className="px-2 py-2">
@@ -253,5 +264,47 @@ function OptionsDialog({ col, onClose }: { col: HitosColumn | null; onClose: () 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function DefaultCellEditor({ tipo, options, value, onCommit }: {
+  tipo: "texto" | "select";
+  options: string[];
+  value: string;
+  onCommit: (v: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const focusedRef = useRef(false);
+
+  useEffect(() => { if (!focusedRef.current) setLocal(value); }, [value]);
+
+  const handleChange = useCallback((v: string) => {
+    setLocal(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => onCommit(v), 600);
+  }, [onCommit]);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  if (tipo === "select") {
+    return (
+      <Select value={local || undefined} onValueChange={(v) => onCommit(v)}>
+        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent>
+          {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    );
+  }
+  return (
+    <Input
+      value={local}
+      onChange={(e) => handleChange(e.target.value)}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => { focusedRef.current = false; clearTimeout(timer.current); onCommit(local); }}
+      className="h-8 text-xs"
+      placeholder="—"
+    />
   );
 }

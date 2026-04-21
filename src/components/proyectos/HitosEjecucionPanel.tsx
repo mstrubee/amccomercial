@@ -33,6 +33,13 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
     return m;
   }, [peData]);
 
+  // Defaults from template (fallback when no per-project value yet)
+  const defaultsMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (template?.defaults || []).forEach(d => m.set(`${d.row_id}|${d.column_id}`, d.valor));
+    return m;
+  }, [template]);
+
   const totalCells = (tplRows.length + extraRows.length) * columns.length;
   const filledCells = (peData?.values || []).filter(v => v.valor && v.valor.trim().length > 0).length;
 
@@ -70,7 +77,7 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                           <CellEditor
                             tipo={c.tipo}
                             options={c.options.map(o => o.valor)}
-                            value={valueMap.get(`r:${row.id}|c:${c.id}`) || ""}
+                            value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
                           />
                         </td>

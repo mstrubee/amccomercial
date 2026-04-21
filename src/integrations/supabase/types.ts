@@ -1126,6 +1126,45 @@ export type Database = {
         }
         Relationships: []
       }
+      hitos_template_row_defaults: {
+        Row: {
+          column_id: string
+          id: string
+          row_id: string
+          updated_at: string
+          valor: string
+        }
+        Insert: {
+          column_id: string
+          id?: string
+          row_id: string
+          updated_at?: string
+          valor?: string
+        }
+        Update: {
+          column_id?: string
+          id?: string
+          row_id?: string
+          updated_at?: string
+          valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hitos_template_row_defaults_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_template_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitos_template_row_defaults_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_template_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hitos_template_rows: {
         Row: {
           created_at: string

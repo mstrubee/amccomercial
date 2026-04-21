@@ -9,24 +9,28 @@ export type HitosColumn = {
   options: { id: string; valor: string; orden: number }[];
 };
 export type HitosRow = { id: string; orden: number };
+export type HitosRowDefault = { id: string; row_id: string; column_id: string; valor: string };
 
 export type HitosTemplate = {
   columns: HitosColumn[];
   rows: HitosRow[];
+  defaults: HitosRowDefault[];
 };
 
 export function useHitosTemplate() {
   return useQuery<HitosTemplate>({
     queryKey: ["hitos-template"],
     queryFn: async () => {
-      const [colsRes, optsRes, rowsRes] = await Promise.all([
+      const [colsRes, optsRes, rowsRes, defRes] = await Promise.all([
         supabase.from("hitos_template_columns").select("*").order("orden"),
         supabase.from("hitos_template_column_options").select("*").order("orden"),
         supabase.from("hitos_template_rows").select("*").order("orden"),
+        supabase.from("hitos_template_row_defaults" as any).select("*"),
       ]);
       if (colsRes.error) throw colsRes.error;
       if (optsRes.error) throw optsRes.error;
       if (rowsRes.error) throw rowsRes.error;
+      if (defRes.error) throw defRes.error;
       const optsByCol = new Map<string, { id: string; valor: string; orden: number }[]>();
       (optsRes.data || []).forEach((o: any) => {
         const arr = optsByCol.get(o.column_id) || [];
@@ -38,7 +42,10 @@ export function useHitosTemplate() {
         options: optsByCol.get(c.id) || [],
       }));
       const rows: HitosRow[] = (rowsRes.data || []).map((r: any) => ({ id: r.id, orden: r.orden }));
-      return { columns, rows };
+      const defaults: HitosRowDefault[] = (defRes.data || []).map((d: any) => ({
+        id: d.id, row_id: d.row_id, column_id: d.column_id, valor: d.valor || "",
+      }));
+      return { columns, rows, defaults };
     },
   });
 }
@@ -120,5 +127,27 @@ export function useHitosTemplateMutations() {
     onSuccess: invalidate,
   });
 
-  return { addColumn, updateColumn, deleteColumn, addOption, updateOption, deleteOption, addRow, updateRow, deleteRow };
+  const upsertRowDefault = useMutation({
+    mutationFn: async ({ row_id, column_id, valor }: { row_id: string; column_id: string; valor: string }) => {
+      const { data: existing, error: selErr } = await supabase
+        .from("hitos_template_row_defaults" as any)
+        .select("id")
+        .eq("row_id", row_id)
+        .eq("column_id", column_id)
+        .maybeSingle();
+      if (selErr) throw selErr;
+      if (existing) {
+        const { error } = await supabase.from("hitos_template_row_defaults" as any)
+          .update({ valor, updated_at: new Date().toISOString() }).eq("id", (existing as any).id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("hitos_template_row_defaults" as any)
+          .insert({ row_id, column_id, valor });
+        if (error) throw error;
+      }
+    },
+    onSuccess: invalidate,
+  });
+
+  return { addColumn, updateColumn, deleteColumn, addOption, updateOption, deleteOption, addRow, updateRow, deleteRow, upsertRowDefault };
 }
