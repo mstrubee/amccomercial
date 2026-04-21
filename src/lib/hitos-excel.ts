@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import type { HitosTemplate, HitosRow } from "@/hooks/useHitosTemplate";
+import type { HitosTemplate, HitosRow, HitosColumn } from "@/hooks/useHitosTemplate";
 
 const META_COLS = ["__row_id", "__parent_id", "__orden", "__numbering"] as const;
 
@@ -44,7 +44,16 @@ function cellToString(tipo: string, raw: string): string | boolean {
   return raw;
 }
 
-function parseImportedCell(tipo: string, value: any, currentRaw: string): string {
+function normalize(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function parseImportedCell(column: HitosColumn, value: any, currentRaw: string): string {
+  const tipo = column.tipo;
   if (value === null || value === undefined || value === "") {
     return tipo === "checkbox" ? "" : "";
   }
@@ -74,6 +83,12 @@ function parseImportedCell(tipo: string, value: any, currentRaw: string): string
     if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     return s;
   }
+  if (tipo === "select") {
+    const target = normalize(String(value));
+    if (!target) return "";
+    const match = column.options.find((o) => normalize(o.valor) === target);
+    return match ? match.valor : "";
+  }
   return String(value);
 }
 
@@ -84,10 +99,16 @@ export function exportTemplateToExcel(template: HitosTemplate, fileName = "hitos
   template.defaults.forEach((d) => defaultsMap.set(`${d.row_id}|${d.column_id}`, d.valor));
 
   const aoa: any[][] = [];
-  // header
+  // header — para selects incluimos las opciones como hint visible
   aoa.push([
     "#",
-    ...cols.map((c) => `${c.nombre} [${c.tipo}]`),
+    ...cols.map((c) => {
+      if (c.tipo === "select" && c.options.length) {
+        const opts = c.options.map((o) => o.valor).join(" | ");
+        return `${c.nombre} [select: ${opts}]`;
+      }
+      return `${c.nombre} [${c.tipo}]`;
+    }),
     ...META_COLS,
   ]);
   flat.forEach(({ row, numbering }) => {
@@ -101,24 +122,31 @@ export function exportTemplateToExcel(template: HitosTemplate, fileName = "hitos
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  // column widths
+  // column widths — meta columns ocultas para no distraer al usuario
   ws["!cols"] = [
     { wch: 8 },
-    ...cols.map(() => ({ wch: 22 })),
-    { wch: 38 },
-    { wch: 38 },
-    { wch: 8 },
-    { wch: 10 },
+    ...cols.map((c) => ({ wch: c.tipo === "select" ? 32 : 24 })),
+    { hidden: true, wch: 0 },
+    { hidden: true, wch: 0 },
+    { hidden: true, wch: 0 },
+    { hidden: true, wch: 0 },
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
 
-  // hidden sheet with column id reference (for traceability)
+  // hoja oculta con referencia de columnas (para trazabilidad)
   const colsSheet = XLSX.utils.aoa_to_sheet([
     ["column_id", "nombre", "tipo", "orden"],
     ...cols.map((c) => [c.id, c.nombre, c.tipo, c.orden]),
   ]);
   XLSX.utils.book_append_sheet(wb, colsSheet, "_columnas");
+  // marcar la hoja _columnas como oculta
+  wb.Workbook = {
+    Sheets: [
+      { name: "Plantilla", Hidden: 0 },
+      { name: "_columnas", Hidden: 1 },
+    ],
+  } as any;
 
   XLSX.writeFile(wb, fileName);
 }
@@ -236,7 +264,7 @@ export async function importTemplateFromExcel(
       const idx = colIndexByColumnId.get(c.id);
       if (idx === undefined) continue;
       const current = defaultsMap.get(`${p.rowId}|${c.id}`) || "";
-      const newVal = parseImportedCell(c.tipo, line[idx], current);
+      const newVal = parseImportedCell(c, line[idx], current);
       if (newVal === current) continue;
       const { data: existing } = await supabase
         .from("hitos_template_row_defaults" as any)
