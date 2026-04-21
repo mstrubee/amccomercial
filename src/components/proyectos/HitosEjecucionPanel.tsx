@@ -165,8 +165,32 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     },
   }), [draftMap, upsertValue]);
 
-  const totalCells = (tplRows.length + extraRows.length) * columns.length;
-  const filledCells = (peData?.values || []).filter(v => v.valor && v.valor.trim().length > 0).length;
+  // Hitos = leaf rows (template rows without children) + extra rows
+  const parentIds = useMemo(() => {
+    const s = new Set<string>();
+    tplRows.forEach(r => { if (r.parent_id) s.add(r.parent_id); });
+    return s;
+  }, [tplRows]);
+  const leafTplRows = useMemo(() => tplRows.filter(r => !parentIds.has(r.id)), [tplRows, parentIds]);
+  const totalHitos = leafTplRows.length + extraRows.length;
+
+  // Completed hito = has any checkbox column marked as checked
+  const checkboxCols = useMemo(() => columns.filter(c => c.tipo === "checkbox"), [columns]);
+  const isRowCompleted = useCallback((prefix: "r" | "e", rowId: string) => {
+    if (checkboxCols.length === 0) return false;
+    return checkboxCols.some(c => {
+      const k = `${prefix}:${rowId}|c:${c.id}`;
+      const raw = stagedValueFor(k, valueMap.get(k) ?? (prefix === "r" ? defaultsMap.get(`${rowId}|${c.id}`) : "") ?? "");
+      if (!raw) return false;
+      try { const p = JSON.parse(raw); return !!p.checked; } catch { return false; }
+    });
+  }, [checkboxCols, stagedValueFor, valueMap, defaultsMap]);
+  const completedHitos = useMemo(() => {
+    let n = 0;
+    leafTplRows.forEach(r => { if (isRowCompleted("r", r.id)) n++; });
+    extraRows.forEach(r => { if (isRowCompleted("e", r.id)) n++; });
+    return n;
+  }, [leafTplRows, extraRows, isRowCompleted]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border border-border rounded-lg bg-card/60">
@@ -174,7 +198,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
         <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-card-foreground hover:bg-muted/50 transition-colors rounded-t-lg">
           <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-180")} />
           <span>Hitos Ejecución{empresaName ? ` — ${empresaName}` : ""}</span>
-          <span className="text-muted-foreground">({filledCells}/{totalCells || "—"})</span>
+          <span className="text-muted-foreground">({completedHitos}/{totalHitos || "—"})</span>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
