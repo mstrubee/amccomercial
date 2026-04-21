@@ -1104,6 +1104,8 @@ export type Database = {
       }
       hitos_template_columns: {
         Row: {
+          checkbox_action: string
+          checkbox_color: string
           created_at: string
           id: string
           nombre: string
@@ -1111,6 +1113,8 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          checkbox_action?: string
+          checkbox_color?: string
           created_at?: string
           id?: string
           nombre: string
@@ -1118,6 +1122,8 @@ export type Database = {
           tipo?: string
         }
         Update: {
+          checkbox_action?: string
+          checkbox_color?: string
           created_at?: string
           id?: string
           nombre?: string

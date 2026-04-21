@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
+import { format, parseISO, isValid } from "date-fns";
+import { es } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { todayLocalISO } from "@/lib/date-utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useHitosTemplate } from "@/hooks/useHitosTemplate";
+import { useHitosTemplate, type HitosColumn } from "@/hooks/useHitosTemplate";
 import { useHitosProyectoEmpresa, useHitosProyectoEmpresaMutations } from "@/hooks/useHitosProyectoEmpresa";
 import { cn } from "@/lib/utils";
 
@@ -75,8 +80,7 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
-                            tipo={c.tipo}
-                            options={c.options.map(o => o.valor)}
+                            col={c}
                             value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
                           />
@@ -91,8 +95,7 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
-                            tipo={c.tipo}
-                            options={c.options.map(o => o.valor)}
+                            col={c}
                             value={valueMap.get(`e:${row.id}|c:${c.id}`) || ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: c.id, valor: v })}
                           />
@@ -123,12 +126,14 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
 }
 
 /* ── Cell editor with debounced auto-save ── */
-function CellEditor({ tipo, options, value, onCommit }: {
-  tipo: "texto" | "select";
-  options: string[];
+function CellEditor({ col, value, onCommit }: {
+  col: HitosColumn;
   value: string;
   onCommit: (v: string) => void;
 }) {
+  const tipo = col.tipo;
+  const options = col.options.map(o => o.valor);
+
   const [local, setLocal] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const focusedRef = useRef(false);
@@ -155,6 +160,72 @@ function CellEditor({ tipo, options, value, onCommit }: {
       </Select>
     );
   }
+
+  if (tipo === "fecha") {
+    const dateValue = value && isValid(parseISO(value)) ? parseISO(value) : undefined;
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className={cn("h-7 text-xs w-full justify-start font-normal", !dateValue && "text-muted-foreground")}>
+            <CalendarIcon className="w-3 h-3 mr-1.5" />
+            {dateValue ? format(dateValue, "dd MMM yyyy", { locale: es }) : "—"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={dateValue}
+            onSelect={(d) => {
+              if (d) onCommit(format(d, "yyyy-MM-dd"));
+              else onCommit("");
+            }}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  if (tipo === "checkbox") {
+    // value JSON: { checked: boolean, fecha?: string }
+    let parsed: { checked: boolean; fecha?: string } = { checked: false };
+    try { if (value) parsed = JSON.parse(value); } catch { parsed = { checked: !!value }; }
+    const checked = !!parsed.checked;
+    const action = col.checkbox_action;
+    const showCompletedColor = checked && (action === "fijar_fecha_y_completar" || action === "solo_completar");
+    const showFecha = (action === "fijar_fecha_y_completar" || action === "solo_fecha") && checked && parsed.fecha;
+
+    const handleToggle = () => {
+      if (checked) {
+        onCommit(JSON.stringify({ checked: false }));
+      } else {
+        const next: any = { checked: true };
+        if (action === "fijar_fecha_y_completar" || action === "solo_fecha") next.fecha = todayLocalISO();
+        onCommit(JSON.stringify(next));
+      }
+    };
+
+    return (
+      <button
+        type="button"
+        onClick={handleToggle}
+        className={cn(
+          "h-7 w-full rounded border text-xs flex items-center justify-center gap-1.5 transition-colors",
+          showCompletedColor ? "text-white border-transparent" : "border-border bg-background hover:bg-muted/40"
+        )}
+        style={showCompletedColor ? { backgroundColor: col.checkbox_color } : undefined}
+        title={action === "solo_fecha" ? "Marcar fecha" : action === "solo_completar" ? "Marcar completado" : "Marcar completado y fijar fecha"}
+      >
+        <span className={cn("w-3.5 h-3.5 rounded-sm border flex items-center justify-center", checked ? "bg-white/30 border-white/60" : "border-border")}>
+          {checked && <Check className="w-2.5 h-2.5" />}
+        </span>
+        {showFecha && <span>{format(parseISO(parsed.fecha!), "dd/MM/yy")}</span>}
+        {!checked && <span className="text-muted-foreground">—</span>}
+      </button>
+    );
+  }
+
   return (
     <Input
       value={local}

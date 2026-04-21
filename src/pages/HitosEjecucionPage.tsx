@@ -9,7 +9,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn } from "@/hooks/useHitosTemplate";
+import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn, type ColumnTipo, type CheckboxAction } from "@/hooks/useHitosTemplate";
 
 export default function HitosEjecucionPage() {
   const { data, isLoading } = useHitosTemplate();
@@ -17,7 +17,9 @@ export default function HitosEjecucionPage() {
 
   const [showAddCol, setShowAddCol] = useState(false);
   const [newColName, setNewColName] = useState("");
-  const [newColTipo, setNewColTipo] = useState<"texto" | "select">("texto");
+  const [newColTipo, setNewColTipo] = useState<ColumnTipo>("texto");
+  const [newColAction, setNewColAction] = useState<CheckboxAction>("fijar_fecha_y_completar");
+  const [newColColor, setNewColColor] = useState("#22c55e");
 
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
@@ -40,8 +42,13 @@ export default function HitosEjecucionPage() {
       toast.error("Ya existe una columna con ese nombre"); return;
     }
     try {
-      await m.addColumn.mutateAsync({ nombre: name, tipo: newColTipo, orden: columns.length });
-      setNewColName(""); setNewColTipo("texto"); setShowAddCol(false);
+      await m.addColumn.mutateAsync({
+        nombre: name, tipo: newColTipo, orden: columns.length,
+        checkbox_action: newColTipo === "checkbox" ? newColAction : undefined,
+        checkbox_color: newColTipo === "checkbox" ? newColColor : undefined,
+      });
+      setNewColName(""); setNewColTipo("texto"); setNewColAction("fijar_fecha_y_completar"); setNewColColor("#22c55e");
+      setShowAddCol(false);
       toast.success("Columna agregada");
     } catch (e: any) { toast.error(e.message); }
   };
@@ -120,12 +127,18 @@ export default function HitosEjecucionPage() {
                 <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                   <td key={col.id} className="px-2 py-1.5">
-                    <DefaultCellEditor
-                      tipo={col.tipo}
-                      options={col.options.map(o => o.valor)}
-                      value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
-                      onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
-                    />
+                    {col.tipo === "fecha" || col.tipo === "checkbox" ? (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        {col.tipo === "fecha" ? "(fecha — se elige por proyecto)" : `(checkbox — ${col.checkbox_action.split("_").join(" ")})`}
+                      </span>
+                    ) : (
+                      <DefaultCellEditor
+                        tipo={col.tipo}
+                        options={col.options.map(o => o.valor)}
+                        value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
+                        onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
+                      />
+                    )}
                   </td>
                 ))}
                 <td className="px-2 py-2">
@@ -160,14 +173,40 @@ export default function HitosEjecucionPage() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Tipo</label>
-              <Select value={newColTipo} onValueChange={(v) => setNewColTipo(v as "texto" | "select")}>
+              <Select value={newColTipo} onValueChange={(v) => setNewColTipo(v as ColumnTipo)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="texto">Texto libre</SelectItem>
                   <SelectItem value="select">Lista desplegable</SelectItem>
+                  <SelectItem value="fecha">Fecha</SelectItem>
+                  <SelectItem value="checkbox">Casilla (checkbox)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {newColTipo === "checkbox" && (
+              <>
+                <div>
+                  <label className="text-xs text-muted-foreground">Acción al marcar</label>
+                  <Select value={newColAction} onValueChange={(v) => setNewColAction(v as CheckboxAction)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fijar_fecha_y_completar">Fijar fecha y pintar como completada</SelectItem>
+                      <SelectItem value="solo_fecha">Solo fijar fecha</SelectItem>
+                      <SelectItem value="solo_completar">Solo marcar como completada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {newColAction !== "solo_fecha" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">Color de completado</label>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={newColColor} onChange={(e) => setNewColColor(e.target.value)} className="h-9 w-14 rounded border border-border bg-transparent cursor-pointer" />
+                      <Input value={newColColor} onChange={(e) => setNewColColor(e.target.value)} className="flex-1" />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowAddCol(false)}>Cancelar</Button>
@@ -188,7 +227,9 @@ export default function HitosEjecucionPage() {
 function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: () => void }) {
   const m = useHitosTemplateMutations();
   const [name, setName] = useState(col?.nombre || "");
-  const [tipo, setTipo] = useState<"texto" | "select">(col?.tipo || "texto");
+  const [tipo, setTipo] = useState<ColumnTipo>(col?.tipo || "texto");
+  const [action, setAction] = useState<CheckboxAction>(col?.checkbox_action || "fijar_fecha_y_completar");
+  const [color, setColor] = useState(col?.checkbox_color || "#22c55e");
 
   if (!col) return null;
   return (
@@ -202,21 +243,51 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Tipo</label>
-            <Select defaultValue={col.tipo} onValueChange={(v) => setTipo(v as "texto" | "select")}>
+            <Select defaultValue={col.tipo} onValueChange={(v) => setTipo(v as ColumnTipo)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="texto">Texto libre</SelectItem>
                 <SelectItem value="select">Lista desplegable</SelectItem>
+                <SelectItem value="fecha">Fecha</SelectItem>
+                <SelectItem value="checkbox">Casilla (checkbox)</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {tipo === "checkbox" && (
+            <>
+              <div>
+                <label className="text-xs text-muted-foreground">Acción al marcar</label>
+                <Select value={action} onValueChange={(v) => setAction(v as CheckboxAction)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fijar_fecha_y_completar">Fijar fecha y pintar como completada</SelectItem>
+                    <SelectItem value="solo_fecha">Solo fijar fecha</SelectItem>
+                    <SelectItem value="solo_completar">Solo marcar como completada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {action !== "solo_fecha" && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Color de completado</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-14 rounded border border-border bg-transparent cursor-pointer" />
+                    <Input value={color} onChange={(e) => setColor(e.target.value)} className="flex-1" />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
           <Button onClick={async () => {
             const finalName = (name || col.nombre).trim();
             if (!finalName) { toast.error("Nombre requerido"); return; }
-            await m.updateColumn.mutateAsync({ id: col.id, nombre: finalName, tipo: tipo || col.tipo });
+            await m.updateColumn.mutateAsync({
+              id: col.id, nombre: finalName, tipo: tipo || col.tipo,
+              checkbox_action: tipo === "checkbox" ? action : undefined,
+              checkbox_color: tipo === "checkbox" ? color : undefined,
+            });
             toast.success("Columna actualizada");
             onClose();
           }}>Guardar</Button>
