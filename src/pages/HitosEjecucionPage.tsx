@@ -39,8 +39,6 @@ export default function HitosEjecucionPage() {
     return m;
   }, [defaults]);
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
-
   const handleAddColumn = async () => {
     const name = newColName.trim();
     if (!name) { toast.error("Nombre requerido"); return; }
