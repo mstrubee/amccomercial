@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
-import { ChevronDown, ChevronRight, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, CalendarIcon, Check, Eye, EyeOff, FileText, FileSpreadsheet } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -207,6 +207,73 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     return n;
   }, [leafTplRows, extraRows, isRowCompleted]);
 
+  // Hide completed (leaf) rows toggle
+  const [hideCompleted, setHideCompleted] = useState(false);
+
+  // Get display value for export (text representation of cell value)
+  const getDisplayValue = useCallback((prefix: "r" | "e", rowId: string, col: HitosColumn): string => {
+    const k = `${prefix}:${rowId}|c:${col.id}`;
+    const raw = stagedValueFor(k, valueMap.get(k) ?? (prefix === "r" ? defaultsMap.get(`${rowId}|${col.id}`) : "") ?? "");
+    if (!raw) return "";
+    if (col.tipo === "checkbox") {
+      try {
+        const p = JSON.parse(raw);
+        if (!p.checked) return "";
+        return p.fecha ? `✓ ${format(parseISO(p.fecha), "dd-MM-yyyy")}` : "✓";
+      } catch { return raw ? "✓" : ""; }
+    }
+    if (col.tipo === "fecha") {
+      const d = parseISO(raw);
+      return isValid(d) ? format(d, "dd-MM-yyyy") : raw;
+    }
+    return raw;
+  }, [stagedValueFor, valueMap, defaultsMap]);
+
+  const exportRows = useCallback(() => {
+    const rows: { num: string; cells: string[] }[] = [];
+    tplRows.forEach((row, idx) => {
+      const cells = columns.map(c => getDisplayValue("r", row.id, c));
+      rows.push({ num: numberMap.get(row.id) || String(idx + 1), cells });
+    });
+    const baseN = tplRows.filter(r => !r.parent_id).length;
+    extraRows.forEach((row, idx) => {
+      const cells = columns.map(c => getDisplayValue("e", row.id, c));
+      rows.push({ num: String(baseN + idx + 1), cells });
+    });
+    return rows;
+  }, [tplRows, extraRows, columns, getDisplayValue, numberMap]);
+
+  const handleExportExcel = useCallback(async () => {
+    const XLSX = await import("xlsx");
+    const headers = ["#", ...columns.map(c => c.nombre)];
+    const data = exportRows().map(r => [r.num, ...r.cells]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Hitos Ejecución");
+    const fname = `Hitos_${(empresaName || "empresa").replace(/[^\w]/g, "_")}_${format(new Date(), "yyyyMMdd")}.xlsx`;
+    XLSX.writeFile(wb, fname);
+  }, [columns, exportRows, empresaName]);
+
+  const handleExportPDF = useCallback(async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setFontSize(14);
+    doc.text(`Hitos Ejecución${empresaName ? ` — ${empresaName}` : ""}`, 14, 14);
+    doc.setFontSize(9);
+    doc.text(`Generado: ${format(new Date(), "dd-MM-yyyy HH:mm")} · ${completedHitos}/${totalHitos} completados`, 14, 20);
+    autoTable(doc, {
+      startY: 25,
+      head: [["#", ...columns.map(c => c.nombre)]],
+      body: exportRows().map(r => [r.num, ...r.cells]),
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      headStyles: { fillColor: [60, 60, 60] },
+      columnStyles: { 0: { cellWidth: 12 } },
+    });
+    const fname = `Hitos_${(empresaName || "empresa").replace(/[^\w]/g, "_")}_${format(new Date(), "yyyyMMdd")}.pdf`;
+    doc.save(fname);
+  }, [columns, exportRows, empresaName, completedHitos, totalHitos]);
+
   // Resizable column widths (persisted per user in localStorage)
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try { return JSON.parse(localStorage.getItem("hitos_panel_col_widths") || "{}"); } catch { return {}; }
@@ -250,6 +317,25 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
+              <div className="flex items-center justify-end gap-1 mb-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setHideCompleted(v => !v)}
+                  className={cn("h-7 text-xs gap-1", hideCompleted && "text-destructive hover:text-destructive")}
+                  title={hideCompleted ? "Mostrar todos los hitos" : "Ocultar hitos completados"}
+                >
+                  {hideCompleted ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {hideCompleted ? "Ver todos" : "Ocultar completados"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleExportExcel} className="h-7 text-xs gap-1" title="Descargar Excel">
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleExportPDF} className="h-7 text-xs gap-1" title="Descargar PDF">
+                  <FileText className="w-3.5 h-3.5" /> PDF
+                </Button>
+              </div>
               <table className="text-xs border border-border rounded" style={{ tableLayout: "fixed", width: "max-content", maxWidth: "100%" }}>
                 <thead className="bg-muted/40">
                   <tr>
@@ -278,6 +364,8 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   {tplRows.map((row, idx) => {
                     if (!isRowVisible(row.id)) return null;
                     const hasChildren = (childrenMap.get(row.id) || []).length > 0;
+                    // Hide completed leaf rows when filter is on
+                    if (hideCompleted && !hasChildren && isRowCompleted("r", row.id)) return null;
                     const collapsed = collapsedRows.has(row.id);
                     const depth = depthMap.get(row.id) || 0;
                     return (
@@ -323,7 +411,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                     </tr>
                     );
                   })}
-                  {extraRows.map((row, idx) => (
+                  {extraRows.map((row, idx) => {
+                    if (hideCompleted && isRowCompleted("e", row.id)) return null;
+                    return (
                     <tr key={row.id} className="border-t border-border">
                       <td className="px-2 py-1 text-muted-foreground">{tplRows.filter(r => !r.parent_id).length + idx + 1}</td>
                       {columns.map(c => (
@@ -348,7 +438,8 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                         }}><Trash2 className="w-3 h-3" /></Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <div className="mt-2">
