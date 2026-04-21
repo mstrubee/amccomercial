@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon, ChevronRight, ChevronDown, Download, Upload } from "lucide-react";
 import { Check } from "lucide-react";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -16,10 +16,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn, type ColumnTipo, type CheckboxAction, type HitosRow } from "@/hooks/useHitosTemplate";
+import { exportTemplateToExcel, importTemplateFromExcel } from "@/lib/hitos-excel";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function HitosEjecucionPage() {
   const { data, isLoading } = useHitosTemplate();
   const m = useHitosTemplateMutations();
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const [showAddCol, setShowAddCol] = useState(false);
   const [newColName, setNewColName] = useState("");
@@ -213,6 +218,58 @@ export default function HitosEjecucionPage() {
         }}>
           <Plus className="w-4 h-4 mr-1" /> Agregar fila
         </Button>
+        <div className="ml-auto flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!data) return;
+              exportTemplateToExcel(data, `hitos-plantilla-${new Date().toISOString().slice(0, 10)}.xlsx`);
+              toast.success("Excel descargado");
+            }}
+          >
+            <Download className="w-4 h-4 mr-1" /> Descargar Excel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-4 h-4 mr-1" /> {importing ? "Cargando…" : "Cargar Excel"}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file || !data) return;
+              if (!confirm("Esto reemplazará la plantilla con el contenido del Excel (las filas faltantes se eliminarán y se borrarán sus valores en proyectos existentes). ¿Continuar?")) return;
+              setImporting(true);
+              try {
+                const summary = await importTemplateFromExcel(file, data);
+                await qc.invalidateQueries({ queryKey: ["hitos-template"] });
+                const parts = [
+                  `${summary.added} agregadas`,
+                  `${summary.updated} actualizadas`,
+                  `${summary.deleted} eliminadas`,
+                ];
+                if (summary.errors.length) {
+                  toast.error(`Importación con errores: ${summary.errors[0]}`);
+                } else {
+                  toast.success(`Plantilla actualizada (${parts.join(", ")})`);
+                }
+              } catch (err: any) {
+                toast.error(err.message || "Error al importar");
+              } finally {
+                setImporting(false);
+              }
+            }}
+          />
+        </div>
       </div>
 
       <div className="border border-border rounded-lg overflow-x-auto">
