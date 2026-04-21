@@ -426,7 +426,9 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
       onFocus={() => { focusedRef.current = true; }}
       onBlur={() => { focusedRef.current = false; clearTimeout(timer.current); onCommit(local); }}
       readOnly={readOnly}
-      className="h-7 text-xs"
+      disabled={readOnly}
+      tabIndex={readOnly ? -1 : undefined}
+      className={cn("h-7 text-xs", readOnly && "pointer-events-none select-none opacity-100 bg-muted/40")}
     />
   );
 }
