@@ -40,6 +40,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
 
   const [newItemText, setNewItemText] = useState("");
   const [checklistOpen, setChecklistOpen] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Editing states
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -71,6 +72,28 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
   const completedCount = items.filter(i => i.is_completed).length;
   const totalCount = items.length;
   const hasChildren = (id: string) => (tree[id] || []).length > 0;
+
+  // Filter: when hiding completed, keep an item if itself OR any descendant is pending
+  const visibleIds = useMemo(() => {
+    if (showCompleted) return null;
+    const set = new Set<string>();
+    const hasPending = (id: string): boolean => {
+      const kids = tree[id] || [];
+      let pending = false;
+      kids.forEach(k => {
+        const childPending = !k.is_completed || hasPending(k.id);
+        if (childPending) { set.add(k.id); pending = true; }
+      });
+      return pending;
+    };
+    (tree["root"] || []).forEach(r => {
+      const childHasPending = hasPending(r.id);
+      if (!r.is_completed || childHasPending) set.add(r.id);
+    });
+    return set;
+  }, [showCompleted, tree]);
+
+  const isVisible = (id: string) => visibleIds === null || visibleIds.has(id);
 
   const handleAddItem = () => {
     const trimmed = newItemText.trim();
@@ -157,6 +180,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
   };
 
   const renderItem = (item: ChecklistItem, depth: number) => {
+    if (!isVisible(item.id)) return null;
     const children = tree[item.id] || [];
     const isEditing = editingId === item.id;
     const isEditingDate = editingDateId === item.id;
@@ -272,13 +296,28 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
       {/* Collapsible checklist */}
       {totalCount > 0 && (
         <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
-          <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
-            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !checklistOpen && "-rotate-90")} />
-            Checklist ({completedCount}/{totalCount})
-          </CollapsibleTrigger>
+          <div className="flex items-center justify-between gap-2">
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !checklistOpen && "-rotate-90")} />
+              Checklist ({completedCount}/{totalCount})
+            </CollapsibleTrigger>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowCompleted(v => !v); }}
+              className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              title={showCompleted ? "Ocultar ítems completados" : "Mostrar también los completados"}
+            >
+              {showCompleted ? "Ocultar completados" : "Mostrar completados"}
+            </button>
+          </div>
           <CollapsibleContent>
             <div className="mt-1 max-h-[300px] overflow-y-auto border rounded-md p-1">
               {rootItems.map(item => renderItem(item, 0))}
+              {visibleIds && visibleIds.size === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-3">
+                  No hay ítems pendientes.
+                </div>
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
