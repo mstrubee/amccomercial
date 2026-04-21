@@ -89,7 +89,7 @@ function parseImportedCell(column: HitosColumn, value: any, currentRaw: string):
     const match = column.options.find((o) => normalize(o.valor) === target);
     return match ? match.valor : "";
   }
-  return String(value);
+  return toSentenceCase(String(value));
 }
 
 export function exportTemplateToExcel(template: HitosTemplate, fileName = "hitos-plantilla.xlsx") {
