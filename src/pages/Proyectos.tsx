@@ -1270,6 +1270,25 @@ export default function Proyectos() {
         canEdit={repositorioTarget?.empresaName ? false : (isAdmin || isUsuarioTipo1)}
         filterEmpresaName={repositorioTarget?.empresaName}
       />
+
+      {/* Hitos Ejecución dialog */}
+      <Dialog open={!!hitosTarget} onOpenChange={(o) => !o && setHitosTarget(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Hitos Ejecución — {hitosTarget?.proyectoNombre}
+              {hitosTarget?.empresaName ? ` · ${hitosTarget.empresaName}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {hitosTarget && (
+            <HitosEjecucionPanel
+              proyectoEmpresaId={hitosTarget.proyectoEmpresaId}
+              empresaName={hitosTarget.empresaName}
+              defaultOpen
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
     </>
   );
