@@ -1,12 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export type CheckboxAction = "fijar_fecha_y_completar" | "solo_fecha" | "solo_completar";
+export type ColumnTipo = "texto" | "select" | "fecha" | "checkbox";
+
 export type HitosColumn = {
   id: string;
   nombre: string;
-  tipo: "texto" | "select";
+  tipo: ColumnTipo;
   orden: number;
   options: { id: string; valor: string; orden: number }[];
+  checkbox_action: CheckboxAction;
+  checkbox_color: string;
 };
 export type HitosRow = { id: string; orden: number };
 export type HitosRowDefault = { id: string; row_id: string; column_id: string; valor: string };
@@ -40,6 +45,8 @@ export function useHitosTemplate() {
       const columns: HitosColumn[] = (colsRes.data || []).map((c: any) => ({
         id: c.id, nombre: c.nombre, tipo: c.tipo, orden: c.orden,
         options: optsByCol.get(c.id) || [],
+        checkbox_action: (c.checkbox_action || "fijar_fecha_y_completar") as CheckboxAction,
+        checkbox_color: c.checkbox_color || "#22c55e",
       }));
       const rows: HitosRow[] = (rowsRes.data || []).map((r: any) => ({ id: r.id, orden: r.orden }));
       const defaults: HitosRowDefault[] = (defRes.data || []).map((d: any) => ({
