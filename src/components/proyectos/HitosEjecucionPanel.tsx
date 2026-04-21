@@ -106,6 +106,12 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
                             col={c}
+                            allColumns={columns}
+                            rowValues={columns.reduce((acc, cc) => {
+                              acc[cc.id] = valueMap.get(`r:${row.id}|c:${cc.id}`) ?? defaultsMap.get(`${row.id}|${cc.id}`) ?? "";
+                              return acc;
+                            }, {} as Record<string, string>)}
+                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: colId, valor: v })}
                             value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
                           />
@@ -121,6 +127,12 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
                             col={c}
+                            allColumns={columns}
+                            rowValues={columns.reduce((acc, cc) => {
+                              acc[cc.id] = valueMap.get(`e:${row.id}|c:${cc.id}`) || "";
+                              return acc;
+                            }, {} as Record<string, string>)}
+                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: colId, valor: v })}
                             value={valueMap.get(`e:${row.id}|c:${c.id}`) || ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: c.id, valor: v })}
                           />
@@ -151,10 +163,13 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
 }
 
 /* ── Cell editor with debounced auto-save ── */
-function CellEditor({ col, value, onCommit }: {
+function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther }: {
   col: HitosColumn;
   value: string;
   onCommit: (v: string) => void;
+  allColumns?: HitosColumn[];
+  rowValues?: Record<string, string>;
+  onCommitOther?: (columnId: string, valor: string) => void;
 }) {
   const tipo = col.tipo;
   const options = col.options.map(o => o.valor);
@@ -175,6 +190,18 @@ function CellEditor({ col, value, onCommit }: {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Detect if any checkbox column in this row that "fija fecha" is checked → lock fecha cells
+  const lockedByCheckbox = useMemo(() => {
+    if (tipo !== "fecha" || !allColumns || !rowValues) return false;
+    return allColumns.some(c => {
+      if (c.tipo !== "checkbox") return false;
+      if (c.checkbox_action !== "fijar_fecha_y_completar" && c.checkbox_action !== "solo_fecha") return false;
+      const raw = rowValues[c.id];
+      if (!raw) return false;
+      try { const p = JSON.parse(raw); return !!p.checked; } catch { return false; }
+    });
+  }, [tipo, allColumns, rowValues]);
+
   if (tipo === "select") {
     return (
       <Select value={local || undefined} onValueChange={(v) => onCommit(v)}>
@@ -191,7 +218,7 @@ function CellEditor({ col, value, onCommit }: {
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("h-7 text-xs w-full justify-start font-normal", !dateValue && "text-muted-foreground")}>
+          <Button variant="outline" size="sm" disabled={lockedByCheckbox} className={cn("h-7 text-xs w-full justify-start font-normal", !dateValue && "text-muted-foreground", lockedByCheckbox && "opacity-100")}>
             <CalendarIcon className="w-3 h-3 mr-1.5" />
             {dateValue ? format(dateValue, "dd MMM yyyy", { locale: es }) : "—"}
           </Button>
@@ -219,14 +246,27 @@ function CellEditor({ col, value, onCommit }: {
     const checked = !!parsed.checked;
     const action = col.checkbox_action;
     const showCompletedColor = checked && (action === "fijar_fecha_y_completar" || action === "solo_completar");
-    const showFecha = (action === "fijar_fecha_y_completar" || action === "solo_fecha") && checked && parsed.fecha;
+    // Find a fecha column in the same row (if any)
+    const fechaCol = allColumns?.find(c => c.tipo === "fecha");
+    const writesFecha = action === "fijar_fecha_y_completar" || action === "solo_fecha";
+    // Show fecha inside checkbox only when there is no fecha column in the row
+    const showFecha = writesFecha && !fechaCol && checked && parsed.fecha;
 
     const handleToggle = () => {
       if (checked) {
         onCommit(JSON.stringify({ checked: false }));
+        // No "unlock": we don't clear the fecha column on uncheck (user data preserved)
       } else {
         const next: any = { checked: true };
-        if (action === "fijar_fecha_y_completar" || action === "solo_fecha") next.fecha = todayLocalISO();
+        if (writesFecha) {
+          if (fechaCol && onCommitOther) {
+            // Write today into the fecha column ONLY if it's empty
+            const existing = rowValues?.[fechaCol.id]?.trim();
+            if (!existing) onCommitOther(fechaCol.id, todayLocalISO());
+          } else {
+            next.fecha = todayLocalISO();
+          }
+        }
         onCommit(JSON.stringify(next));
       }
     };
