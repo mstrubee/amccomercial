@@ -84,7 +84,6 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
-              {(() => null)()}
               <table className="w-full text-xs border border-border rounded">
                 <thead className="bg-muted/40">
                   <tr>
