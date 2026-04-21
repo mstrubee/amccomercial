@@ -250,7 +250,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
-              <table className="text-xs border border-border rounded" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+              <table className="text-xs border border-border rounded" style={{ tableLayout: "fixed", width: "max-content", maxWidth: "100%" }}>
                 <thead className="bg-muted/40">
                   <tr>
                     <th className="px-2 py-1.5 text-left text-muted-foreground font-medium w-10">#</th>
@@ -259,7 +259,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                       return (
                         <th
                           key={c.id}
-                          style={{ width: w, minWidth: w, maxWidth: w }}
+                          style={{ width: w, minWidth: w, maxWidth: w, boxSizing: "border-box" }}
                           className="relative px-2 py-1.5 text-left text-card-foreground font-semibold"
                         >
                           <span className="block truncate pr-2">{c.nombre}</span>
