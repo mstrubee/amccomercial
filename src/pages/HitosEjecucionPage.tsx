@@ -512,6 +512,7 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
               id: col.id, nombre: finalName, tipo: tipo || col.tipo,
               checkbox_action: tipo === "checkbox" ? action : undefined,
               checkbox_color: tipo === "checkbox" ? color : undefined,
+              editable_en_proyecto: editable,
             });
             toast.success("Columna actualizada");
             onClose();
