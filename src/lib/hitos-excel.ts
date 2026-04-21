@@ -200,12 +200,17 @@ export async function importTemplateFromExcel(
   const idIdx = header.indexOf("__row_id");
   const parentIdx = header.indexOf("__parent_id");
   const numIdx = header.indexOf("#");
-  if (idIdx < 0) throw new Error("Falta columna oculta __row_id en el archivo");
+  if (numIdx < 0) throw new Error("Falta la columna '#' en el archivo");
 
   const defaultsMap = new Map<string, string>();
   template.defaults.forEach((d) => defaultsMap.set(`${d.row_id}|${d.column_id}`, d.valor));
   const existingRowIds = new Set(template.rows.map((r) => r.id));
   const seenRowIds = new Set<string>();
+
+  // Construir mapa numbering -> rowId del template original (para match cuando __row_id falta)
+  const templateFlat = buildFlatRows(template.rows);
+  const numberingToExistingId = new Map<string, string>();
+  templateFlat.forEach(({ row, numbering }) => numberingToExistingId.set(numbering, row.id));
 
   const summary: ImportSummary = { added: 0, updated: 0, deleted: 0, defaultsUpserted: 0, errors: [] };
 
@@ -223,17 +228,23 @@ export async function importTemplateFromExcel(
   for (let i = 1; i < aoa.length; i++) {
     const line = aoa[i];
     if (!line || line.every((c) => c === "" || c === null || c === undefined)) continue;
-    const rowIdRaw = String(line[idIdx] || "").trim();
+    const rowIdRaw = idIdx >= 0 ? String(line[idIdx] || "").trim() : "";
     const parentRaw = parentIdx >= 0 ? String(line[parentIdx] || "").trim() : "";
-    const numRaw = numIdx >= 0 ? String(line[numIdx] ?? "").trim() : "";
-    const isExisting = !!rowIdRaw && existingRowIds.has(rowIdRaw);
-    if (isExisting) seenRowIds.add(rowIdRaw);
+    const numRaw = String(line[numIdx] ?? "").trim();
+    // Match strategy: 1) por __row_id oculto si existe; 2) por numbering contra template original
+    let matchedId: string | null = null;
+    if (rowIdRaw && existingRowIds.has(rowIdRaw)) {
+      matchedId = rowIdRaw;
+    } else if (numRaw && numberingToExistingId.has(numRaw)) {
+      matchedId = numberingToExistingId.get(numRaw)!;
+    }
+    if (matchedId) seenRowIds.add(matchedId);
     pendings.push({
       lineIndex: i,
-      rowId: isExisting ? rowIdRaw : null,
+      rowId: matchedId,
       parentRef: parentRaw,
       numbering: numRaw,
-      isNew: !isExisting,
+      isNew: !matchedId,
     });
   }
 
