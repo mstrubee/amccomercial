@@ -125,6 +125,7 @@ export default function Proyectos() {
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
+  const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
@@ -877,11 +878,27 @@ export default function Proyectos() {
                                 <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} /></td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {/* Estado AMC per empresa */}
-                                  <EstadoAmcPopoverInline
-                                    currentStatus={(pe as any).estado_amc || "Vigente"}
-                                    estadosAmc={estadosAmc || []}
-                                    onUpdate={(nuevo) => handleUpdateEstadoAmcPE(pe.id, nuevo)}
-                                  />
+                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                    <EstadoAmcPopoverInline
+                                      currentStatus={(pe as any).estado_amc || "Vigente"}
+                                      estadosAmc={estadosAmc || []}
+                                      onUpdate={(nuevo) => handleUpdateEstadoAmcPE(pe.id, nuevo)}
+                                    />
+                                    {p.estado_obra === "Obra/Ejecución" && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setHitosTarget({ proyectoEmpresaId: pe.id, empresaName: pe.empresas?.nombre, proyectoNombre: p.nombre });
+                                        }}
+                                        title="Hitos Ejecución Proyectos"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                                      >
+                                        <ListChecks className="w-3 h-3" />
+                                        Hitos
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="px-5 py-2 text-right align-top">
                                   <div className="flex justify-end gap-1">
@@ -938,13 +955,6 @@ export default function Proyectos() {
                                 <tr className={childBg}>
                                   <td colSpan={10} className="px-5 pb-2 pt-0 pl-10">
                                     <EmpresaChecklistPanel empresaId={empresaId} proyectoId={p.id} readOnly={false} />
-                                  </td>
-                                </tr>
-                              )}
-                              {p.estado_obra === "Obra/Ejecución" && (
-                                <tr className={childBg}>
-                                  <td colSpan={10} className="px-5 pb-2 pt-0 pl-10">
-                                    <HitosEjecucionPanel proyectoEmpresaId={pe.id} empresaName={pe.empresas?.nombre} />
                                   </td>
                                 </tr>
                               )}
@@ -1260,6 +1270,25 @@ export default function Proyectos() {
         canEdit={repositorioTarget?.empresaName ? false : (isAdmin || isUsuarioTipo1)}
         filterEmpresaName={repositorioTarget?.empresaName}
       />
+
+      {/* Hitos Ejecución dialog */}
+      <Dialog open={!!hitosTarget} onOpenChange={(o) => !o && setHitosTarget(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Hitos Ejecución — {hitosTarget?.proyectoNombre}
+              {hitosTarget?.empresaName ? ` · ${hitosTarget.empresaName}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {hitosTarget && (
+            <HitosEjecucionPanel
+              proyectoEmpresaId={hitosTarget.proyectoEmpresaId}
+              empresaName={hitosTarget.empresaName}
+              defaultOpen
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
     </>
   );

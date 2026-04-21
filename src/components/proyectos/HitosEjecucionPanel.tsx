@@ -16,10 +16,11 @@ import { cn } from "@/lib/utils";
 interface Props {
   proyectoEmpresaId: string;
   empresaName?: string | null;
+  defaultOpen?: boolean;
 }
 
-export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: Props) {
-  const [open, setOpen] = useState(false);
+export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, defaultOpen = false }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const { data: template } = useHitosTemplate();
   const { data: peData } = useHitosProyectoEmpresa(open ? proyectoEmpresaId : null);
   const { upsertValue, addExtraRow, deleteExtraRow } = useHitosProyectoEmpresaMutations(proyectoEmpresaId);
