@@ -1806,7 +1806,7 @@ function HitosEjecucionDialog({
   return (
     <>
       <Dialog open={!!target} onOpenChange={handleAttemptClose}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:!max-w-[93rem] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Hitos Ejecución — {target?.proyectoNombre}
