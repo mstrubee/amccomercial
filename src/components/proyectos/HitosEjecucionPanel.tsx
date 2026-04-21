@@ -382,8 +382,14 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                     return (
                     <tr key={row.id} className="border-t border-border" style={(() => {
                       const c = rowColorMap.get(row.id);
-                      if (!c?.color) return undefined;
-                      return { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` };
+                      const base: React.CSSProperties = c?.color
+                        ? { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` }
+                        : {};
+                      if (isRowDescartado("r", row.id)) {
+                        base.textDecoration = "line-through";
+                        base.opacity = 0.55;
+                      }
+                      return base;
                     })()}>
                       <td className="px-2 py-1 text-muted-foreground">
                         <div className="flex items-center gap-1" style={{ paddingLeft: depth * 10 }}>
