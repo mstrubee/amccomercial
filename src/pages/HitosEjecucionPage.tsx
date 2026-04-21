@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings, CalendarIcon } from "lucide-react";
+import { Check } from "lucide-react";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
