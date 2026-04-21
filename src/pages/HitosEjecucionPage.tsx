@@ -184,19 +184,31 @@ export default function HitosEjecucionPage() {
         }}>
           <Plus className="w-4 h-4 mr-1" /> Agregar fila
         </Button>
-        <Button variant="outline" size="sm" onClick={collapseAll} title="Colapsar todas las filas hijas">
-          <ChevronRight className="w-4 h-4 mr-1" /> Colapsar todas
-        </Button>
-        <Button variant="outline" size="sm" onClick={expandAll} title="Expandir todas las filas">
-          <ChevronDown className="w-4 h-4 mr-1" /> Expandir todas
-        </Button>
       </div>
 
       <div className="border border-border rounded-lg overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left px-3 py-2 w-16 text-muted-foreground font-medium">#</th>
+              <th className="text-left px-3 py-2 w-16 text-muted-foreground font-medium">
+                <div className="flex items-center gap-1">
+                  {(() => {
+                    const allCollapsed = parentIdsWithChildren.size > 0 && collapsed.size >= parentIdsWithChildren.size;
+                    return (
+                      <button
+                        type="button"
+                        onClick={allCollapsed ? expandAll : collapseAll}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded hover:bg-muted text-muted-foreground"
+                        title={allCollapsed ? "Expandir todas" : "Colapsar todas"}
+                        disabled={parentIdsWithChildren.size === 0}
+                      >
+                        {allCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    );
+                  })()}
+                  <span>#</span>
+                </div>
+              </th>
               {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                 <th key={col.id} className="text-left px-3 py-2 text-card-foreground font-semibold min-w-[180px]">
                   <div className="flex items-center gap-1.5">
