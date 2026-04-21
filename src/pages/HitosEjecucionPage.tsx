@@ -244,7 +244,6 @@ export default function HitosEjecucionPage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <span>{col.nombre}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">({col.tipo})</span>
                     <div className="ml-auto flex gap-0.5">
                       <Button variant="ghost" size="icon" className="h-6 w-6" title="Mover a la izquierda" onClick={() => moveColumn(col, -1)}><ArrowLeft className="w-3 h-3" /></Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" title="Mover a la derecha" onClick={() => moveColumn(col, 1)}><ArrowRight className="w-3 h-3" /></Button>
