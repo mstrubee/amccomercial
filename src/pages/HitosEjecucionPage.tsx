@@ -445,3 +445,47 @@ function DefaultCellEditor({ tipo, options, value, onCommit }: {
     />
   );
 }
+
+function CheckboxDefaultEditor({ col, value, onCommit }: {
+  col: HitosColumn;
+  value: string;
+  onCommit: (v: string) => void;
+}) {
+  let parsed: { checked: boolean; fecha?: string } = { checked: false };
+  try { if (value) parsed = JSON.parse(value); } catch { parsed = { checked: !!value }; }
+  const checked = !!parsed.checked;
+  const action = col.checkbox_action;
+  const showCompletedColor = checked && (action === "fijar_fecha_y_completar" || action === "solo_completar");
+  const showFecha = (action === "fijar_fecha_y_completar" || action === "solo_fecha") && checked && parsed.fecha;
+
+  const handleToggle = () => {
+    if (checked) {
+      onCommit(JSON.stringify({ checked: false }));
+    } else {
+      const next: any = { checked: true };
+      if (action === "fijar_fecha_y_completar" || action === "solo_fecha") {
+        next.fecha = format(new Date(), "yyyy-MM-dd");
+      }
+      onCommit(JSON.stringify(next));
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      className={cn(
+        "h-8 w-full rounded border text-xs flex items-center justify-center gap-1.5 transition-colors",
+        showCompletedColor ? "text-white border-transparent" : "border-border bg-background hover:bg-muted/40"
+      )}
+      style={showCompletedColor ? { backgroundColor: col.checkbox_color } : undefined}
+      title={action === "solo_fecha" ? "Marcar fecha" : action === "solo_completar" ? "Marcar completado" : "Marcar completado y fijar fecha"}
+    >
+      <span className={cn("w-3.5 h-3.5 rounded-sm border flex items-center justify-center", checked ? "bg-white/30 border-white/60" : "border-border")}>
+        {checked && <Check className="w-2.5 h-2.5" />}
+      </span>
+      {showFecha && <span>{format(parseISO(parsed.fecha!), "dd/MM/yy")}</span>}
+      {!checked && <span className="text-muted-foreground">—</span>}
+    </button>
+  );
+}
