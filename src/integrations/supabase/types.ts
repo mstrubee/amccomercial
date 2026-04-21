@@ -921,6 +921,61 @@ export type Database = {
           },
         ]
       }
+      historial_estatus_empresa: {
+        Row: {
+          categoria_id: string | null
+          created_at: string
+          created_by: string
+          fecha: string
+          id: string
+          monto_uf: number
+          proyecto_empresa_id: string
+          subcategoria_id: string | null
+        }
+        Insert: {
+          categoria_id?: string | null
+          created_at?: string
+          created_by: string
+          fecha?: string
+          id?: string
+          monto_uf?: number
+          proyecto_empresa_id: string
+          subcategoria_id?: string | null
+        }
+        Update: {
+          categoria_id?: string | null
+          created_at?: string
+          created_by?: string
+          fecha?: string
+          id?: string
+          monto_uf?: number
+          proyecto_empresa_id?: string
+          subcategoria_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historial_estatus_empresa_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_proyecto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historial_estatus_empresa_proyecto_empresa_id_fkey"
+            columns: ["proyecto_empresa_id"]
+            isOneToOne: false
+            referencedRelation: "proyecto_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historial_estatus_empresa_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_proyecto"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
