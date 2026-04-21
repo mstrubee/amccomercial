@@ -217,7 +217,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
       </CollapsibleContent>
     </Collapsible>
   );
-}
+});
+
+export default HitosEjecucionPanel;
 
 /* ── Cell editor with debounced auto-save ── */
 function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther }: {
