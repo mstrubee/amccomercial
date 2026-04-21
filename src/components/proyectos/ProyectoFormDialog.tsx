@@ -651,7 +651,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <div className="mt-1.5 pl-6 space-y-1">
                                   <div className="flex items-center gap-2">
                                     <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
-                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || ""} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || new Date().toISOString().split("T")[0]} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
                                   </div>
                                   <label className="flex items-center gap-1.5 cursor-pointer">
                                     <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
@@ -720,7 +720,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <div className="mt-1.5 pl-6 space-y-1">
                                   <div className="flex items-center gap-2">
                                     <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
-                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || ""} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || new Date().toISOString().split("T")[0]} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
                                   </div>
                                   <label className="flex items-center gap-1.5 cursor-pointer">
                                     <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
@@ -781,7 +781,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="mt-1.5 space-y-1">
                                 <div className="flex items-center gap-2">
                                   <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
-                                  <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || ""} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                  <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || new Date().toISOString().split("T")[0]} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
                                 </div>
                                 <label className="flex items-center gap-1.5 cursor-pointer">
                                   <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
