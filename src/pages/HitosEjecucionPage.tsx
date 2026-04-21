@@ -167,14 +167,40 @@ export default function HitosEjecucionPage() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Tipo</label>
-              <Select value={newColTipo} onValueChange={(v) => setNewColTipo(v as "texto" | "select")}>
+              <Select value={newColTipo} onValueChange={(v) => setNewColTipo(v as ColumnTipo)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="texto">Texto libre</SelectItem>
                   <SelectItem value="select">Lista desplegable</SelectItem>
+                  <SelectItem value="fecha">Fecha</SelectItem>
+                  <SelectItem value="checkbox">Casilla (checkbox)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {newColTipo === "checkbox" && (
+              <>
+                <div>
+                  <label className="text-xs text-muted-foreground">Acción al marcar</label>
+                  <Select value={newColAction} onValueChange={(v) => setNewColAction(v as CheckboxAction)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fijar_fecha_y_completar">Fijar fecha y pintar como completada</SelectItem>
+                      <SelectItem value="solo_fecha">Solo fijar fecha</SelectItem>
+                      <SelectItem value="solo_completar">Solo marcar como completada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {newColAction !== "solo_fecha" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">Color de completado</label>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={newColColor} onChange={(e) => setNewColColor(e.target.value)} className="h-9 w-14 rounded border border-border bg-transparent cursor-pointer" />
+                      <Input value={newColColor} onChange={(e) => setNewColColor(e.target.value)} className="flex-1" />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowAddCol(false)}>Cancelar</Button>
