@@ -246,8 +246,8 @@ export default function HitosEjecucionPage() {
                     <span>{col.nombre}</span>
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">({col.tipo})</span>
                     <div className="ml-auto flex gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" title="Subir" onClick={() => moveColumn(col, -1)}><ArrowUp className="w-3 h-3" /></Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" title="Bajar" onClick={() => moveColumn(col, 1)}><ArrowDown className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" title="Mover a la izquierda" onClick={() => moveColumn(col, -1)}><ArrowLeft className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" title="Mover a la derecha" onClick={() => moveColumn(col, 1)}><ArrowRight className="w-3 h-3" /></Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" title="Editar" onClick={() => setEditCol(col)}><Pencil className="w-3 h-3" /></Button>
                       {col.tipo === "select" && (
                         <Button variant="ghost" size="icon" className="h-6 w-6" title="Opciones" onClick={() => setOptionsCol(col)}><Settings className="w-3 h-3" /></Button>
