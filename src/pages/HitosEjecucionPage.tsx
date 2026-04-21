@@ -387,6 +387,16 @@ export default function HitosEjecucionPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground">¿Editable desde proyecto?</label>
+              <Select value={newColEditable ? "si" : "no"} onValueChange={(v) => setNewColEditable(v === "si")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="si">Sí</SelectItem>
+                  <SelectItem value="no">No (solo lectura en línea de proyecto)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {newColTipo === "checkbox" && (
               <>
                 <div>
