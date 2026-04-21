@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Check, X, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatChecklistDate, formatCompletedDate, daysInMonth } from "@/lib/checklist-date-utils";
 import {
@@ -296,7 +296,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
       {/* Collapsible checklist */}
       {totalCount > 0 && (
         <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
               <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !checklistOpen && "-rotate-90")} />
               Checklist ({completedCount}/{totalCount})
@@ -304,10 +304,14 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setShowCompleted(v => !v); }}
-              className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+              className={cn(
+                "inline-flex items-center justify-center h-5 w-5 rounded hover:bg-muted/50 transition-colors",
+                showCompleted ? "text-success" : "text-destructive"
+              )}
               title={showCompleted ? "Ocultar ítems completados" : "Mostrar también los completados"}
+              aria-label={showCompleted ? "Ocultar completados" : "Mostrar completados"}
             >
-              {showCompleted ? "Ocultar completados" : "Mostrar completados"}
+              {showCompleted ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             </button>
           </div>
           <CollapsibleContent>
