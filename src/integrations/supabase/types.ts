@@ -1173,18 +1173,21 @@ export type Database = {
       }
       hitos_template_rows: {
         Row: {
+          color: string | null
           created_at: string
           id: string
           orden: number
           parent_id: string | null
         }
         Insert: {
+          color?: string | null
           created_at?: string
           id?: string
           orden?: number
           parent_id?: string | null
         }
         Update: {
+          color?: string | null
           created_at?: string
           id?: string
           orden?: number

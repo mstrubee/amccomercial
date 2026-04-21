@@ -1,0 +1,1 @@
+ALTER TABLE public.hitos_template_rows ADD COLUMN IF NOT EXISTS color text;
