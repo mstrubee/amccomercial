@@ -317,6 +317,25 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
+              <div className="flex items-center justify-end gap-1 mb-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setHideCompleted(v => !v)}
+                  className={cn("h-7 text-xs gap-1", hideCompleted && "text-destructive hover:text-destructive")}
+                  title={hideCompleted ? "Mostrar todos los hitos" : "Ocultar hitos completados"}
+                >
+                  {hideCompleted ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {hideCompleted ? "Ver todos" : "Ocultar completados"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleExportExcel} className="h-7 text-xs gap-1" title="Descargar Excel">
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleExportPDF} className="h-7 text-xs gap-1" title="Descargar PDF">
+                  <FileText className="w-3.5 h-3.5" /> PDF
+                </Button>
+              </div>
               <table className="text-xs border border-border rounded" style={{ tableLayout: "fixed", width: "max-content", maxWidth: "100%" }}>
                 <thead className="bg-muted/40">
                   <tr>
