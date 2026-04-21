@@ -5,12 +5,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2 } from "lucide-react";
+import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2, History } from "lucide-react";
 import VentasEmpresaSection from "./VentasEmpresaSection";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
 import { useHistorialEstatusByIds, useCreateHistorialEstatus } from "@/hooks/useHistorialEstatus";
@@ -1354,41 +1355,57 @@ function EstatusInfoBlock({
     return "—";
   };
 
+  const latest = historialItems[0];
+
   return (
-    <div className="mt-1.5 space-y-1">
+    <div className="mt-1.5 flex items-start gap-2 flex-wrap">
       {hasInline && (
         <div className="flex items-center gap-2 flex-wrap">
           {isGanado && <Trophy className="w-3 h-3 text-emerald-600" />}
           <span className="text-[10px] text-muted-foreground">
             {row.ganado_presupuesto != null && `Monto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
             {row.ganado_op && `OP: ${row.ganado_op} `}
-            {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
+            {latest
+              ? `· Último: ${labelFor(latest.categoria_id, latest.subcategoria_id)} (${latest.fecha})`
+              : row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
           </span>
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onEdit}><Pencil className="w-3 h-3" /></button>
           <button type="button" className="text-muted-foreground hover:text-destructive" onClick={onClear}><Trash2 className="w-3 h-3" /></button>
         </div>
       )}
       {historialItems.length > 0 && (
-        <div className="rounded border border-border/60 bg-muted/30 px-2 py-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
-            Historial de estatus
-          </div>
-          <ul className="space-y-0.5">
-            {historialItems.slice(0, 6).map((h) => (
-              <li key={h.id} className="text-[10px] text-muted-foreground flex items-center gap-2">
-                <span className="font-medium text-card-foreground">{h.fecha}</span>
-                <span>·</span>
-                <span>{labelFor(h.categoria_id, h.subcategoria_id)}</span>
-                {h.monto_uf > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{formatUF(h.monto_uf)}</span>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground rounded border border-border/60 bg-muted/30 px-1.5 py-0.5"
+              title="Ver historial de estatus"
+            >
+              <History className="w-3 h-3" />
+              Historial ({historialItems.length})
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-2" align="start">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+              Historial de estatus
+            </div>
+            <ul className="space-y-0.5 max-h-60 overflow-auto">
+              {historialItems.map((h) => (
+                <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2">
+                  <span className="font-medium text-card-foreground">{h.fecha}</span>
+                  <span>·</span>
+                  <span>{labelFor(h.categoria_id, h.subcategoria_id)}</span>
+                  {h.monto_uf > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>{formatUF(h.monto_uf)}</span>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );
