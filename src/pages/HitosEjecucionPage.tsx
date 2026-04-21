@@ -30,6 +30,33 @@ export default function HitosEjecucionPage() {
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem("hitos_col_widths") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("hitos_col_widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+
+  const startResize = (e: React.MouseEvent, colId: string, currentWidth: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = currentWidth;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(80, startW + (ev.clientX - startX));
+      setColWidths(prev => ({ ...prev, [colId]: w }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
 
   const columns = data?.columns || [];
   const rows = data?.rows || [];
@@ -210,7 +237,11 @@ export default function HitosEjecucionPage() {
                 </div>
               </th>
               {columns.sort((a, b) => a.orden - b.orden).map((col) => (
-                <th key={col.id} className="text-left px-3 py-2 text-card-foreground font-semibold min-w-[180px]">
+                <th
+                  key={col.id}
+                  className="text-left px-3 py-2 text-card-foreground font-semibold relative"
+                  style={{ width: colWidths[col.id] ?? 200, minWidth: 80 }}
+                >
                   <div className="flex items-center gap-1.5">
                     <span>{col.nombre}</span>
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">({col.tipo})</span>
@@ -229,6 +260,11 @@ export default function HitosEjecucionPage() {
                       }}><Trash2 className="w-3 h-3" /></Button>
                     </div>
                   </div>
+                  <div
+                    onMouseDown={(e) => startResize(e, col.id, colWidths[col.id] ?? 200)}
+                    className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/60"
+                    title="Arrastrar para ajustar ancho"
+                  />
                 </th>
               ))}
               <th className="w-24"></th>
