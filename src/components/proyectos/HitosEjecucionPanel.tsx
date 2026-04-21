@@ -423,26 +423,12 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
   if (tipo === "fecha") {
     const dateValue = value && isValid(parseISO(value)) ? parseISO(value) : undefined;
     return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" disabled={lockedByCheckbox || readOnly} className={cn("h-7 text-xs w-full justify-start font-normal", !dateValue && "text-muted-foreground", (lockedByCheckbox || readOnly) && "opacity-100")}>
-            <CalendarIcon className="w-3 h-3 mr-1.5" />
-            {dateValue ? format(dateValue, "dd MMM yyyy", { locale: es }) : "—"}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={dateValue}
-            onSelect={(d) => {
-              if (d) onCommit(format(d, "yyyy-MM-dd"));
-              else onCommit("");
-            }}
-            initialFocus
-            className={cn("p-3 pointer-events-auto")}
-          />
-        </PopoverContent>
-      </Popover>
+      <DateCellEditor
+        value={value}
+        dateValue={dateValue}
+        disabled={lockedByCheckbox || readOnly}
+        onCommit={onCommit}
+      />
     );
   }
 
