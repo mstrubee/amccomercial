@@ -572,7 +572,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                     onChange={(e) => setEstadoObra(e.target.value)}
                   >
                     <option value="">Seleccionar...</option>
-                    {["Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"].map((opt) => (
+                    {["Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra/Ejecución", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"].map((opt) => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
