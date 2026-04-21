@@ -444,6 +444,7 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
   const [tipo, setTipo] = useState<ColumnTipo>(col?.tipo || "texto");
   const [action, setAction] = useState<CheckboxAction>(col?.checkbox_action || "fijar_fecha_y_completar");
   const [color, setColor] = useState(col?.checkbox_color || "#22c55e");
+  const [editable, setEditable] = useState<boolean>(col?.editable_en_proyecto !== false);
 
   if (!col) return null;
   return (
@@ -464,6 +465,16 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
                 <SelectItem value="select">Lista desplegable</SelectItem>
                 <SelectItem value="fecha">Fecha</SelectItem>
                 <SelectItem value="checkbox">Casilla (checkbox)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">¿Editable desde proyecto?</label>
+            <Select value={editable ? "si" : "no"} onValueChange={(v) => setEditable(v === "si")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="si">Sí</SelectItem>
+                <SelectItem value="no">No (solo lectura en línea de proyecto)</SelectItem>
               </SelectContent>
             </Select>
           </div>
