@@ -423,6 +423,12 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   };
 
   const getSelectValue = (row: EmpresaRow): string => {
+    const historial = getHistorialForEmpresa(row.empresa_id);
+    const latest = historial[0];
+    if (latest) {
+      if (latest.subcategoria_id) return `sub:${latest.subcategoria_id}`;
+      if (latest.categoria_id) return `cat:${latest.categoria_id}`;
+    }
     if (row.subcategoria_id) return `sub:${row.subcategoria_id}`;
     if (row.categoria_id) return `cat:${row.categoria_id}`;
     return "none";
