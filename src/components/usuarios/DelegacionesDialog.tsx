@@ -65,6 +65,19 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
 
   const isActive = (d: Delegacion) => !d.revocada && new Date(d.fecha_fin) > new Date();
 
+  const startEdit = (d: Delegacion) => {
+    setEditingId(d.id);
+    setEditDelegadoId(d.delegado_id);
+    setEditFechaFin(d.fecha_fin.slice(0, 10));
+  };
+
+  const saveEdit = (id: string) => {
+    updateDelegacion.mutate(
+      { id, delegado_id: editDelegadoId, fecha_fin: new Date(editFechaFin + "T23:59:59").toISOString() },
+      { onSuccess: () => setEditingId(null) }
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
