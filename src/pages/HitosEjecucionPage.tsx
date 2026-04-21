@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings, CalendarIcon } from "lucide-react";
+import { format, parse, isValid, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
