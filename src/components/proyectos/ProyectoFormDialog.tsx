@@ -437,6 +437,19 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     }
     return null;
   };
+
+  /** Historial entries for a given empresa_id (across all linked proyecto_empresas of this group) */
+  const getHistorialForEmpresa = (empresaId: string) => {
+    if (!historialEstatus) return [];
+    const sourceItems = groupItems && groupItems.length > 0 ? groupItems : initialData ? [initialData] : [];
+    const peIds = new Set<string>();
+    for (const item of sourceItems) {
+      for (const pe of (item.proyecto_empresas || [])) {
+        if (pe.empresa_id === empresaId) peIds.add(pe.id);
+      }
+    }
+    return historialEstatus.filter((h) => peIds.has(h.proyecto_empresa_id));
+  };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
