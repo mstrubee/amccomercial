@@ -192,6 +192,34 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     return n;
   }, [leafTplRows, extraRows, isRowCompleted]);
 
+  // Resizable column widths (persisted per user in localStorage)
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem("hitos_panel_col_widths") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("hitos_panel_col_widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const startResize = useCallback((e: React.MouseEvent, colId: string, currentWidth: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = currentWidth;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(60, startW + (ev.clientX - startX));
+      setColWidths(prev => ({ ...prev, [colId]: w }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border border-border rounded-lg bg-card/60">
       <CollapsibleTrigger asChild>
