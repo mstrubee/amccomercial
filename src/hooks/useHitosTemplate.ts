@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type CheckboxAction = "fijar_fecha_y_completar" | "solo_fecha" | "solo_completar";
+export type CheckboxAction = "fijar_fecha_y_completar" | "solo_fecha" | "solo_completar" | "descartar";
 export type ColumnTipo = "texto" | "select" | "fecha" | "checkbox";
 
 export type HitosColumn = {
