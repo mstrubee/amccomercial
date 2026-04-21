@@ -20,6 +20,7 @@ import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { todayLocalISO } from "@/lib/date-utils";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/useProyectos";
 import { useCategorias, CategoriaWithSubs } from "@/hooks/useCategorias";
@@ -110,7 +111,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const [fechaEstadoObra, setFechaEstadoObra] = useState("");
   const [estadoAmc, setEstadoAmc] = useState("Vigente");
   const [notas, setNotas] = useState("");
-  const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split("T")[0]);
+  const [fechaIngreso, setFechaIngreso] = useState(todayLocalISO());
   const [clasificacionId, setClasificacionId] = useState<string | null>(null);
   const [empresaRows, setEmpresaRows] = useState<EmpresaRow[]>([]);
   const [crearAlertaEmpresaIds, setCrearAlertaEmpresaIds] = useState<Set<string>>(new Set());
@@ -128,7 +129,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const [ganadoPrevCatId, setGanadoPrevCatId] = useState<string | null>(null);
   const [ganadoPresupuesto, setGanadoPresupuesto] = useState<string>("");
   const [ganadoOp, setGanadoOp] = useState("");
-  const [ganadoFecha, setGanadoFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [ganadoFecha, setGanadoFecha] = useState(todayLocalISO());
   // 'UF' or 'CLP' for the dialog input
   const [ganadoMoneda, setGanadoMoneda] = useState<"UF" | "CLP">("UF");
 
@@ -184,7 +185,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       setFechaEstadoObra(initialData.fecha_estado_obra || "");
       setEstadoAmc(initialData.estado_amc);
       setNotas(initialData.notas || "");
-      setFechaIngreso((initialData as any).fecha_ingreso || new Date().toISOString().split("T")[0]);
+      setFechaIngreso((initialData as any).fecha_ingreso || todayLocalISO());
       setClasificacionId((initialData as any).clasificacion_id || null);
 
       // Build empresa rows from existing links (or from all group items for parent edit)
@@ -244,7 +245,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     } else {
       setNombre(""); setRegion(""); setDireccion(""); setComuna(""); setEstadoObra(""); setFechaEstadoObra("");
       setEstadoAmc("Vigente"); setNotas("");
-      setFechaIngreso(new Date().toISOString().split("T")[0]);
+      setFechaIngreso(todayLocalISO());
       setClasificacionId(null);
       // All empresas selected by default for new projects
       if (empresas) {
@@ -342,7 +343,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     }
     const permiteFecha = categoryPermiteFecha(newCatId, newSubId);
     const row = empresaRows.find(r => r.empresa_id === empresa_id);
-    const fecha = permiteFecha && !row?.fecha_categoria ? new Date().toISOString().split("T")[0] : row?.fecha_categoria || null;
+    const fecha = permiteFecha && !row?.fecha_categoria ? todayLocalISO() : row?.fecha_categoria || null;
 
     // Always open the Estatus dialog for any change → captures monto + fecha
     // (and OP only when subcategoría === Ganado).
@@ -355,7 +356,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     );
     // OP only relevant for Ganado
     setGanadoOp(newSubId === GANADO_SUBCATEGORIA_ID ? (row?.ganado_op || "") : "");
-    setGanadoFecha(new Date().toISOString().split("T")[0]);
+    setGanadoFecha(todayLocalISO());
     // Apply the category change optimistically
     updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null });
     setGanadoDialogOpen(true);
@@ -385,7 +386,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
         categoria_id: row?.categoria_id || null,
         subcategoria_id: row?.subcategoria_id || null,
         monto_uf: presupuestoVal || 0,
-        fecha: ganadoFecha || new Date().toISOString().split("T")[0],
+        fecha: ganadoFecha || todayLocalISO(),
       });
     }
 
@@ -414,7 +415,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     setGanadoPrevSubId(row.subcategoria_id);
     setGanadoPresupuesto(row.ganado_presupuesto ? String(row.ganado_presupuesto) : "");
     setGanadoOp(row.ganado_op || "");
-    setGanadoFecha(row.ganado_fecha || new Date().toISOString().split("T")[0]);
+    setGanadoFecha(row.ganado_fecha || todayLocalISO());
     setGanadoDialogOpen(true);
   };
 
@@ -651,7 +652,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <div className="mt-1.5 pl-6 space-y-1">
                                   <div className="flex items-center gap-2">
                                     <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
-                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || new Date().toISOString().split("T")[0]} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || todayLocalISO()} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
                                   </div>
                                   <label className="flex items-center gap-1.5 cursor-pointer">
                                     <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
@@ -720,7 +721,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                 <div className="mt-1.5 pl-6 space-y-1">
                                   <div className="flex items-center gap-2">
                                     <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
-                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || new Date().toISOString().split("T")[0]} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                    <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || todayLocalISO()} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
                                   </div>
                                   <label className="flex items-center gap-1.5 cursor-pointer">
                                     <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
@@ -781,7 +782,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="mt-1.5 space-y-1">
                                 <div className="flex items-center gap-2">
                                   <Label className="text-[10px] text-muted-foreground">Fecha:</Label>
-                                  <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || new Date().toISOString().split("T")[0]} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
+                                  <Input type="date" className="h-7 w-36 text-xs" value={row.fecha_categoria || todayLocalISO()} onChange={(e) => updateEmpresaRow(row.empresa_id, { fecha_categoria: e.target.value || null })} />
                                 </div>
                                 <label className="flex items-center gap-1.5 cursor-pointer">
                                   <Checkbox className="h-3.5 w-3.5" checked={crearAlertaEmpresaIds.has(row.empresa_id)} onCheckedChange={(v) => { const next = new Set(crearAlertaEmpresaIds); v ? next.add(row.empresa_id) : next.delete(row.empresa_id); setCrearAlertaEmpresaIds(next); }} />
