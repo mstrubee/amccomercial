@@ -1325,6 +1325,7 @@ function ContactosSection(props: ContactosSectionProps) {
 /* ── Estatus info block: monto, OP (only Ganado), fecha + brief history ── */
 function EstatusInfoBlock({
   row,
+  proyectoEmpresaId,
   historialItems,
   categorias,
   onEdit,
@@ -1332,6 +1333,7 @@ function EstatusInfoBlock({
   isGanado,
 }: {
   row: EmpresaRow;
+  proyectoEmpresaId: string | null | undefined;
   historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string }[];
   categorias: CategoriaWithSubs[];
   onEdit: () => void;
@@ -1395,11 +1397,11 @@ function EstatusInfoBlock({
               <button
                 type="button"
                 className="text-[10px] text-destructive hover:underline disabled:opacity-50"
-                disabled={deleteAll.isPending || !row.id}
+                disabled={deleteAll.isPending || !proyectoEmpresaId}
                 onClick={() => {
-                  if (!row.id) return;
+                  if (!proyectoEmpresaId) return;
                   if (confirm(`¿Eliminar todo el historial (${historialItems.length} entradas)? Esta acción no se puede deshacer.`)) {
-                    deleteAll.mutate(row.id);
+                    deleteAll.mutate(proyectoEmpresaId);
                   }
                 }}
               >
