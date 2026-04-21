@@ -62,8 +62,14 @@ export function useHitosTemplateMutations() {
   const invalidate = async () => { await qc.invalidateQueries({ queryKey: ["hitos-template"] }); };
 
   const addColumn = useMutation({
-    mutationFn: async ({ nombre, tipo, orden }: { nombre: string; tipo: "texto" | "select"; orden: number }) => {
-      const { data, error } = await supabase.from("hitos_template_columns").insert({ nombre, tipo, orden }).select().single();
+    mutationFn: async ({ nombre, tipo, orden, checkbox_action, checkbox_color }: {
+      nombre: string; tipo: ColumnTipo; orden: number;
+      checkbox_action?: CheckboxAction; checkbox_color?: string;
+    }) => {
+      const payload: any = { nombre, tipo, orden };
+      if (checkbox_action) payload.checkbox_action = checkbox_action;
+      if (checkbox_color) payload.checkbox_color = checkbox_color;
+      const { data, error } = await supabase.from("hitos_template_columns").insert(payload).select().single();
       if (error) throw error;
       return data;
     },
@@ -71,7 +77,10 @@ export function useHitosTemplateMutations() {
   });
 
   const updateColumn = useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; nombre?: string; tipo?: "texto" | "select"; orden?: number }) => {
+    mutationFn: async ({ id, ...updates }: {
+      id: string; nombre?: string; tipo?: ColumnTipo; orden?: number;
+      checkbox_action?: CheckboxAction; checkbox_color?: string;
+    }) => {
       const { error } = await supabase.from("hitos_template_columns").update(updates).eq("id", id);
       if (error) throw error;
     },
