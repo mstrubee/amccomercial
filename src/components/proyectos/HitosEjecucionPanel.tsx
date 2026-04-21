@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
+import { format, parseISO, isValid } from "date-fns";
+import { es } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { todayLocalISO } from "@/lib/date-utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useHitosTemplate } from "@/hooks/useHitosTemplate";
+import { useHitosTemplate, type HitosColumn } from "@/hooks/useHitosTemplate";
 import { useHitosProyectoEmpresa, useHitosProyectoEmpresaMutations } from "@/hooks/useHitosProyectoEmpresa";
 import { cn } from "@/lib/utils";
 
@@ -75,8 +80,7 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
-                            tipo={c.tipo}
-                            options={c.options.map(o => o.valor)}
+                            col={c}
                             value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
                           />
@@ -91,8 +95,7 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
-                            tipo={c.tipo}
-                            options={c.options.map(o => o.valor)}
+                            col={c}
                             value={valueMap.get(`e:${row.id}|c:${c.id}`) || ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: c.id, valor: v })}
                           />
