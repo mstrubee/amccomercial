@@ -9,7 +9,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn } from "@/hooks/useHitosTemplate";
+import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn, type ColumnTipo, type CheckboxAction } from "@/hooks/useHitosTemplate";
 
 export default function HitosEjecucionPage() {
   const { data, isLoading } = useHitosTemplate();
@@ -17,7 +17,9 @@ export default function HitosEjecucionPage() {
 
   const [showAddCol, setShowAddCol] = useState(false);
   const [newColName, setNewColName] = useState("");
-  const [newColTipo, setNewColTipo] = useState<"texto" | "select">("texto");
+  const [newColTipo, setNewColTipo] = useState<ColumnTipo>("texto");
+  const [newColAction, setNewColAction] = useState<CheckboxAction>("fijar_fecha_y_completar");
+  const [newColColor, setNewColColor] = useState("#22c55e");
 
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
@@ -40,8 +42,13 @@ export default function HitosEjecucionPage() {
       toast.error("Ya existe una columna con ese nombre"); return;
     }
     try {
-      await m.addColumn.mutateAsync({ nombre: name, tipo: newColTipo, orden: columns.length });
-      setNewColName(""); setNewColTipo("texto"); setShowAddCol(false);
+      await m.addColumn.mutateAsync({
+        nombre: name, tipo: newColTipo, orden: columns.length,
+        checkbox_action: newColTipo === "checkbox" ? newColAction : undefined,
+        checkbox_color: newColTipo === "checkbox" ? newColColor : undefined,
+      });
+      setNewColName(""); setNewColTipo("texto"); setNewColAction("fijar_fecha_y_completar"); setNewColColor("#22c55e");
+      setShowAddCol(false);
       toast.success("Columna agregada");
     } catch (e: any) { toast.error(e.message); }
   };
