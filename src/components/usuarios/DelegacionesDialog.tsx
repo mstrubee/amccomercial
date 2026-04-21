@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { UserCheck, XCircle, Loader2, Plus } from "lucide-react";
-import { useDelegacionesPorDelegante, useCreateDelegacion, useRevokeDelegacion, Delegacion } from "@/hooks/useDelegaciones";
+import { UserCheck, XCircle, Loader2, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { useDelegacionesPorDelegante, useCreateDelegacion, useRevokeDelegacion, useUpdateDelegacion, useDeleteDelegacion, Delegacion } from "@/hooks/useDelegaciones";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -22,6 +22,8 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
   const { data: delegaciones, isLoading } = useDelegacionesPorDelegante(user?.id || null);
   const createDelegacion = useCreateDelegacion();
   const revokeDelegacion = useRevokeDelegacion();
+  const updateDelegacion = useUpdateDelegacion();
+  const deleteDelegacion = useDeleteDelegacion();
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
@@ -34,12 +36,16 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
   const [showForm, setShowForm] = useState(false);
   const [delegadoId, setDelegadoId] = useState("");
   const [fechaFin, setFechaFin] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDelegadoId, setEditDelegadoId] = useState("");
+  const [editFechaFin, setEditFechaFin] = useState("");
 
   useEffect(() => {
     if (open) {
       setShowForm(false);
       setDelegadoId("");
       setFechaFin("");
+      setEditingId(null);
     }
   }, [open]);
 
