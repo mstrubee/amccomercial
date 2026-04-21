@@ -264,7 +264,7 @@ export async function importTemplateFromExcel(
       const idx = colIndexByColumnId.get(c.id);
       if (idx === undefined) continue;
       const current = defaultsMap.get(`${p.rowId}|${c.id}`) || "";
-      const newVal = parseImportedCell(c.tipo, line[idx], current);
+      const newVal = parseImportedCell(c, line[idx], current);
       if (newVal === current) continue;
       const { data: existing } = await supabase
         .from("hitos_template_row_defaults" as any)
