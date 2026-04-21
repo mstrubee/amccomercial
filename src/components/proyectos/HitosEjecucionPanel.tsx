@@ -163,12 +163,13 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                             col={c}
                             allColumns={columns}
                             rowValues={columns.reduce((acc, cc) => {
-                              acc[cc.id] = valueMap.get(`r:${row.id}|c:${cc.id}`) ?? defaultsMap.get(`${row.id}|${cc.id}`) ?? "";
+                              const k = `r:${row.id}|c:${cc.id}`;
+                              acc[cc.id] = stagedValueFor(k, valueMap.get(k) ?? defaultsMap.get(`${row.id}|${cc.id}`) ?? "");
                               return acc;
                             }, {} as Record<string, string>)}
-                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: colId, valor: v })}
-                            value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
-                            onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
+                            onCommitOther={(colId, v) => stageOrCommit(row.id, null, colId, v)}
+                            value={stagedValueFor(`r:${row.id}|c:${c.id}`, valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? "")}
+                            onCommit={(v) => stageOrCommit(row.id, null, c.id, v)}
                           />
                         </td>
                       ))}
@@ -184,12 +185,13 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                             col={c}
                             allColumns={columns}
                             rowValues={columns.reduce((acc, cc) => {
-                              acc[cc.id] = valueMap.get(`e:${row.id}|c:${cc.id}`) || "";
+                              const k = `e:${row.id}|c:${cc.id}`;
+                              acc[cc.id] = stagedValueFor(k, valueMap.get(k) || "");
                               return acc;
                             }, {} as Record<string, string>)}
-                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: colId, valor: v })}
-                            value={valueMap.get(`e:${row.id}|c:${c.id}`) || ""}
-                            onCommit={(v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: c.id, valor: v })}
+                            onCommitOther={(colId, v) => stageOrCommit(null, row.id, colId, v)}
+                            value={stagedValueFor(`e:${row.id}|c:${c.id}`, valueMap.get(`e:${row.id}|c:${c.id}`) || "")}
+                            onCommit={(v) => stageOrCommit(null, row.id, c.id, v)}
                           />
                         </td>
                       ))}
