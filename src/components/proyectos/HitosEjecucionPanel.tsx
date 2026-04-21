@@ -231,9 +231,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
 
   const exportRows = useCallback(() => {
     const rows: { num: string; cells: string[] }[] = [];
-    tplRows.forEach((row, idx) => {
+    orderedTplRows.forEach(({ row, numbering }) => {
       const cells = columns.map(c => getDisplayValue("r", row.id, c));
-      rows.push({ num: numberMap.get(row.id) || String(idx + 1), cells });
+      rows.push({ num: numbering, cells });
     });
     const baseN = tplRows.filter(r => !r.parent_id).length;
     extraRows.forEach((row, idx) => {
@@ -241,7 +241,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
       rows.push({ num: String(baseN + idx + 1), cells });
     });
     return rows;
-  }, [tplRows, extraRows, columns, getDisplayValue, numberMap]);
+  }, [orderedTplRows, tplRows, extraRows, columns, getDisplayValue]);
 
   const handleExportExcel = useCallback(async () => {
     const XLSX = await import("xlsx");
@@ -365,13 +365,11 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   </tr>
                 </thead>
                 <tbody>
-                  {tplRows.map((row, idx) => {
+                  {orderedTplRows.map(({ row, depth, numbering, hasChildren }) => {
                     if (!isRowVisible(row.id)) return null;
-                    const hasChildren = (childrenMap.get(row.id) || []).length > 0;
                     // Hide completed leaf rows when filter is on
                     if (hideCompleted && !hasChildren && isRowCompleted("r", row.id)) return null;
                     const collapsed = collapsedRows.has(row.id);
-                    const depth = depthMap.get(row.id) || 0;
                     return (
                     <tr key={row.id} className="border-t border-border" style={(() => {
                       const c = rowColorMap.get(row.id);
@@ -398,7 +396,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                           ) : (
                             <span className="inline-block w-4" />
                           )}
-                          <span>{numberMap.get(row.id) || idx + 1}</span>
+                          <span>{numbering}</span>
                         </div>
                       </td>
                       {columns.map(c => (
