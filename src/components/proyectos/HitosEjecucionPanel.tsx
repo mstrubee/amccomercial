@@ -265,7 +265,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                           <span className="block truncate pr-2">{c.nombre}</span>
                           <span
                             onMouseDown={(e) => startResize(e, c.id, w)}
-                            className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/30"
+                            className="absolute top-0 -right-1 h-full w-2 cursor-col-resize select-none hover:bg-primary/40 z-10"
                             title="Arrastra para ajustar el ancho"
                           />
                         </th>
