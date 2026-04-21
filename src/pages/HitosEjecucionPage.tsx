@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,12 @@ export default function HitosEjecucionPage() {
 
   const columns = data?.columns || [];
   const rows = data?.rows || [];
+  const defaults = data?.defaults || [];
+  const defaultsMap = useMemo(() => {
+    const m = new Map<string, string>();
+    defaults.forEach(d => m.set(`${d.row_id}|${d.column_id}`, d.valor));
+    return m;
+  }, [defaults]);
 
   const handleAddColumn = async () => {
     const name = newColName.trim();
@@ -67,7 +73,7 @@ export default function HitosEjecucionPage() {
       <div>
         <h1 className="text-2xl font-bold text-card-foreground">Hitos Ejecución Proyectos</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Define la plantilla global de checklist que aparecerá bajo cada empresa cuando un proyecto esté en fase «Obra/Ejecución».
+          Define la plantilla global TIPO de checklist. Las columnas son fijas (solo se gestionan aquí). El contenido de las filas funciona como valores por defecto que se cargan en cada proyecto. En cada proyecto se pueden agregar filas extra, pero no columnas.
         </p>
       </div>
 
