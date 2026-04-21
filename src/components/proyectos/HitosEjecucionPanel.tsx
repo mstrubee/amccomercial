@@ -600,16 +600,71 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
   }
 
   return (
-    <Input
-      value={local}
-      onChange={(e) => handleChange(e.target.value)}
-      onFocus={() => { focusedRef.current = true; }}
-      onBlur={() => { focusedRef.current = false; clearTimeout(timer.current); onCommit(local); }}
-      readOnly={readOnly}
-      disabled={readOnly}
-      tabIndex={readOnly ? -1 : undefined}
-      className={cn("h-7 text-xs", readOnly && "pointer-events-none select-none opacity-100 bg-muted/40")}
-    />
+    <TextCellEditor value={value} onCommit={onCommit} readOnly={readOnly} />
+  );
+}
+
+/* ── Text editor: truncated cell, 1-click popover view, double-click to edit ── */
+function TextCellEditor({ value, onCommit, readOnly }: { value: string; onCommit: (v: string) => void; readOnly: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  useEffect(() => { if (!open) setEditing(false); }, [open]);
+
+  const handleSave = () => {
+    onCommit(draft);
+    setEditing(false);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onDoubleClick={(e) => { if (readOnly) return; e.preventDefault(); setOpen(true); setEditing(true); }}
+          className={cn(
+            "h-7 w-full px-2 rounded border border-border bg-background text-xs text-left truncate flex items-center",
+            !readOnly && "hover:bg-muted/40 cursor-pointer",
+            readOnly && "bg-muted/40 cursor-default"
+          )}
+          title={value || ""}
+        >
+          <span className="truncate w-full">{value || <span className="text-muted-foreground">—</span>}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-2"
+        align="start"
+        onDoubleClick={() => { if (!readOnly) setEditing(true); }}
+      >
+        {editing ? (
+          <div className="space-y-2">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="w-full min-h-[120px] text-xs p-2 rounded border border-border bg-background resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <div className="flex justify-end gap-1">
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setDraft(value); setEditing(false); }}>Cancelar</Button>
+              <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSave}>Guardar</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-xs whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
+              {value || <span className="text-muted-foreground">Sin contenido</span>}
+            </div>
+            {!readOnly && (
+              <p className="text-[10px] text-muted-foreground italic">Doble click para editar</p>
+            )}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
