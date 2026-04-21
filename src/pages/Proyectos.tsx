@@ -884,7 +884,7 @@ export default function Proyectos() {
                                       estadosAmc={estadosAmc || []}
                                       onUpdate={(nuevo) => handleUpdateEstadoAmcPE(pe.id, nuevo)}
                                     />
-                                    {p.estado_obra === "Obra/Ejecución" && (
+                                    {((pe as any).estado_amc === "Obra/Ejecución") && (
                                       <button
                                         type="button"
                                         onClick={(e) => {
