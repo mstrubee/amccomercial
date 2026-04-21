@@ -651,6 +651,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="pl-6">
                                 <EstatusInfoBlock
                                   row={row}
+                                  proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
                                   historialItems={getHistorialForEmpresa(row.empresa_id)}
                                   categorias={categorias || []}
                                   onEdit={() => openGanadoEdit(row.empresa_id)}
@@ -714,6 +715,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="pl-6">
                                 <EstatusInfoBlock
                                   row={row}
+                                  proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
                                   historialItems={getHistorialForEmpresa(row.empresa_id)}
                                   categorias={categorias || []}
                                   onEdit={() => openGanadoEdit(row.empresa_id)}
@@ -768,6 +770,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                              )}
                             <EstatusInfoBlock
                               row={row}
+                              proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
                               historialItems={getHistorialForEmpresa(row.empresa_id)}
                               categorias={categorias || []}
                               onEdit={() => openGanadoEdit(row.empresa_id)}
