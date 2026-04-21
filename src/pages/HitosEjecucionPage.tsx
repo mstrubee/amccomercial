@@ -351,7 +351,7 @@ function OptionsDialog({ col, onClose }: { col: HitosColumn | null; onClose: () 
 }
 
 function DefaultCellEditor({ tipo, options, value, onCommit }: {
-  tipo: "texto" | "select";
+  tipo: "texto" | "select" | "fecha";
   options: string[];
   value: string;
   onCommit: (v: string) => void;
