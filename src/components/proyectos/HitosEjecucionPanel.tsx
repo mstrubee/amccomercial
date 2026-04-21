@@ -207,6 +207,73 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     return n;
   }, [leafTplRows, extraRows, isRowCompleted]);
 
+  // Hide completed (leaf) rows toggle
+  const [hideCompleted, setHideCompleted] = useState(false);
+
+  // Get display value for export (text representation of cell value)
+  const getDisplayValue = useCallback((prefix: "r" | "e", rowId: string, col: HitosColumn): string => {
+    const k = `${prefix}:${rowId}|c:${col.id}`;
+    const raw = stagedValueFor(k, valueMap.get(k) ?? (prefix === "r" ? defaultsMap.get(`${rowId}|${col.id}`) : "") ?? "");
+    if (!raw) return "";
+    if (col.tipo === "checkbox") {
+      try {
+        const p = JSON.parse(raw);
+        if (!p.checked) return "";
+        return p.fecha ? `✓ ${format(parseISO(p.fecha), "dd-MM-yyyy")}` : "✓";
+      } catch { return raw ? "✓" : ""; }
+    }
+    if (col.tipo === "fecha") {
+      const d = parseISO(raw);
+      return isValid(d) ? format(d, "dd-MM-yyyy") : raw;
+    }
+    return raw;
+  }, [stagedValueFor, valueMap, defaultsMap]);
+
+  const exportRows = useCallback(() => {
+    const rows: { num: string; cells: string[] }[] = [];
+    tplRows.forEach((row, idx) => {
+      const cells = columns.map(c => getDisplayValue("r", row.id, c));
+      rows.push({ num: numberMap.get(row.id) || String(idx + 1), cells });
+    });
+    const baseN = tplRows.filter(r => !r.parent_id).length;
+    extraRows.forEach((row, idx) => {
+      const cells = columns.map(c => getDisplayValue("e", row.id, c));
+      rows.push({ num: String(baseN + idx + 1), cells });
+    });
+    return rows;
+  }, [tplRows, extraRows, columns, getDisplayValue, numberMap]);
+
+  const handleExportExcel = useCallback(async () => {
+    const XLSX = await import("xlsx");
+    const headers = ["#", ...columns.map(c => c.nombre)];
+    const data = exportRows().map(r => [r.num, ...r.cells]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Hitos Ejecución");
+    const fname = `Hitos_${(empresaName || "empresa").replace(/[^\w]/g, "_")}_${format(new Date(), "yyyyMMdd")}.xlsx`;
+    XLSX.writeFile(wb, fname);
+  }, [columns, exportRows, empresaName]);
+
+  const handleExportPDF = useCallback(async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setFontSize(14);
+    doc.text(`Hitos Ejecución${empresaName ? ` — ${empresaName}` : ""}`, 14, 14);
+    doc.setFontSize(9);
+    doc.text(`Generado: ${format(new Date(), "dd-MM-yyyy HH:mm")} · ${completedHitos}/${totalHitos} completados`, 14, 20);
+    autoTable(doc, {
+      startY: 25,
+      head: [["#", ...columns.map(c => c.nombre)]],
+      body: exportRows().map(r => [r.num, ...r.cells]),
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      headStyles: { fillColor: [60, 60, 60] },
+      columnStyles: { 0: { cellWidth: 12 } },
+    });
+    const fname = `Hitos_${(empresaName || "empresa").replace(/[^\w]/g, "_")}_${format(new Date(), "yyyyMMdd")}.pdf`;
+    doc.save(fname);
+  }, [columns, exportRows, empresaName, completedHitos, totalHitos]);
+
   // Resizable column widths (persisted per user in localStorage)
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try { return JSON.parse(localStorage.getItem("hitos_panel_col_widths") || "{}"); } catch { return {}; }
