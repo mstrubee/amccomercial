@@ -121,7 +121,7 @@ export default function HitosEjecucionPage() {
   };
 
   // Build flat hierarchical list with depth
-  type FlatRow = { row: HitosRow; depth: number; numbering: string };
+  type FlatRow = { row: HitosRow; depth: number; numbering: string; ancestorColor: string | null };
   const flatRows = useMemo(() => {
     const childrenMap = new Map<string | null, HitosRow[]>();
     rows.forEach(r => {
@@ -132,15 +132,16 @@ export default function HitosEjecucionPage() {
     });
     childrenMap.forEach(arr => arr.sort((a, b) => a.orden - b.orden));
     const result: FlatRow[] = [];
-    const walk = (parentId: string | null, depth: number, prefix: string) => {
+    const walk = (parentId: string | null, depth: number, prefix: string, inheritedColor: string | null) => {
       const list = childrenMap.get(parentId) || [];
       list.forEach((r, i) => {
         const numbering = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
-        result.push({ row: r, depth, numbering });
-        walk(r.id, depth + 1, numbering);
+        const ownColor = r.color || null;
+        result.push({ row: r, depth, numbering, ancestorColor: inheritedColor });
+        walk(r.id, depth + 1, numbering, ownColor || inheritedColor);
       });
     };
-    walk(null, 0, "");
+    walk(null, 0, "", null);
     return result;
   }, [rows]);
 
@@ -196,9 +197,41 @@ export default function HitosEjecucionPage() {
             </tr>
           </thead>
           <tbody>
-            {flatRows.map(({ row, depth, numbering }) => (
-              <tr key={row.id} className="border-t border-border">
-                <td className="px-3 py-2 text-muted-foreground" style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}>{numbering}</td>
+            {flatRows.map(({ row, depth, numbering, ancestorColor }) => {
+              const ownColor = row.color || null;
+              const effectiveColor = ownColor || ancestorColor;
+              const rowBg = effectiveColor
+                ? (ownColor ? `${effectiveColor}33` : `${effectiveColor}1A`) // own = ~20% alpha, inherited = ~10%
+                : undefined;
+              return (
+              <tr key={row.id} className="border-t border-border" style={rowBg ? { backgroundColor: rowBg } : undefined}>
+                <td className="px-3 py-2 text-muted-foreground" style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}>
+                  <div className="flex items-center gap-1.5">
+                    <label className="relative inline-flex items-center cursor-pointer" title="Color de fila">
+                      <span
+                        className="inline-block w-3.5 h-3.5 rounded border border-border"
+                        style={{ backgroundColor: ownColor || (ancestorColor ? `${ancestorColor}66` : "transparent") }}
+                      />
+                      <input
+                        type="color"
+                        value={ownColor || "#3b82f6"}
+                        onChange={(e) => m.updateRow.mutate({ id: row.id, color: e.target.value })}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </label>
+                    {ownColor && (
+                      <button
+                        type="button"
+                        title="Quitar color"
+                        className="text-[10px] text-muted-foreground hover:text-destructive"
+                        onClick={() => m.updateRow.mutate({ id: row.id, color: null })}
+                      >
+                        ×
+                      </button>
+                    )}
+                    <span>{numbering}</span>
+                  </div>
+                </td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                   <td key={col.id} className="px-2 py-1.5">
                     {col.tipo === "checkbox" ? (
@@ -236,7 +269,8 @@ export default function HitosEjecucionPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {rows.length === 0 && (
               <tr><td colSpan={columns.length + 2} className="px-3 py-6 text-center text-muted-foreground">Sin filas. Agrega una fila para comenzar.</td></tr>
             )}
