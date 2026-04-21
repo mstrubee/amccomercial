@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import type { HitosTemplate, HitosRow } from "@/hooks/useHitosTemplate";
+import type { HitosTemplate, HitosRow, HitosColumn } from "@/hooks/useHitosTemplate";
 
 const META_COLS = ["__row_id", "__parent_id", "__orden", "__numbering"] as const;
 
@@ -44,7 +44,16 @@ function cellToString(tipo: string, raw: string): string | boolean {
   return raw;
 }
 
-function parseImportedCell(tipo: string, value: any, currentRaw: string): string {
+function normalize(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function parseImportedCell(column: HitosColumn, value: any, currentRaw: string): string {
+  const tipo = column.tipo;
   if (value === null || value === undefined || value === "") {
     return tipo === "checkbox" ? "" : "";
   }
@@ -73,6 +82,12 @@ function parseImportedCell(tipo: string, value: any, currentRaw: string): string
     const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     return s;
+  }
+  if (tipo === "select") {
+    const target = normalize(String(value));
+    if (!target) return "";
+    const match = column.options.find((o) => normalize(o.valor) === target);
+    return match ? match.valor : "";
   }
   return String(value);
 }
