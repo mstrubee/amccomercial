@@ -66,6 +66,21 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     tplRows.forEach(r => depth(r.id));
     return cache;
   }, [tplRows]);
+  // Hierarchical numbering: 1, 1.1, 1.1.1, 1.2, 2, ...
+  const numberMap = useMemo(() => {
+    const m = new Map<string, string>();
+    const roots = tplRows.filter(r => !r.parent_id);
+    const assign = (id: string, prefix: string) => {
+      m.set(id, prefix);
+      const kids = (childrenMap.get(id) || [])
+        .map(cid => tplRows.find(r => r.id === cid)!)
+        .filter(Boolean)
+        .sort((a, b) => a.orden - b.orden);
+      kids.forEach((k, i) => assign(k.id, `${prefix}.${i + 1}`));
+    };
+    roots.forEach((r, i) => assign(r.id, String(i + 1)));
+    return m;
+  }, [tplRows, childrenMap]);
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const isRowVisible = useCallback((id: string): boolean => {
     const byId = new Map(tplRows.map(r => [r.id, r] as const));
