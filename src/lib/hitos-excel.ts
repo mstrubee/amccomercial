@@ -52,6 +52,23 @@ function normalize(s: string): string {
     .toLowerCase();
 }
 
+// Convierte texto a minúsculas y capitaliza la primera letra de cada oración.
+// Preserva URLs/emails y secuencias en MAYÚSCULAS de 2+ letras (acrónimos como "AMC").
+function toSentenceCase(input: string): string {
+  const raw = input.replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  // Tokenizar palabras para preservar acrónimos
+  const words = raw.split(" ").map((w) => {
+    if (/^[A-ZÁÉÍÓÚÑ]{2,}$/.test(w)) return w; // acrónimo
+    if (/^https?:\/\//i.test(w) || /@/.test(w)) return w;
+    return w.toLowerCase();
+  });
+  let text = words.join(" ");
+  // Capitalizar inicio y después de . ! ?
+  text = text.replace(/(^|[.!?]\s+)([\p{L}])/gu, (_, p, c) => p + c.toUpperCase());
+  return text;
+}
+
 function parseImportedCell(column: HitosColumn, value: any, currentRaw: string): string {
   const tipo = column.tipo;
   if (value === null || value === undefined || value === "") {
@@ -89,7 +106,7 @@ function parseImportedCell(column: HitosColumn, value: any, currentRaw: string):
     const match = column.options.find((o) => normalize(o.valor) === target);
     return match ? match.valor : "";
   }
-  return String(value);
+  return toSentenceCase(String(value));
 }
 
 export function exportTemplateToExcel(template: HitosTemplate, fileName = "hitos-plantilla.xlsx") {
