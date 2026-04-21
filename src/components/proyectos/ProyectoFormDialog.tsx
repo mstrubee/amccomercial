@@ -1338,6 +1338,8 @@ function EstatusInfoBlock({
   onClear: () => void;
   isGanado: boolean;
 }) {
+  const deleteOne = useDeleteHistorialEstatus();
+  const deleteAll = useDeleteHistorialEstatusBulk();
   const hasInline = row.ganado_presupuesto != null || row.ganado_op || row.ganado_fecha;
   if (!hasInline && historialItems.length === 0) return null;
 
@@ -1386,21 +1388,45 @@ function EstatusInfoBlock({
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-2" align="start">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Historial de estatus
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Historial de estatus
+              </div>
+              <button
+                type="button"
+                className="text-[10px] text-destructive hover:underline disabled:opacity-50"
+                disabled={deleteAll.isPending || !row.id}
+                onClick={() => {
+                  if (!row.id) return;
+                  if (confirm(`¿Eliminar todo el historial (${historialItems.length} entradas)? Esta acción no se puede deshacer.`)) {
+                    deleteAll.mutate(row.id);
+                  }
+                }}
+              >
+                Eliminar todo
+              </button>
             </div>
             <ul className="space-y-0.5 max-h-60 overflow-auto">
               {historialItems.map((h) => (
-                <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2">
+                <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2 group">
                   <span className="font-medium text-card-foreground">{h.fecha}</span>
                   <span>·</span>
-                  <span>{labelFor(h.categoria_id, h.subcategoria_id)}</span>
+                  <span className="flex-1 truncate">{labelFor(h.categoria_id, h.subcategoria_id)}</span>
                   {h.monto_uf > 0 && (
-                    <>
-                      <span>·</span>
-                      <span>{formatUF(h.monto_uf)}</span>
-                    </>
+                    <span>{formatUF(h.monto_uf)}</span>
                   )}
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
+                    title="Eliminar entrada"
+                    onClick={() => {
+                      if (confirm("¿Eliminar esta entrada del historial?")) {
+                        deleteOne.mutate(h.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
                 </li>
               ))}
             </ul>
