@@ -691,10 +691,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   onChange={(val) => handleCategoryChange(row.empresa_id, val)}
                                 />
                                 {(() => {
-                                  const totalUf = ventasTotalByEmpresa.get(row.empresa_id) || 0;
+                                  const ganadoUf = Number(row.ganado_presupuesto) || 0;
+                                  const totalUf = (ventasTotalByEmpresa.get(row.empresa_id) || 0) + ganadoUf;
                                   return totalUf !== 0 ? (
                                     <span className="text-[11px] font-medium text-card-foreground">
-                                      Total Ventas: {formatUF(totalUf)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalUf))}</span>
+                                      Gran Total: {formatUF(totalUf)} <span className="text-muted-foreground font-normal">≈ {formatCLP(ufToCLP(totalUf))}</span>
                                     </span>
                                   ) : (
                                     <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
