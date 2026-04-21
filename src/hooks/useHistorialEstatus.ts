@@ -54,3 +54,37 @@ export function useCreateHistorialEstatus() {
     onError: (e: any) => toast.error("Error al guardar historial: " + e.message),
   });
 }
+
+export function useDeleteHistorialEstatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase.from("historial_estatus_empresa" as any) as any)
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
+      toast.success("Entrada eliminada");
+    },
+    onError: (e: any) => toast.error("Error al eliminar entrada: " + e.message),
+  });
+}
+
+export function useDeleteHistorialEstatusBulk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (proyecto_empresa_id: string) => {
+      const { error } = await (supabase.from("historial_estatus_empresa" as any) as any)
+        .delete()
+        .eq("proyecto_empresa_id", proyecto_empresa_id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
+      toast.success("Historial eliminado");
+    },
+    onError: (e: any) => toast.error("Error al eliminar historial: " + e.message),
+  });
+}

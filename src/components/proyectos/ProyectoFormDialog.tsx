@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2, History } from "lucide-react";
 import VentasEmpresaSection from "./VentasEmpresaSection";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
-import { useHistorialEstatusByIds, useCreateHistorialEstatus } from "@/hooks/useHistorialEstatus";
+import { useHistorialEstatusByIds, useCreateHistorialEstatus, useDeleteHistorialEstatus, useDeleteHistorialEstatusBulk } from "@/hooks/useHistorialEstatus";
 import { VALOR_UF } from "@/data/mock-data";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
@@ -651,6 +651,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="pl-6">
                                 <EstatusInfoBlock
                                   row={row}
+                                  proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
                                   historialItems={getHistorialForEmpresa(row.empresa_id)}
                                   categorias={categorias || []}
                                   onEdit={() => openGanadoEdit(row.empresa_id)}
@@ -714,6 +715,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                               <div className="pl-6">
                                 <EstatusInfoBlock
                                   row={row}
+                                  proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
                                   historialItems={getHistorialForEmpresa(row.empresa_id)}
                                   categorias={categorias || []}
                                   onEdit={() => openGanadoEdit(row.empresa_id)}
@@ -768,6 +770,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                              )}
                             <EstatusInfoBlock
                               row={row}
+                              proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
                               historialItems={getHistorialForEmpresa(row.empresa_id)}
                               categorias={categorias || []}
                               onEdit={() => openGanadoEdit(row.empresa_id)}
@@ -1325,6 +1328,7 @@ function ContactosSection(props: ContactosSectionProps) {
 /* ── Estatus info block: monto, OP (only Ganado), fecha + brief history ── */
 function EstatusInfoBlock({
   row,
+  proyectoEmpresaId,
   historialItems,
   categorias,
   onEdit,
@@ -1332,12 +1336,15 @@ function EstatusInfoBlock({
   isGanado,
 }: {
   row: EmpresaRow;
+  proyectoEmpresaId: string | null | undefined;
   historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string }[];
   categorias: CategoriaWithSubs[];
   onEdit: () => void;
   onClear: () => void;
   isGanado: boolean;
 }) {
+  const deleteOne = useDeleteHistorialEstatus();
+  const deleteAll = useDeleteHistorialEstatusBulk();
   const hasInline = row.ganado_presupuesto != null || row.ganado_op || row.ganado_fecha;
   if (!hasInline && historialItems.length === 0) return null;
 
@@ -1386,21 +1393,45 @@ function EstatusInfoBlock({
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-2" align="start">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Historial de estatus
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Historial de estatus
+              </div>
+              <button
+                type="button"
+                className="text-[10px] text-destructive hover:underline disabled:opacity-50"
+                disabled={deleteAll.isPending || !proyectoEmpresaId}
+                onClick={() => {
+                  if (!proyectoEmpresaId) return;
+                  if (confirm(`¿Eliminar todo el historial (${historialItems.length} entradas)? Esta acción no se puede deshacer.`)) {
+                    deleteAll.mutate(proyectoEmpresaId);
+                  }
+                }}
+              >
+                Eliminar todo
+              </button>
             </div>
             <ul className="space-y-0.5 max-h-60 overflow-auto">
               {historialItems.map((h) => (
-                <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2">
+                <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2 group">
                   <span className="font-medium text-card-foreground">{h.fecha}</span>
                   <span>·</span>
-                  <span>{labelFor(h.categoria_id, h.subcategoria_id)}</span>
+                  <span className="flex-1 truncate">{labelFor(h.categoria_id, h.subcategoria_id)}</span>
                   {h.monto_uf > 0 && (
-                    <>
-                      <span>·</span>
-                      <span>{formatUF(h.monto_uf)}</span>
-                    </>
+                    <span>{formatUF(h.monto_uf)}</span>
                   )}
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
+                    title="Eliminar entrada"
+                    onClick={() => {
+                      if (confirm("¿Eliminar esta entrada del historial?")) {
+                        deleteOne.mutate(h.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
                 </li>
               ))}
             </ul>
