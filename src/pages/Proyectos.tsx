@@ -1755,3 +1755,100 @@ function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: 
     </div>
   );
 }
+
+/* ── Hitos Ejecución Dialog with draft save / discard confirmation ── */
+function HitosEjecucionDialog({
+  target,
+  onClose,
+}: {
+  target: { proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HitosEjecucionPanelHandle | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleAttemptClose = (open: boolean) => {
+    if (open) return;
+    if (panelRef.current?.isDirty()) {
+      setConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleSave = async () => {
+    if (!panelRef.current) { onClose(); return; }
+    try {
+      setSaving(true);
+      await panelRef.current.save();
+      toast.success("Cambios guardados");
+      onClose();
+    } catch (e: any) {
+      toast.error("Error al guardar: " + (e?.message ?? "desconocido"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    panelRef.current?.discard();
+    setConfirmOpen(false);
+    onClose();
+  };
+
+  const handleSaveFromConfirm = async () => {
+    setConfirmOpen(false);
+    await handleSave();
+  };
+
+  return (
+    <>
+      <Dialog open={!!target} onOpenChange={handleAttemptClose}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Hitos Ejecución — {target?.proyectoNombre}
+              {target?.empresaName ? ` · ${target.empresaName}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {target && (
+            <HitosEjecucionPanel
+              ref={panelRef}
+              proyectoEmpresaId={target.proyectoEmpresaId}
+              empresaName={target.empresaName}
+              defaultOpen
+              draftMode
+              onDirtyChange={setDirty}
+            />
+          )}
+          <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2">
+            <Button variant="outline" onClick={() => handleAttemptClose(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={!dirty || saving}>
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tienes cambios sin guardar</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Quieres guardar los cambios antes de cerrar? Si descartas, se perderán las modificaciones.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <Button variant="outline" onClick={handleDiscard}>Descartar</Button>
+            <AlertDialogAction onClick={handleSaveFromConfirm}>Guardar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
