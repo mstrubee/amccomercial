@@ -192,6 +192,34 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     return n;
   }, [leafTplRows, extraRows, isRowCompleted]);
 
+  // Resizable column widths (persisted per user in localStorage)
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem("hitos_panel_col_widths") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("hitos_panel_col_widths", JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+  const startResize = useCallback((e: React.MouseEvent, colId: string, currentWidth: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = currentWidth;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(60, startW + (ev.clientX - startX));
+      setColWidths(prev => ({ ...prev, [colId]: w }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border border-border rounded-lg bg-card/60">
       <CollapsibleTrigger asChild>
@@ -207,13 +235,27 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
-              <table className="w-full text-xs border border-border rounded">
+              <table className="text-xs border border-border rounded" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
                 <thead className="bg-muted/40">
                   <tr>
                     <th className="px-2 py-1.5 text-left text-muted-foreground font-medium w-10">#</th>
-                    {columns.map(c => (
-                      <th key={c.id} className="px-2 py-1.5 text-left text-card-foreground font-semibold">{c.nombre}</th>
-                    ))}
+                    {columns.map(c => {
+                      const w = colWidths[c.id] || 160;
+                      return (
+                        <th
+                          key={c.id}
+                          style={{ width: w, minWidth: w, maxWidth: w }}
+                          className="relative px-2 py-1.5 text-left text-card-foreground font-semibold"
+                        >
+                          <span className="block truncate pr-2">{c.nombre}</span>
+                          <span
+                            onMouseDown={(e) => startResize(e, c.id, w)}
+                            className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/30"
+                            title="Arrastra para ajustar el ancho"
+                          />
+                        </th>
+                      );
+                    })}
                     <th className="w-8"></th>
                   </tr>
                 </thead>
