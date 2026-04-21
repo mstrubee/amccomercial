@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Settings, CalendarIcon } from "lucide-react";
+import { format, parse, isValid, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -134,9 +139,9 @@ export default function HitosEjecucionPage() {
                 <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                   <td key={col.id} className="px-2 py-1.5">
-                    {col.tipo === "fecha" || col.tipo === "checkbox" ? (
+                    {col.tipo === "checkbox" ? (
                       <span className="text-[11px] text-muted-foreground italic">
-                        {col.tipo === "fecha" ? "(fecha — se elige por proyecto)" : `(checkbox — ${col.checkbox_action.split("_").join(" ")})`}
+                        (checkbox — {col.checkbox_action.split("_").join(" ")})
                       </span>
                     ) : (
                       <DefaultCellEditor
@@ -346,7 +351,7 @@ function OptionsDialog({ col, onClose }: { col: HitosColumn | null; onClose: () 
 }
 
 function DefaultCellEditor({ tipo, options, value, onCommit }: {
-  tipo: "texto" | "select";
+  tipo: "texto" | "select" | "fecha";
   options: string[];
   value: string;
   onCommit: (v: string) => void;
@@ -375,6 +380,57 @@ function DefaultCellEditor({ tipo, options, value, onCommit }: {
       </Select>
     );
   }
+
+  if (tipo === "fecha") {
+    // value stored as YYYY-MM-DD; user can type dd-mm-yyyy or pick from calendar
+    const dateValue = value && isValid(parseISO(value)) ? parseISO(value) : undefined;
+    const display = local && /^\d{4}-\d{2}-\d{2}$/.test(local)
+      ? format(parseISO(local), "dd-MM-yyyy")
+      : local;
+    const handleTyped = (raw: string) => {
+      setLocal(raw);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        if (!raw.trim()) { onCommit(""); return; }
+        const parsed = parse(raw, "dd-MM-yyyy", new Date());
+        if (isValid(parsed)) onCommit(format(parsed, "yyyy-MM-dd"));
+      }, 600);
+    };
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          value={display}
+          onChange={(e) => handleTyped(e.target.value)}
+          onFocus={() => { focusedRef.current = true; }}
+          onBlur={() => { focusedRef.current = false; clearTimeout(timer.current);
+            if (!local.trim()) { onCommit(""); return; }
+            const parsed = parse(local, "dd-MM-yyyy", new Date());
+            if (isValid(parsed)) onCommit(format(parsed, "yyyy-MM-dd"));
+          }}
+          placeholder="dd-mm-aaaa"
+          className="h-8 text-xs"
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+              <CalendarIcon className="w-3.5 h-3.5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateValue}
+              locale={es}
+              onSelect={(d) => { onCommit(d ? format(d, "yyyy-MM-dd") : ""); }}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
   return (
     <Input
       value={local}
