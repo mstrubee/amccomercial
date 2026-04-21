@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -14,6 +15,24 @@ export interface HistorialEstatusRow {
 }
 
 export function useHistorialEstatusByIds(ids: string[]) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (ids.length === 0) return;
+    const channel = supabase
+      .channel("historial-estatus-rt")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "historial_estatus_empresa" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc, ids.length]);
+
   return useQuery({
     queryKey: ["historial_estatus_empresa", "bulk", ids.sort().join(",")],
     enabled: ids.length > 0,
