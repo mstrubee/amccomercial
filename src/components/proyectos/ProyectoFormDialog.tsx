@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2, History } from "lucide-react";
 import VentasEmpresaSection from "./VentasEmpresaSection";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
-import { useHistorialEstatusByIds, useCreateHistorialEstatus } from "@/hooks/useHistorialEstatus";
+import { useHistorialEstatusByIds, useCreateHistorialEstatus, useDeleteHistorialEstatus, useDeleteHistorialEstatusBulk } from "@/hooks/useHistorialEstatus";
 import { VALOR_UF } from "@/data/mock-data";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
