@@ -315,38 +315,42 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border border-border rounded-lg bg-card/60">
-      <CollapsibleTrigger asChild>
-        <button className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-card-foreground hover:bg-muted/50 transition-colors rounded-t-lg">
-          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", open && "rotate-180")} />
-          <span>Hitos Ejecución{empresaName ? ` — ${empresaName}` : ""}</span>
-          <span className="text-muted-foreground">({completedHitos}/{totalHitos || "—"})</span>
-        </button>
-      </CollapsibleTrigger>
+      <div className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-card-foreground hover:bg-muted/50 transition-colors rounded-t-lg">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-2 flex-1 min-w-0 text-left">
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0", open && "rotate-180")} />
+            <span className="truncate">Hitos Ejecución{empresaName ? ` — ${empresaName}` : ""}</span>
+            <span className="text-muted-foreground shrink-0">({completedHitos}/{totalHitos || "—"})</span>
+          </button>
+        </CollapsibleTrigger>
+        {open && columns.length > 0 && (
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setHideCompleted(v => !v)}
+              className={cn("h-7 text-xs gap-1", hideCompleted && "text-destructive hover:text-destructive")}
+              title={hideCompleted ? "Mostrar todos los hitos" : "Ocultar hitos completados"}
+            >
+              {hideCompleted ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {hideCompleted ? "Ver todos" : "Ocultar completados"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleExportExcel} className="h-7 text-xs gap-1" title="Descargar Excel">
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleExportPDF} className="h-7 text-xs gap-1" title="Descargar PDF">
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </Button>
+          </div>
+        )}
+      </div>
       <CollapsibleContent>
         <div className="px-3 pb-3 pt-1 overflow-x-auto">
           {columns.length === 0 ? (
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
-              <div className="flex items-center justify-end gap-1 mb-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setHideCompleted(v => !v)}
-                  className={cn("h-7 text-xs gap-1", hideCompleted && "text-destructive hover:text-destructive")}
-                  title={hideCompleted ? "Mostrar todos los hitos" : "Ocultar hitos completados"}
-                >
-                  {hideCompleted ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  {hideCompleted ? "Ver todos" : "Ocultar completados"}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={handleExportExcel} className="h-7 text-xs gap-1" title="Descargar Excel">
-                  <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={handleExportPDF} className="h-7 text-xs gap-1" title="Descargar PDF">
-                  <FileText className="w-3.5 h-3.5" /> PDF
-                </Button>
-              </div>
               <table className="text-xs border border-border rounded" style={{ tableLayout: "fixed", width: "max-content", maxWidth: "100%" }}>
                 <thead className="bg-muted/40">
                   <tr>
