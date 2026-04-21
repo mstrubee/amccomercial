@@ -128,6 +128,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const [ganadoPresupuesto, setGanadoPresupuesto] = useState<string>("");
   const [ganadoOp, setGanadoOp] = useState("");
   const [ganadoFecha, setGanadoFecha] = useState(new Date().toISOString().split("T")[0]);
+  // 'UF' or 'CLP' for the dialog input
+  const [ganadoMoneda, setGanadoMoneda] = useState<"UF" | "CLP">("UF");
 
   // Contactos
   const [arqNombre, setArqNombre] = useState("");
