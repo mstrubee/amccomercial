@@ -499,3 +499,82 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
     />
   );
 }
+
+/* ── Date editor: input dd-mm-yyyy + calendar popover ── */
+function DateCellEditor({ value, dateValue, disabled, onCommit }: {
+  value: string;
+  dateValue: Date | undefined;
+  disabled: boolean;
+  onCommit: (v: string) => void;
+}) {
+  const [text, setText] = useState(dateValue ? format(dateValue, "dd-MM-yyyy") : "");
+  const [open, setOpen] = useState(false);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setText(dateValue ? format(dateValue, "dd-MM-yyyy") : "");
+    }
+  }, [dateValue, value]);
+
+  const formatTyping = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    let out = digits;
+    if (digits.length > 4) out = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+    else if (digits.length > 2) out = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    return out;
+  };
+
+  const tryCommit = (txt: string) => {
+    if (!txt.trim()) { onCommit(""); return; }
+    const m = txt.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (!m) {
+      // revert visible text to last valid value
+      setText(dateValue ? format(dateValue, "dd-MM-yyyy") : "");
+      return;
+    }
+    const [, dd, mm, yyyy] = m;
+    const iso = `${yyyy}-${mm}-${dd}`;
+    const parsed = parseISO(iso);
+    if (!isValid(parsed)) {
+      setText(dateValue ? format(dateValue, "dd-MM-yyyy") : "");
+      return;
+    }
+    onCommit(iso);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        value={text}
+        placeholder="dd-mm-aaaa"
+        disabled={disabled}
+        onFocus={() => { focusedRef.current = true; }}
+        onBlur={() => { focusedRef.current = false; tryCommit(text); }}
+        onChange={(e) => setText(formatTyping(e.target.value))}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        className="h-7 text-xs flex-1 min-w-0"
+      />
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" size="icon" disabled={disabled} className="h-7 w-7 shrink-0">
+            <CalendarIcon className="w-3 h-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="single"
+            selected={dateValue}
+            onSelect={(d) => {
+              if (d) onCommit(format(d, "yyyy-MM-dd"));
+              else onCommit("");
+              setOpen(false);
+            }}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
