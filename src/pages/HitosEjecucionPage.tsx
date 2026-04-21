@@ -127,12 +127,18 @@ export default function HitosEjecucionPage() {
                 <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                   <td key={col.id} className="px-2 py-1.5">
-                    <DefaultCellEditor
-                      tipo={col.tipo}
-                      options={col.options.map(o => o.valor)}
-                      value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
-                      onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
-                    />
+                    {col.tipo === "fecha" || col.tipo === "checkbox" ? (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        {col.tipo === "fecha" ? "(fecha — se elige por proyecto)" : `(checkbox — ${col.checkbox_action.replaceAll("_", " ")})`}
+                      </span>
+                    ) : (
+                      <DefaultCellEditor
+                        tipo={col.tipo}
+                        options={col.options.map(o => o.valor)}
+                        value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
+                        onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
+                      />
+                    )}
                   </td>
                 ))}
                 <td className="px-2 py-2">
