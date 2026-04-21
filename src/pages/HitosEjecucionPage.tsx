@@ -380,6 +380,57 @@ function DefaultCellEditor({ tipo, options, value, onCommit }: {
       </Select>
     );
   }
+
+  if (tipo === "fecha") {
+    // value stored as YYYY-MM-DD; user can type dd-mm-yyyy or pick from calendar
+    const dateValue = value && isValid(parseISO(value)) ? parseISO(value) : undefined;
+    const display = local && /^\d{4}-\d{2}-\d{2}$/.test(local)
+      ? format(parseISO(local), "dd-MM-yyyy")
+      : local;
+    const handleTyped = (raw: string) => {
+      setLocal(raw);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        if (!raw.trim()) { onCommit(""); return; }
+        const parsed = parse(raw, "dd-MM-yyyy", new Date());
+        if (isValid(parsed)) onCommit(format(parsed, "yyyy-MM-dd"));
+      }, 600);
+    };
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          value={display}
+          onChange={(e) => handleTyped(e.target.value)}
+          onFocus={() => { focusedRef.current = true; }}
+          onBlur={() => { focusedRef.current = false; clearTimeout(timer.current);
+            if (!local.trim()) { onCommit(""); return; }
+            const parsed = parse(local, "dd-MM-yyyy", new Date());
+            if (isValid(parsed)) onCommit(format(parsed, "yyyy-MM-dd"));
+          }}
+          placeholder="dd-mm-aaaa"
+          className="h-8 text-xs"
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+              <CalendarIcon className="w-3.5 h-3.5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dateValue}
+              locale={es}
+              onSelect={(d) => { onCommit(d ? format(d, "yyyy-MM-dd") : ""); }}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
   return (
     <Input
       value={local}
