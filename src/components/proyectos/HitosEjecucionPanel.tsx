@@ -84,6 +84,7 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
             <p className="text-xs text-muted-foreground py-2">No hay columnas configuradas. Configura la plantilla en Administración → Hitos Ejecución Proyectos.</p>
           ) : (
             <>
+              {(() => null)()}
               <table className="w-full text-xs border border-border rounded">
                 <thead className="bg-muted/40">
                   <tr>
@@ -106,6 +107,12 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
                             col={c}
+                            allColumns={columns}
+                            rowValues={columns.reduce((acc, cc) => {
+                              acc[cc.id] = valueMap.get(`r:${row.id}|c:${cc.id}`) ?? defaultsMap.get(`${row.id}|${cc.id}`) ?? "";
+                              return acc;
+                            }, {} as Record<string, string>)}
+                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: colId, valor: v })}
                             value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
                           />
@@ -121,6 +128,12 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
                             col={c}
+                            allColumns={columns}
+                            rowValues={columns.reduce((acc, cc) => {
+                              acc[cc.id] = valueMap.get(`e:${row.id}|c:${cc.id}`) || "";
+                              return acc;
+                            }, {} as Record<string, string>)}
+                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: colId, valor: v })}
                             value={valueMap.get(`e:${row.id}|c:${c.id}`) || ""}
                             onCommit={(v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: c.id, valor: v })}
                           />
