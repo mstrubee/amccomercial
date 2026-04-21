@@ -73,7 +73,7 @@ export default function HitosEjecucionPage() {
 
       <div className="flex gap-2">
         <Button onClick={() => setShowAddCol(true)} size="sm"><Plus className="w-4 h-4 mr-1" /> Agregar columna</Button>
-        <Button variant="outline" size="sm" onClick={() => m.addRow.mutate(rows.length).valueOf()}>
+        <Button variant="outline" size="sm" onClick={() => m.addRow.mutate(rows.length)}>
           <Plus className="w-4 h-4 mr-1" /> Agregar fila
         </Button>
       </div>
