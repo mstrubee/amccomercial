@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
-import { ChevronDown, ChevronRight, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, CalendarIcon, Check, Eye, EyeOff, FileText, FileSpreadsheet } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
