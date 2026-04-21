@@ -119,8 +119,13 @@ export default function HitosEjecucionPage() {
               <tr key={row.id} className="border-t border-border">
                 <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
-                  <td key={col.id} className="px-3 py-2 text-muted-foreground italic text-xs">
-                    {col.tipo === "select" ? `(lista: ${col.options.map(o => o.valor).join(", ") || "sin opciones"})` : "(texto libre)"}
+                  <td key={col.id} className="px-2 py-1.5">
+                    <DefaultCellEditor
+                      tipo={col.tipo}
+                      options={col.options.map(o => o.valor)}
+                      value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
+                      onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
+                    />
                   </td>
                 ))}
                 <td className="px-2 py-2">
