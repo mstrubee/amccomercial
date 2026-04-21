@@ -924,35 +924,46 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       {/* Ganado data dialog */}
       <Dialog open={ganadoDialogOpen} onOpenChange={(open) => { if (!open) handleGanadoCancel(); }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Trophy className="w-4 h-4 text-emerald-600" /> Datos de Ganado</DialogTitle>
-            <DialogDescription>Ingresa los datos del proyecto ganado.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label>Presupuesto (UF)</Label>
-              <Input
-                type="number"
-                min={0}
-                step={0.01}
-                placeholder="Presupuesto en UF"
-                value={ganadoPresupuesto}
-                onChange={(e) => setGanadoPresupuesto(e.target.value)}
-                onFocus={(e) => { if (e.target.value === "0") setGanadoPresupuesto(""); }}
-              />
-              {ganadoPresupuesto && parseFloat(ganadoPresupuesto) > 0 && (
-                <p className="text-[10px] text-muted-foreground">≈ {formatCLP(ufToCLP(parseFloat(ganadoPresupuesto)))}</p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label>OP</Label>
-              <Input placeholder="Número de OP" value={ganadoOp} onChange={(e) => setGanadoOp(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Fecha</Label>
-              <Input type="date" value={ganadoFecha} onChange={(e) => setGanadoFecha(e.target.value)} />
-            </div>
-          </div>
+          {(() => {
+            const row = empresaRows.find(r => r.empresa_id === ganadoDialogEmpresaId);
+            const isGanado = row?.subcategoria_id === GANADO_SUBCATEGORIA_ID;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {isGanado && <Trophy className="w-4 h-4 text-emerald-600" />}
+                    {isGanado ? "Datos de Ganado" : "Datos del cambio de estatus"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {isGanado
+                      ? "Ingresa el presupuesto, OP y fecha del proyecto ganado."
+                      : "Ingresa el monto y la fecha del cambio de estatus. Quedará registrado en el historial."}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <MontoInput
+                    label="Monto"
+                    value={ganadoPresupuesto ? Math.round(parseFloat(ganadoPresupuesto) * 38500) : 0}
+                    onChange={(clpValue) => {
+                      // MontoInput stores CLP; convert back to UF for our state.
+                      const uf = clpValue ? clpValue / 38500 : 0;
+                      setGanadoPresupuesto(uf ? uf.toFixed(2) : "");
+                    }}
+                  />
+                  {isGanado && (
+                    <div className="space-y-1">
+                      <Label>OP</Label>
+                      <Input placeholder="Número de OP" value={ganadoOp} onChange={(e) => setGanadoOp(e.target.value)} />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <Label>Fecha</Label>
+                    <Input type="date" value={ganadoFecha} onChange={(e) => setGanadoFecha(e.target.value)} />
+                  </div>
+                </div>
+              </>
+            );
+          })()}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleGanadoCancel}>Cancelar</Button>
             <Button type="button" onClick={handleGanadoConfirm}>Confirmar</Button>
