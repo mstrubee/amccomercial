@@ -182,6 +182,7 @@ export async function importTemplateFromExcel(
   });
   const idIdx = header.indexOf("__row_id");
   const parentIdx = header.indexOf("__parent_id");
+  const numIdx = header.indexOf("#");
   if (idIdx < 0) throw new Error("Falta columna oculta __row_id en el archivo");
 
   const defaultsMap = new Map<string, string>();
@@ -191,38 +192,83 @@ export async function importTemplateFromExcel(
 
   const summary: ImportSummary = { added: 0, updated: 0, deleted: 0, defaultsUpserted: 0, errors: [] };
 
-  // Pass 1: create / map rows. Track tempKey -> rowId for new rows.
-  type Pending = { lineIndex: number; rowId: string | null; parentRef: string; isNew: boolean };
+  // Pass 1: build pending rows. La jerarquía se determina por la columna # (ej. 1, 1.1, 1.1.2)
+  // si está presente; si no, se usa __parent_id como respaldo.
+  type Pending = {
+    lineIndex: number;
+    rowId: string | null;
+    parentRef: string;
+    numbering: string; // ej "1.2.3"
+    isNew: boolean;
+  };
   const pendings: Pending[] = [];
-  const tempKeyToId = new Map<string, string>();
 
   for (let i = 1; i < aoa.length; i++) {
     const line = aoa[i];
     if (!line || line.every((c) => c === "" || c === null || c === undefined)) continue;
     const rowIdRaw = String(line[idIdx] || "").trim();
     const parentRaw = parentIdx >= 0 ? String(line[parentIdx] || "").trim() : "";
-    if (rowIdRaw && existingRowIds.has(rowIdRaw)) {
-      seenRowIds.add(rowIdRaw);
-      pendings.push({ lineIndex: i, rowId: rowIdRaw, parentRef: parentRaw, isNew: false });
-    } else {
-      // new row — placeholder, create later once parent resolved
-      pendings.push({ lineIndex: i, rowId: null, parentRef: parentRaw, isNew: true });
-      if (rowIdRaw) tempKeyToId.set(rowIdRaw, ""); // remember user-typed temp id (will overwrite)
-    }
+    const numRaw = numIdx >= 0 ? String(line[numIdx] ?? "").trim() : "";
+    const isExisting = !!rowIdRaw && existingRowIds.has(rowIdRaw);
+    if (isExisting) seenRowIds.add(rowIdRaw);
+    pendings.push({
+      lineIndex: i,
+      rowId: isExisting ? rowIdRaw : null,
+      parentRef: parentRaw,
+      numbering: numRaw,
+      isNew: !isExisting,
+    });
   }
 
-  // Sort: parents before children (process by tree order — Excel order assumed top-down)
-  // We process in file order; if a parent is also new and appears earlier, its id will be set.
-  const orderCounters = new Map<string, number>(); // parentId|null => next orden
+  // Si hay numeración disponible, derivar parent por prefijo (ej "1.2.3" -> padre "1.2").
+  // Construimos un mapa numbering -> Pending para resolución.
+  const hasNumbering = pendings.some((p) => /^\d+(\.\d+)*$/.test(p.numbering));
+  const byNumbering = new Map<string, Pending>();
+  if (hasNumbering) {
+    pendings.forEach((p) => {
+      if (/^\d+(\.\d+)*$/.test(p.numbering)) byNumbering.set(p.numbering, p);
+    });
+  }
+
+  // Sort: por numbering jerárquico cuando exista, así los padres se procesan antes que los hijos.
+  const cmpNumbering = (a: string, b: string) => {
+    const aa = a.split(".").map((n) => parseInt(n, 10) || 0);
+    const bb = b.split(".").map((n) => parseInt(n, 10) || 0);
+    const len = Math.max(aa.length, bb.length);
+    for (let i = 0; i < len; i++) {
+      const da = aa[i] ?? 0;
+      const db = bb[i] ?? 0;
+      if (da !== db) return da - db;
+    }
+    return 0;
+  };
+  if (hasNumbering) {
+    pendings.sort((a, b) => {
+      const an = /^\d+(\.\d+)*$/.test(a.numbering);
+      const bn = /^\d+(\.\d+)*$/.test(b.numbering);
+      if (an && bn) return cmpNumbering(a.numbering, b.numbering);
+      if (an) return -1;
+      if (bn) return 1;
+      return a.lineIndex - b.lineIndex;
+    });
+  }
+
+  const orderCounters = new Map<string, number>();
   const rootKey = "__ROOT__";
 
   for (const p of pendings) {
     let parentId: string | null = null;
-    if (p.parentRef) {
+
+    if (hasNumbering && /^\d+(\.\d+)*$/.test(p.numbering) && p.numbering.includes(".")) {
+      const parts = p.numbering.split(".");
+      parts.pop();
+      const parentNum = parts.join(".");
+      const parentPending = byNumbering.get(parentNum);
+      if (parentPending && parentPending.rowId) parentId = parentPending.rowId;
+    } else if (p.parentRef) {
       if (existingRowIds.has(p.parentRef)) parentId = p.parentRef;
-      else if (tempKeyToId.get(p.parentRef)) parentId = tempKeyToId.get(p.parentRef)!;
-      else parentId = null; // unresolved -> root
     }
+
     const key = parentId || rootKey;
     const orden = orderCounters.get(key) ?? 0;
     orderCounters.set(key, orden + 1);
@@ -239,9 +285,6 @@ export async function importTemplateFromExcel(
       }
       p.rowId = (data as any).id;
       summary.added += 1;
-      // store mapping if user wrote a temp id
-      const rawId = String(aoa[p.lineIndex][idIdx] || "").trim();
-      if (rawId) tempKeyToId.set(rawId, p.rowId!);
     } else {
       // update existing row's parent/orden if different
       const existing = template.rows.find((r) => r.id === p.rowId);
