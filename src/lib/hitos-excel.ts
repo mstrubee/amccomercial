@@ -184,9 +184,16 @@ export async function importTemplateFromExcel(
   const wb = XLSX.read(buf, { type: "array", cellDates: true });
   const wsName = wb.SheetNames.find((n) => n === "Plantilla") || wb.SheetNames[0];
   const ws = wb.Sheets[wsName];
-  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false });
   if (!aoa.length) throw new Error("Hoja vacía");
   const header = aoa[0].map((h) => String(h || "").trim());
+  // Normalizar todas las filas al ancho del header (sheet_to_json trunca celdas vacías al final)
+  const headerLen = header.length;
+  for (let i = 1; i < aoa.length; i++) {
+    const row = aoa[i] || [];
+    while (row.length < headerLen) row.push("");
+    aoa[i] = row;
+  }
   const cols = [...template.columns].sort((a, b) => a.orden - b.orden);
 
   // Map header positions
