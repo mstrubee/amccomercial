@@ -140,9 +140,11 @@ export default function HitosEjecucionPage() {
                 {columns.sort((a, b) => a.orden - b.orden).map((col) => (
                   <td key={col.id} className="px-2 py-1.5">
                     {col.tipo === "checkbox" ? (
-                      <span className="text-[11px] text-muted-foreground italic">
-                        (checkbox — {col.checkbox_action.split("_").join(" ")})
-                      </span>
+                      <CheckboxDefaultEditor
+                        col={col}
+                        value={defaultsMap.get(`${row.id}|${col.id}`) || ""}
+                        onCommit={(v) => m.upsertRowDefault.mutate({ row_id: row.id, column_id: col.id, valor: v })}
+                      />
                     ) : (
                       <DefaultCellEditor
                         tipo={col.tipo}
