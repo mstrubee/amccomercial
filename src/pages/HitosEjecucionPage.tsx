@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon, ChevronRight, ChevronDown } from "lucide-react";
 import { Check } from "lucide-react";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -29,6 +29,7 @@ export default function HitosEjecucionPage() {
 
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const columns = data?.columns || [];
   const rows = data?.rows || [];
@@ -121,7 +122,7 @@ export default function HitosEjecucionPage() {
   };
 
   // Build flat hierarchical list with depth
-  type FlatRow = { row: HitosRow; depth: number; numbering: string; ancestorColor: string | null };
+  type FlatRow = { row: HitosRow; depth: number; numbering: string; ancestorColor: string | null; hasChildren: boolean };
   const flatRows = useMemo(() => {
     const childrenMap = new Map<string | null, HitosRow[]>();
     rows.forEach(r => {
@@ -137,13 +138,32 @@ export default function HitosEjecucionPage() {
       list.forEach((r, i) => {
         const numbering = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
         const ownColor = r.color || null;
-        result.push({ row: r, depth, numbering, ancestorColor: inheritedColor });
-        walk(r.id, depth + 1, numbering, ownColor || inheritedColor);
+        const hasChildren = (childrenMap.get(r.id) || []).length > 0;
+        result.push({ row: r, depth, numbering, ancestorColor: inheritedColor, hasChildren });
+        if (!collapsed.has(r.id)) {
+          walk(r.id, depth + 1, numbering, ownColor || inheritedColor);
+        }
       });
     };
     walk(null, 0, "", null);
     return result;
+  }, [rows, collapsed]);
+
+  const parentIdsWithChildren = useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach(r => { if (r.parent_id) set.add(r.parent_id); });
+    return set;
   }, [rows]);
+
+  const toggleCollapse = (id: string) => {
+    setCollapsed(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+  const collapseAll = () => setCollapsed(new Set(parentIdsWithChildren));
+  const expandAll = () => setCollapsed(new Set());
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
 
@@ -163,6 +183,12 @@ export default function HitosEjecucionPage() {
           m.addRow.mutate({ orden: rootRows.length, parent_id: null });
         }}>
           <Plus className="w-4 h-4 mr-1" /> Agregar fila
+        </Button>
+        <Button variant="outline" size="sm" onClick={collapseAll} title="Colapsar todas las filas hijas">
+          <ChevronRight className="w-4 h-4 mr-1" /> Colapsar todas
+        </Button>
+        <Button variant="outline" size="sm" onClick={expandAll} title="Expandir todas las filas">
+          <ChevronDown className="w-4 h-4 mr-1" /> Expandir todas
         </Button>
       </div>
 
@@ -197,16 +223,29 @@ export default function HitosEjecucionPage() {
             </tr>
           </thead>
           <tbody>
-            {flatRows.map(({ row, depth, numbering, ancestorColor }) => {
+            {flatRows.map(({ row, depth, numbering, ancestorColor, hasChildren }) => {
               const ownColor = row.color || null;
               const effectiveColor = ownColor || ancestorColor;
               const rowBg = effectiveColor
                 ? (ownColor ? `${effectiveColor}33` : `${effectiveColor}1A`) // own = ~20% alpha, inherited = ~10%
                 : undefined;
+              const isCollapsed = collapsed.has(row.id);
               return (
               <tr key={row.id} className="border-t border-border" style={rowBg ? { backgroundColor: rowBg } : undefined}>
                 <td className="px-3 py-2 text-muted-foreground" style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}>
                   <div className="flex items-center gap-1.5">
+                    {hasChildren ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapse(row.id)}
+                        className="inline-flex items-center justify-center w-4 h-4 rounded hover:bg-muted text-muted-foreground"
+                        title={isCollapsed ? "Expandir" : "Colapsar"}
+                      >
+                        {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    ) : (
+                      <span className="inline-block w-4" />
+                    )}
                     <label className="relative inline-flex items-center cursor-pointer" title="Color de fila">
                       <span
                         className="inline-block w-3.5 h-3.5 rounded border border-border"
