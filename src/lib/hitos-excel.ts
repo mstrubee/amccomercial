@@ -139,14 +139,14 @@ export function exportTemplateToExcel(template: HitosTemplate, fileName = "hitos
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  // column widths — meta columns ocultas para no distraer al usuario
+  // column widths — meta columns ocultas (Excel preserva los datos al ocultar columnas)
   ws["!cols"] = [
     { wch: 8 },
     ...cols.map((c) => ({ wch: c.tipo === "select" ? 32 : 24 })),
-    { hidden: true, wch: 0 },
-    { hidden: true, wch: 0 },
-    { hidden: true, wch: 0 },
-    { hidden: true, wch: 0 },
+    { hidden: true, wch: 12 },
+    { hidden: true, wch: 12 },
+    { hidden: true, wch: 8 },
+    { hidden: true, wch: 10 },
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
@@ -184,9 +184,16 @@ export async function importTemplateFromExcel(
   const wb = XLSX.read(buf, { type: "array", cellDates: true });
   const wsName = wb.SheetNames.find((n) => n === "Plantilla") || wb.SheetNames[0];
   const ws = wb.Sheets[wsName];
-  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false });
   if (!aoa.length) throw new Error("Hoja vacía");
   const header = aoa[0].map((h) => String(h || "").trim());
+  // Normalizar todas las filas al ancho del header (sheet_to_json trunca celdas vacías al final)
+  const headerLen = header.length;
+  for (let i = 1; i < aoa.length; i++) {
+    const row = aoa[i] || [];
+    while (row.length < headerLen) row.push("");
+    aoa[i] = row;
+  }
   const cols = [...template.columns].sort((a, b) => a.orden - b.orden);
 
   // Map header positions
@@ -200,12 +207,17 @@ export async function importTemplateFromExcel(
   const idIdx = header.indexOf("__row_id");
   const parentIdx = header.indexOf("__parent_id");
   const numIdx = header.indexOf("#");
-  if (idIdx < 0) throw new Error("Falta columna oculta __row_id en el archivo");
+  if (numIdx < 0) throw new Error("Falta la columna '#' en el archivo");
 
   const defaultsMap = new Map<string, string>();
   template.defaults.forEach((d) => defaultsMap.set(`${d.row_id}|${d.column_id}`, d.valor));
   const existingRowIds = new Set(template.rows.map((r) => r.id));
   const seenRowIds = new Set<string>();
+
+  // Construir mapa numbering -> rowId del template original (para match cuando __row_id falta)
+  const templateFlat = buildFlatRows(template.rows);
+  const numberingToExistingId = new Map<string, string>();
+  templateFlat.forEach(({ row, numbering }) => numberingToExistingId.set(numbering, row.id));
 
   const summary: ImportSummary = { added: 0, updated: 0, deleted: 0, defaultsUpserted: 0, errors: [] };
 
@@ -223,17 +235,23 @@ export async function importTemplateFromExcel(
   for (let i = 1; i < aoa.length; i++) {
     const line = aoa[i];
     if (!line || line.every((c) => c === "" || c === null || c === undefined)) continue;
-    const rowIdRaw = String(line[idIdx] || "").trim();
+    const rowIdRaw = idIdx >= 0 ? String(line[idIdx] || "").trim() : "";
     const parentRaw = parentIdx >= 0 ? String(line[parentIdx] || "").trim() : "";
-    const numRaw = numIdx >= 0 ? String(line[numIdx] ?? "").trim() : "";
-    const isExisting = !!rowIdRaw && existingRowIds.has(rowIdRaw);
-    if (isExisting) seenRowIds.add(rowIdRaw);
+    const numRaw = String(line[numIdx] ?? "").trim();
+    // Match strategy: 1) por __row_id oculto si existe; 2) por numbering contra template original
+    let matchedId: string | null = null;
+    if (rowIdRaw && existingRowIds.has(rowIdRaw)) {
+      matchedId = rowIdRaw;
+    } else if (numRaw && numberingToExistingId.has(numRaw)) {
+      matchedId = numberingToExistingId.get(numRaw)!;
+    }
+    if (matchedId) seenRowIds.add(matchedId);
     pendings.push({
       lineIndex: i,
-      rowId: isExisting ? rowIdRaw : null,
+      rowId: matchedId,
       parentRef: parentRaw,
       numbering: numRaw,
-      isNew: !isExisting,
+      isNew: !matchedId,
     });
   }
 
