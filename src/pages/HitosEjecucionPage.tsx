@@ -121,7 +121,7 @@ export default function HitosEjecucionPage() {
   };
 
   // Build flat hierarchical list with depth
-  type FlatRow = { row: HitosRow; depth: number; numbering: string };
+  type FlatRow = { row: HitosRow; depth: number; numbering: string; ancestorColor: string | null };
   const flatRows = useMemo(() => {
     const childrenMap = new Map<string | null, HitosRow[]>();
     rows.forEach(r => {
@@ -132,15 +132,16 @@ export default function HitosEjecucionPage() {
     });
     childrenMap.forEach(arr => arr.sort((a, b) => a.orden - b.orden));
     const result: FlatRow[] = [];
-    const walk = (parentId: string | null, depth: number, prefix: string) => {
+    const walk = (parentId: string | null, depth: number, prefix: string, inheritedColor: string | null) => {
       const list = childrenMap.get(parentId) || [];
       list.forEach((r, i) => {
         const numbering = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
-        result.push({ row: r, depth, numbering });
-        walk(r.id, depth + 1, numbering);
+        const ownColor = r.color || null;
+        result.push({ row: r, depth, numbering, ancestorColor: inheritedColor });
+        walk(r.id, depth + 1, numbering, ownColor || inheritedColor);
       });
     };
-    walk(null, 0, "");
+    walk(null, 0, "", null);
     return result;
   }, [rows]);
 
