@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Pencil, Settings, CalendarIcon, ChevronRight, ChevronDown, Download, Upload } from "lucide-react";
 import { Check } from "lucide-react";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -16,6 +16,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useHitosTemplate, useHitosTemplateMutations, type HitosColumn, type ColumnTipo, type CheckboxAction, type HitosRow } from "@/hooks/useHitosTemplate";
+import { exportTemplateToExcel, importTemplateFromExcel } from "@/lib/hitos-excel";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function HitosEjecucionPage() {
   const { data, isLoading } = useHitosTemplate();
