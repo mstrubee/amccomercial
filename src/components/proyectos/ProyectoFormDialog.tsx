@@ -1389,65 +1389,95 @@ function EstatusInfoBlock({
           <button type="button" className="text-muted-foreground hover:text-destructive" onClick={onClear}><Trash2 className="w-3 h-3" /></button>
         </div>
       )}
-      {historialItems.length > 0 && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground rounded border border-border/60 bg-muted/30 px-1.5 py-0.5"
-              title="Ver historial de estatus"
-            >
-              <History className="w-3 h-3" />
-              Historial ({historialItems.length})
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-72 p-2" align="start">
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Historial de estatus
-              </div>
+    </div>
+  );
+}
+
+/* ── Historial Popover (renderizado al lado derecho del row del select) ── */
+function HistorialPopover({
+  proyectoEmpresaId,
+  historialItems,
+  categorias,
+}: {
+  proyectoEmpresaId: string | null | undefined;
+  historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string }[];
+  categorias: CategoriaWithSubs[];
+}) {
+  const deleteOne = useDeleteHistorialEstatus();
+  const deleteAll = useDeleteHistorialEstatusBulk();
+  if (historialItems.length === 0) return null;
+
+  const labelFor = (catId: string | null, subId: string | null): string => {
+    if (subId) {
+      for (const cat of categorias) {
+        const sub = cat.subcategorias_proyecto.find(s => s.id === subId);
+        if (sub) return sub.nombre;
+      }
+    }
+    if (catId) {
+      const cat = categorias.find(c => c.id === catId);
+      if (cat) return cat.nombre;
+    }
+    return "—";
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground rounded border border-border/60 bg-muted/30 px-1.5 py-0.5"
+          title="Ver historial de estatus"
+        >
+          <History className="w-3 h-3" />
+          Historial ({historialItems.length})
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="end">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Historial de estatus
+          </div>
+          <button
+            type="button"
+            className="text-[10px] text-destructive hover:underline disabled:opacity-50"
+            disabled={deleteAll.isPending || !proyectoEmpresaId}
+            onClick={() => {
+              if (!proyectoEmpresaId) return;
+              if (confirm(`¿Eliminar todo el historial (${historialItems.length} entradas)? Esta acción no se puede deshacer.`)) {
+                deleteAll.mutate(proyectoEmpresaId);
+              }
+            }}
+          >
+            Eliminar todo
+          </button>
+        </div>
+        <ul className="space-y-0.5 max-h-60 overflow-auto">
+          {historialItems.map((h) => (
+            <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2 group">
+              <span className="font-medium text-card-foreground">{h.fecha}</span>
+              <span>·</span>
+              <span className="flex-1 truncate">{labelFor(h.categoria_id, h.subcategoria_id)}</span>
+              {h.monto_uf > 0 && (
+                <span>{formatUF(h.monto_uf)}</span>
+              )}
               <button
                 type="button"
-                className="text-[10px] text-destructive hover:underline disabled:opacity-50"
-                disabled={deleteAll.isPending || !proyectoEmpresaId}
+                className="text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
+                title="Eliminar entrada"
                 onClick={() => {
-                  if (!proyectoEmpresaId) return;
-                  if (confirm(`¿Eliminar todo el historial (${historialItems.length} entradas)? Esta acción no se puede deshacer.`)) {
-                    deleteAll.mutate(proyectoEmpresaId);
+                  if (confirm("¿Eliminar esta entrada del historial?")) {
+                    deleteOne.mutate(h.id);
                   }
                 }}
               >
-                Eliminar todo
+                <Trash2 className="w-3 h-3" />
               </button>
-            </div>
-            <ul className="space-y-0.5 max-h-60 overflow-auto">
-              {historialItems.map((h) => (
-                <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2 group">
-                  <span className="font-medium text-card-foreground">{h.fecha}</span>
-                  <span>·</span>
-                  <span className="flex-1 truncate">{labelFor(h.categoria_id, h.subcategoria_id)}</span>
-                  {h.monto_uf > 0 && (
-                    <span>{formatUF(h.monto_uf)}</span>
-                  )}
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
-                    title="Eliminar entrada"
-                    onClick={() => {
-                      if (confirm("¿Eliminar esta entrada del historial?")) {
-                        deleteOne.mutate(h.id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
