@@ -127,5 +127,27 @@ export function useHitosTemplateMutations() {
     onSuccess: invalidate,
   });
 
-  return { addColumn, updateColumn, deleteColumn, addOption, updateOption, deleteOption, addRow, updateRow, deleteRow };
+  const upsertRowDefault = useMutation({
+    mutationFn: async ({ row_id, column_id, valor }: { row_id: string; column_id: string; valor: string }) => {
+      const { data: existing, error: selErr } = await supabase
+        .from("hitos_template_row_defaults" as any)
+        .select("id")
+        .eq("row_id", row_id)
+        .eq("column_id", column_id)
+        .maybeSingle();
+      if (selErr) throw selErr;
+      if (existing) {
+        const { error } = await supabase.from("hitos_template_row_defaults" as any)
+          .update({ valor, updated_at: new Date().toISOString() }).eq("id", (existing as any).id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("hitos_template_row_defaults" as any)
+          .insert({ row_id, column_id, valor });
+        if (error) throw error;
+      }
+    },
+    onSuccess: invalidate,
+  });
+
+  return { addColumn, updateColumn, deleteColumn, addOption, updateOption, deleteOption, addRow, updateRow, deleteRow, upsertRowDefault };
 }
