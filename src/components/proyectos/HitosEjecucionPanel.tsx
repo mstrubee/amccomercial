@@ -364,6 +364,8 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   {tplRows.map((row, idx) => {
                     if (!isRowVisible(row.id)) return null;
                     const hasChildren = (childrenMap.get(row.id) || []).length > 0;
+                    // Hide completed leaf rows when filter is on
+                    if (hideCompleted && !hasChildren && isRowCompleted("r", row.id)) return null;
                     const collapsed = collapsedRows.has(row.id);
                     const depth = depthMap.get(row.id) || 0;
                     return (
@@ -409,7 +411,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                     </tr>
                     );
                   })}
-                  {extraRows.map((row, idx) => (
+                  {extraRows.map((row, idx) => {
+                    if (hideCompleted && isRowCompleted("e", row.id)) return null;
+                    return (
                     <tr key={row.id} className="border-t border-border">
                       <td className="px-2 py-1 text-muted-foreground">{tplRows.filter(r => !r.parent_id).length + idx + 1}</td>
                       {columns.map(c => (
@@ -434,7 +438,8 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                         }}><Trash2 className="w-3 h-3" /></Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <div className="mt-2">
