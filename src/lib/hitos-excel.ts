@@ -285,9 +285,6 @@ export async function importTemplateFromExcel(
       }
       p.rowId = (data as any).id;
       summary.added += 1;
-      // store mapping if user wrote a temp id
-      const rawId = String(aoa[p.lineIndex][idIdx] || "").trim();
-      if (rawId) tempKeyToId.set(rawId, p.rowId!);
     } else {
       // update existing row's parent/orden if different
       const existing = template.rows.find((r) => r.id === p.rowId);
