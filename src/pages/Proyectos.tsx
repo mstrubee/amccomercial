@@ -941,6 +941,13 @@ export default function Proyectos() {
                                   </td>
                                 </tr>
                               )}
+                              {p.estado_obra === "Obra/Ejecución" && (
+                                <tr className={childBg}>
+                                  <td colSpan={10} className="px-5 pb-2 pt-0 pl-10">
+                                    <HitosEjecucionPanel proyectoEmpresaId={pe.id} empresaName={pe.empresas?.nombre} />
+                                  </td>
+                                </tr>
+                              )}
                             </Fragment>
                           );
                         });
@@ -1345,6 +1352,13 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
           <NotasCell proyecto={p} onSave={updateNotas} empresaId={p.proyecto_empresas?.[0]?.empresa_id || null} />
         </td>
       </tr>
+      {p.estado_obra === "Obra/Ejecución" && pe0 && (
+        <tr className={evenBg}>
+          <td className="px-5 pb-2 pt-0" colSpan={10}>
+            <HitosEjecucionPanel proyectoEmpresaId={pe0.id} empresaName={pe0.empresas?.nombre} />
+          </td>
+        </tr>
+      )}
     </>
   );
 });
