@@ -712,6 +712,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                     <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
                                   );
                                 })()}
+                                <HistorialPopover
+                                  proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
+                                  historialItems={getHistorialForEmpresa(row.empresa_id)}
+                                  categorias={categorias || []}
+                                />
                               </div>
                               {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
                                 <div className="mt-1.5 pl-6 space-y-1">
@@ -769,6 +774,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   <span className="text-[10px] text-muted-foreground italic">Sin ventas</span>
                                 );
                               })()}
+                              <HistorialPopover
+                                proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)}
+                                historialItems={getHistorialForEmpresa(row.empresa_id)}
+                                categorias={categorias || []}
+                              />
                             </div>
                             {categoryPermiteFecha(row.categoria_id, row.subcategoria_id) && (
                               <div className="mt-1.5 space-y-1">
