@@ -544,7 +544,7 @@ function DateCellEditor({ value, dateValue, disabled, onCommit }: {
   };
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="relative w-full">
       <Input
         value={text}
         placeholder="dd-mm-aaaa"
@@ -553,13 +553,18 @@ function DateCellEditor({ value, dateValue, disabled, onCommit }: {
         onBlur={() => { focusedRef.current = false; tryCommit(text); }}
         onChange={(e) => setText(formatTyping(e.target.value))}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        className="h-7 text-xs flex-1 min-w-0"
+        className="h-7 text-xs pr-7 w-full"
       />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" size="icon" disabled={disabled} className="h-7 w-7 shrink-0">
+          <button
+            type="button"
+            disabled={disabled}
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-50"
+            title="Abrir calendario"
+          >
             <CalendarIcon className="w-3 h-3" />
-          </Button>
+          </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="end">
           <Calendar
