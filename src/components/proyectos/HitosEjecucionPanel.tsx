@@ -66,6 +66,21 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
     tplRows.forEach(r => depth(r.id));
     return cache;
   }, [tplRows]);
+  // Hierarchical numbering: 1, 1.1, 1.1.1, 1.2, 2, ...
+  const numberMap = useMemo(() => {
+    const m = new Map<string, string>();
+    const roots = tplRows.filter(r => !r.parent_id);
+    const assign = (id: string, prefix: string) => {
+      m.set(id, prefix);
+      const kids = (childrenMap.get(id) || [])
+        .map(cid => tplRows.find(r => r.id === cid)!)
+        .filter(Boolean)
+        .sort((a, b) => a.orden - b.orden);
+      kids.forEach((k, i) => assign(k.id, `${prefix}.${i + 1}`));
+    };
+    roots.forEach((r, i) => assign(r.id, String(i + 1)));
+    return m;
+  }, [tplRows, childrenMap]);
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const isRowVisible = useCallback((id: string): boolean => {
     const byId = new Map(tplRows.map(r => [r.id, r] as const));
@@ -285,7 +300,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                           ) : (
                             <span className="inline-block w-4" />
                           )}
-                          <span>{idx + 1}</span>
+                          <span>{numberMap.get(row.id) || idx + 1}</span>
                         </div>
                       </td>
                       {columns.map(c => (
@@ -310,7 +325,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   })}
                   {extraRows.map((row, idx) => (
                     <tr key={row.id} className="border-t border-border">
-                      <td className="px-2 py-1 text-muted-foreground">{tplRows.length + idx + 1}</td>
+                      <td className="px-2 py-1 text-muted-foreground">{tplRows.filter(r => !r.parent_id).length + idx + 1}</td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
