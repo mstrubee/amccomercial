@@ -14,7 +14,7 @@ import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, 
 import VentasEmpresaSection from "./VentasEmpresaSection";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
 import { useHistorialEstatusByIds, useCreateHistorialEstatus } from "@/hooks/useHistorialEstatus";
-import MontoInput from "@/components/empresas/MontoInput";
+import { VALOR_UF } from "@/data/mock-data";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { format, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
