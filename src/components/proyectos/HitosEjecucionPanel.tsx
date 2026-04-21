@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
 import { ChevronDown, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
@@ -17,9 +17,20 @@ interface Props {
   proyectoEmpresaId: string;
   empresaName?: string | null;
   defaultOpen?: boolean;
+  draftMode?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, defaultOpen = false }: Props) {
+export interface HitosEjecucionPanelHandle {
+  save: () => Promise<void>;
+  discard: () => void;
+  isDirty: () => boolean;
+}
+
+const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(function HitosEjecucionPanel(
+  { proyectoEmpresaId, empresaName, defaultOpen = false, draftMode = false, onDirtyChange },
+  ref,
+) {
   const [open, setOpen] = useState(defaultOpen);
   const { data: template } = useHitosTemplate();
   const { data: peData } = useHitosProyectoEmpresa(open ? proyectoEmpresaId : null);
@@ -66,6 +77,49 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, de
     (template?.defaults || []).forEach(d => m.set(`${d.row_id}|${d.column_id}`, d.valor));
     return m;
   }, [template]);
+
+  // Draft overlay: pending edits not yet committed
+  const [draftMap, setDraftMap] = useState<Map<string, string>>(new Map());
+  useEffect(() => { setDraftMap(new Map()); }, [proyectoEmpresaId]);
+  useEffect(() => { onDirtyChange?.(draftMap.size > 0); }, [draftMap, onDirtyChange]);
+
+  const stagedValueFor = useCallback((key: string, fallback: string) => {
+    return draftMap.has(key) ? (draftMap.get(key) as string) : fallback;
+  }, [draftMap]);
+
+  const stageOrCommit = useCallback((row_id: string | null, extra_row_id: string | null, column_id: string, valor: string) => {
+    if (draftMode) {
+      const key = row_id ? `r:${row_id}|c:${column_id}` : `e:${extra_row_id}|c:${column_id}`;
+      setDraftMap(prev => {
+        const next = new Map(prev);
+        next.set(key, valor);
+        return next;
+      });
+    } else {
+      upsertValue.mutate({ row_id, extra_row_id, column_id, valor });
+    }
+  }, [draftMode, upsertValue]);
+
+  useImperativeHandle(ref, () => ({
+    isDirty: () => draftMap.size > 0,
+    discard: () => setDraftMap(new Map()),
+    save: async () => {
+      const entries = Array.from(draftMap.entries());
+      for (const [key, valor] of entries) {
+        const [rowPart, colPart] = key.split("|");
+        const column_id = colPart.slice(2);
+        const isTpl = rowPart.startsWith("r:");
+        const id = rowPart.slice(2);
+        await upsertValue.mutateAsync({
+          row_id: isTpl ? id : null,
+          extra_row_id: isTpl ? null : id,
+          column_id,
+          valor,
+        });
+      }
+      setDraftMap(new Map());
+    },
+  }), [draftMap, upsertValue]);
 
   const totalCells = (tplRows.length + extraRows.length) * columns.length;
   const filledCells = (peData?.values || []).filter(v => v.valor && v.valor.trim().length > 0).length;
