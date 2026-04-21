@@ -126,8 +126,9 @@ export function useHitosTemplateMutations() {
 
   const addRow = useMutation({
     mutationFn: async ({ orden, parent_id = null }: { orden: number; parent_id?: string | null }) => {
-      const { error } = await supabase.from("hitos_template_rows").insert({ orden, parent_id } as any);
+      const { data, error } = await supabase.from("hitos_template_rows").insert({ orden, parent_id } as any).select().single();
       if (error) throw error;
+      return data as any;
     },
     onSuccess: invalidate,
   });
