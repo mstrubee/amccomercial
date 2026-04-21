@@ -298,6 +298,7 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
 }) {
   const tipo = col.tipo;
   const options = col.options.map(o => o.valor);
+  const readOnly = col.editable_en_proyecto === false;
 
   const [local, setLocal] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -329,8 +330,8 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
 
   if (tipo === "select") {
     return (
-      <Select value={local || undefined} onValueChange={(v) => onCommit(v)}>
-        <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+      <Select value={local || undefined} onValueChange={(v) => onCommit(v)} disabled={readOnly}>
+        <SelectTrigger className="h-7 text-xs" disabled={readOnly}><SelectValue placeholder="—" /></SelectTrigger>
         <SelectContent>
           {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
         </SelectContent>
@@ -343,7 +344,7 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" disabled={lockedByCheckbox} className={cn("h-7 text-xs w-full justify-start font-normal", !dateValue && "text-muted-foreground", lockedByCheckbox && "opacity-100")}>
+          <Button variant="outline" size="sm" disabled={lockedByCheckbox || readOnly} className={cn("h-7 text-xs w-full justify-start font-normal", !dateValue && "text-muted-foreground", (lockedByCheckbox || readOnly) && "opacity-100")}>
             <CalendarIcon className="w-3 h-3 mr-1.5" />
             {dateValue ? format(dateValue, "dd MMM yyyy", { locale: es }) : "—"}
           </Button>
@@ -378,6 +379,7 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
     const showFecha = writesFecha && !fechaCol && checked && parsed.fecha;
 
     const handleToggle = () => {
+      if (readOnly) return;
       if (checked) {
         onCommit(JSON.stringify({ checked: false }));
         // No "unlock": we don't clear the fecha column on uncheck (user data preserved)
@@ -400,8 +402,9 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
       <button
         type="button"
         onClick={handleToggle}
+        disabled={readOnly}
         className={cn(
-          "h-7 w-full rounded border text-xs flex items-center justify-center gap-1.5 transition-colors",
+          "h-7 w-full rounded border text-xs flex items-center justify-center gap-1.5 transition-colors disabled:cursor-not-allowed",
           showCompletedColor ? "text-white border-transparent" : "border-border bg-background hover:bg-muted/40"
         )}
         style={showCompletedColor ? { backgroundColor: col.checkbox_color } : undefined}
@@ -422,6 +425,7 @@ function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther
       onChange={(e) => handleChange(e.target.value)}
       onFocus={() => { focusedRef.current = true; }}
       onBlur={() => { focusedRef.current = false; clearTimeout(timer.current); onCommit(local); }}
+      readOnly={readOnly}
       className="h-7 text-xs"
     />
   );
