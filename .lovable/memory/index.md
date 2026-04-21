@@ -1,0 +1,1 @@
+- [Hitos Ejecución](mem://features/proyectos/hitos-ejecucion) — Plantilla global checklist visible cuando estado_obra = Obra/Ejecución
