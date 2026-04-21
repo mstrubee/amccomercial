@@ -39,7 +39,7 @@ import {
 import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoRepositorioDialog";
 import { useAddChecklistItem, startsWithDate } from "@/hooks/useEmpresaChecklist";
 import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
-import HitosEjecucionPanel from "@/components/proyectos/HitosEjecucionPanel";
+import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/components/proyectos/HitosEjecucionPanel";
 import { cn } from "@/lib/utils";
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
@@ -884,7 +884,7 @@ export default function Proyectos() {
                                       estadosAmc={estadosAmc || []}
                                       onUpdate={(nuevo) => handleUpdateEstadoAmcPE(pe.id, nuevo)}
                                     />
-                                    {p.estado_obra === "Obra/Ejecución" && (
+                                    {((pe as any).estado_amc === "Obra/Ejecución") && (
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -1272,23 +1272,7 @@ export default function Proyectos() {
       />
 
       {/* Hitos Ejecución dialog */}
-      <Dialog open={!!hitosTarget} onOpenChange={(o) => !o && setHitosTarget(null)}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Hitos Ejecución — {hitosTarget?.proyectoNombre}
-              {hitosTarget?.empresaName ? ` · ${hitosTarget.empresaName}` : ""}
-            </DialogTitle>
-          </DialogHeader>
-          {hitosTarget && (
-            <HitosEjecucionPanel
-              proyectoEmpresaId={hitosTarget.proyectoEmpresaId}
-              empresaName={hitosTarget.empresaName}
-              defaultOpen
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <HitosEjecucionDialog target={hitosTarget} onClose={() => setHitosTarget(null)} />
     </div>
     </>
   );
@@ -1769,5 +1753,102 @@ function NotasCell({ proyecto, onSave, onCreateAlerta, empresaId }: { proyecto: 
       )}
       
     </div>
+  );
+}
+
+/* ── Hitos Ejecución Dialog with draft save / discard confirmation ── */
+function HitosEjecucionDialog({
+  target,
+  onClose,
+}: {
+  target: { proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HitosEjecucionPanelHandle | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleAttemptClose = (open: boolean) => {
+    if (open) return;
+    if (panelRef.current?.isDirty()) {
+      setConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleSave = async () => {
+    if (!panelRef.current) { onClose(); return; }
+    try {
+      setSaving(true);
+      await panelRef.current.save();
+      toast.success("Cambios guardados");
+      onClose();
+    } catch (e: any) {
+      toast.error("Error al guardar: " + (e?.message ?? "desconocido"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    panelRef.current?.discard();
+    setConfirmOpen(false);
+    onClose();
+  };
+
+  const handleSaveFromConfirm = async () => {
+    setConfirmOpen(false);
+    await handleSave();
+  };
+
+  return (
+    <>
+      <Dialog open={!!target} onOpenChange={handleAttemptClose}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Hitos Ejecución — {target?.proyectoNombre}
+              {target?.empresaName ? ` · ${target.empresaName}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {target && (
+            <HitosEjecucionPanel
+              ref={panelRef}
+              proyectoEmpresaId={target.proyectoEmpresaId}
+              empresaName={target.empresaName}
+              defaultOpen
+              draftMode
+              onDirtyChange={setDirty}
+            />
+          )}
+          <div className="flex justify-end gap-2 pt-3 border-t border-border mt-2">
+            <Button variant="outline" onClick={() => handleAttemptClose(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={!dirty || saving}>
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tienes cambios sin guardar</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Quieres guardar los cambios antes de cerrar? Si descartas, se perderán las modificaciones.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <Button variant="outline" onClick={handleDiscard}>Descartar</Button>
+            <AlertDialogAction onClick={handleSaveFromConfirm}>Guardar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

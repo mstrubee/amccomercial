@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
 import { ChevronDown, Plus, Trash2, CalendarIcon, Check } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
@@ -17,9 +17,20 @@ interface Props {
   proyectoEmpresaId: string;
   empresaName?: string | null;
   defaultOpen?: boolean;
+  draftMode?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, defaultOpen = false }: Props) {
+export interface HitosEjecucionPanelHandle {
+  save: () => Promise<void>;
+  discard: () => void;
+  isDirty: () => boolean;
+}
+
+const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(function HitosEjecucionPanel(
+  { proyectoEmpresaId, empresaName, defaultOpen = false, draftMode = false, onDirtyChange },
+  ref,
+) {
   const [open, setOpen] = useState(defaultOpen);
   const { data: template } = useHitosTemplate();
   const { data: peData } = useHitosProyectoEmpresa(open ? proyectoEmpresaId : null);
@@ -67,6 +78,49 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, de
     return m;
   }, [template]);
 
+  // Draft overlay: pending edits not yet committed
+  const [draftMap, setDraftMap] = useState<Map<string, string>>(new Map());
+  useEffect(() => { setDraftMap(new Map()); }, [proyectoEmpresaId]);
+  useEffect(() => { onDirtyChange?.(draftMap.size > 0); }, [draftMap, onDirtyChange]);
+
+  const stagedValueFor = useCallback((key: string, fallback: string) => {
+    return draftMap.has(key) ? (draftMap.get(key) as string) : fallback;
+  }, [draftMap]);
+
+  const stageOrCommit = useCallback((row_id: string | null, extra_row_id: string | null, column_id: string, valor: string) => {
+    if (draftMode) {
+      const key = row_id ? `r:${row_id}|c:${column_id}` : `e:${extra_row_id}|c:${column_id}`;
+      setDraftMap(prev => {
+        const next = new Map(prev);
+        next.set(key, valor);
+        return next;
+      });
+    } else {
+      upsertValue.mutate({ row_id, extra_row_id, column_id, valor });
+    }
+  }, [draftMode, upsertValue]);
+
+  useImperativeHandle(ref, () => ({
+    isDirty: () => draftMap.size > 0,
+    discard: () => setDraftMap(new Map()),
+    save: async () => {
+      const entries = Array.from(draftMap.entries());
+      for (const [key, valor] of entries) {
+        const [rowPart, colPart] = key.split("|");
+        const column_id = colPart.slice(2);
+        const isTpl = rowPart.startsWith("r:");
+        const id = rowPart.slice(2);
+        await upsertValue.mutateAsync({
+          row_id: isTpl ? id : null,
+          extra_row_id: isTpl ? null : id,
+          column_id,
+          valor,
+        });
+      }
+      setDraftMap(new Map());
+    },
+  }), [draftMap, upsertValue]);
+
   const totalCells = (tplRows.length + extraRows.length) * columns.length;
   const filledCells = (peData?.values || []).filter(v => v.valor && v.valor.trim().length > 0).length;
 
@@ -109,12 +163,13 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, de
                             col={c}
                             allColumns={columns}
                             rowValues={columns.reduce((acc, cc) => {
-                              acc[cc.id] = valueMap.get(`r:${row.id}|c:${cc.id}`) ?? defaultsMap.get(`${row.id}|${cc.id}`) ?? "";
+                              const k = `r:${row.id}|c:${cc.id}`;
+                              acc[cc.id] = stagedValueFor(k, valueMap.get(k) ?? defaultsMap.get(`${row.id}|${cc.id}`) ?? "");
                               return acc;
                             }, {} as Record<string, string>)}
-                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: colId, valor: v })}
-                            value={valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? ""}
-                            onCommit={(v) => upsertValue.mutate({ row_id: row.id, extra_row_id: null, column_id: c.id, valor: v })}
+                            onCommitOther={(colId, v) => stageOrCommit(row.id, null, colId, v)}
+                            value={stagedValueFor(`r:${row.id}|c:${c.id}`, valueMap.get(`r:${row.id}|c:${c.id}`) ?? defaultsMap.get(`${row.id}|${c.id}`) ?? "")}
+                            onCommit={(v) => stageOrCommit(row.id, null, c.id, v)}
                           />
                         </td>
                       ))}
@@ -130,12 +185,13 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, de
                             col={c}
                             allColumns={columns}
                             rowValues={columns.reduce((acc, cc) => {
-                              acc[cc.id] = valueMap.get(`e:${row.id}|c:${cc.id}`) || "";
+                              const k = `e:${row.id}|c:${cc.id}`;
+                              acc[cc.id] = stagedValueFor(k, valueMap.get(k) || "");
                               return acc;
                             }, {} as Record<string, string>)}
-                            onCommitOther={(colId, v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: colId, valor: v })}
-                            value={valueMap.get(`e:${row.id}|c:${c.id}`) || ""}
-                            onCommit={(v) => upsertValue.mutate({ row_id: null, extra_row_id: row.id, column_id: c.id, valor: v })}
+                            onCommitOther={(colId, v) => stageOrCommit(null, row.id, colId, v)}
+                            value={stagedValueFor(`e:${row.id}|c:${c.id}`, valueMap.get(`e:${row.id}|c:${c.id}`) || "")}
+                            onCommit={(v) => stageOrCommit(null, row.id, c.id, v)}
                           />
                         </td>
                       ))}
@@ -161,7 +217,9 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName, de
       </CollapsibleContent>
     </Collapsible>
   );
-}
+});
+
+export default HitosEjecucionPanel;
 
 /* ── Cell editor with debounced auto-save ── */
 function CellEditor({ col, value, onCommit, allColumns, rowValues, onCommitOther }: {
