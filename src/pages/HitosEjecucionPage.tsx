@@ -22,8 +22,6 @@ export default function HitosEjecucionPage() {
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
 
-  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
-
   const columns = data?.columns || [];
   const rows = data?.rows || [];
   const defaults = data?.defaults || [];
@@ -32,6 +30,8 @@ export default function HitosEjecucionPage() {
     defaults.forEach(d => m.set(`${d.row_id}|${d.column_id}`, d.valor));
     return m;
   }, [defaults]);
+
+  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
 
   const handleAddColumn = async () => {
     const name = newColName.trim();
