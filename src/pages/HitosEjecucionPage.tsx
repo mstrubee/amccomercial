@@ -26,6 +26,7 @@ export default function HitosEjecucionPage() {
   const [newColTipo, setNewColTipo] = useState<ColumnTipo>("texto");
   const [newColAction, setNewColAction] = useState<CheckboxAction>("fijar_fecha_y_completar");
   const [newColColor, setNewColColor] = useState("#22c55e");
+  const [newColEditable, setNewColEditable] = useState<boolean>(true);
 
   const [editCol, setEditCol] = useState<HitosColumn | null>(null);
   const [optionsCol, setOptionsCol] = useState<HitosColumn | null>(null);
@@ -78,8 +79,9 @@ export default function HitosEjecucionPage() {
         nombre: name, tipo: newColTipo, orden: columns.length,
         checkbox_action: newColTipo === "checkbox" ? newColAction : undefined,
         checkbox_color: newColTipo === "checkbox" ? newColColor : undefined,
+        editable_en_proyecto: newColEditable,
       });
-      setNewColName(""); setNewColTipo("texto"); setNewColAction("fijar_fecha_y_completar"); setNewColColor("#22c55e");
+      setNewColName(""); setNewColTipo("texto"); setNewColAction("fijar_fecha_y_completar"); setNewColColor("#22c55e"); setNewColEditable(true);
       setShowAddCol(false);
       toast.success("Columna agregada");
     } catch (e: any) { toast.error(e.message); }
@@ -385,6 +387,16 @@ export default function HitosEjecucionPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground">¿Editable desde proyecto?</label>
+              <Select value={newColEditable ? "si" : "no"} onValueChange={(v) => setNewColEditable(v === "si")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="si">Sí</SelectItem>
+                  <SelectItem value="no">No (solo lectura en línea de proyecto)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {newColTipo === "checkbox" && (
               <>
                 <div>
@@ -432,6 +444,7 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
   const [tipo, setTipo] = useState<ColumnTipo>(col?.tipo || "texto");
   const [action, setAction] = useState<CheckboxAction>(col?.checkbox_action || "fijar_fecha_y_completar");
   const [color, setColor] = useState(col?.checkbox_color || "#22c55e");
+  const [editable, setEditable] = useState<boolean>(col?.editable_en_proyecto !== false);
 
   if (!col) return null;
   return (
@@ -452,6 +465,16 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
                 <SelectItem value="select">Lista desplegable</SelectItem>
                 <SelectItem value="fecha">Fecha</SelectItem>
                 <SelectItem value="checkbox">Casilla (checkbox)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">¿Editable desde proyecto?</label>
+            <Select value={editable ? "si" : "no"} onValueChange={(v) => setEditable(v === "si")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="si">Sí</SelectItem>
+                <SelectItem value="no">No (solo lectura en línea de proyecto)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -489,6 +512,7 @@ function EditColumnDialog({ col, onClose }: { col: HitosColumn | null; onClose: 
               id: col.id, nombre: finalName, tipo: tipo || col.tipo,
               checkbox_action: tipo === "checkbox" ? action : undefined,
               checkbox_color: tipo === "checkbox" ? color : undefined,
+              editable_en_proyecto: editable,
             });
             toast.success("Columna actualizada");
             onClose();

@@ -12,6 +12,7 @@ export type HitosColumn = {
   options: { id: string; valor: string; orden: number }[];
   checkbox_action: CheckboxAction;
   checkbox_color: string;
+  editable_en_proyecto: boolean;
 };
 export type HitosRow = { id: string; orden: number; parent_id: string | null; color: string | null };
 export type HitosRowDefault = { id: string; row_id: string; column_id: string; valor: string };
@@ -47,6 +48,7 @@ export function useHitosTemplate() {
         options: optsByCol.get(c.id) || [],
         checkbox_action: (c.checkbox_action || "fijar_fecha_y_completar") as CheckboxAction,
         checkbox_color: c.checkbox_color || "#22c55e",
+        editable_en_proyecto: c.editable_en_proyecto !== false,
       }));
       const rows: HitosRow[] = (rowsRes.data || []).map((r: any) => ({ id: r.id, orden: r.orden, parent_id: r.parent_id ?? null, color: r.color ?? null }));
       const defaults: HitosRowDefault[] = (defRes.data || []).map((d: any) => ({
@@ -62,13 +64,15 @@ export function useHitosTemplateMutations() {
   const invalidate = async () => { await qc.invalidateQueries({ queryKey: ["hitos-template"] }); };
 
   const addColumn = useMutation({
-    mutationFn: async ({ nombre, tipo, orden, checkbox_action, checkbox_color }: {
+    mutationFn: async ({ nombre, tipo, orden, checkbox_action, checkbox_color, editable_en_proyecto }: {
       nombre: string; tipo: ColumnTipo; orden: number;
       checkbox_action?: CheckboxAction; checkbox_color?: string;
+      editable_en_proyecto?: boolean;
     }) => {
       const payload: any = { nombre, tipo, orden };
       if (checkbox_action) payload.checkbox_action = checkbox_action;
       if (checkbox_color) payload.checkbox_color = checkbox_color;
+      if (editable_en_proyecto !== undefined) payload.editable_en_proyecto = editable_en_proyecto;
       const { data, error } = await supabase.from("hitos_template_columns").insert(payload).select().single();
       if (error) throw error;
       return data;
@@ -80,6 +84,7 @@ export function useHitosTemplateMutations() {
     mutationFn: async ({ id, ...updates }: {
       id: string; nombre?: string; tipo?: ColumnTipo; orden?: number;
       checkbox_action?: CheckboxAction; checkbox_color?: string;
+      editable_en_proyecto?: boolean;
     }) => {
       const { error } = await supabase.from("hitos_template_columns").update(updates).eq("id", id);
       if (error) throw error;
