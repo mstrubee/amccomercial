@@ -266,3 +266,45 @@ function OptionsDialog({ col, onClose }: { col: HitosColumn | null; onClose: () 
     </Dialog>
   );
 }
+
+function DefaultCellEditor({ tipo, options, value, onCommit }: {
+  tipo: "texto" | "select";
+  options: string[];
+  value: string;
+  onCommit: (v: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const focusedRef = useRef(false);
+
+  useEffect(() => { if (!focusedRef.current) setLocal(value); }, [value]);
+
+  const handleChange = useCallback((v: string) => {
+    setLocal(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => onCommit(v), 600);
+  }, [onCommit]);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  if (tipo === "select") {
+    return (
+      <Select value={local || undefined} onValueChange={(v) => onCommit(v)}>
+        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+        <SelectContent>
+          {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    );
+  }
+  return (
+    <Input
+      value={local}
+      onChange={(e) => handleChange(e.target.value)}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => { focusedRef.current = false; clearTimeout(timer.current); onCommit(local); }}
+      className="h-8 text-xs"
+      placeholder="—"
+    />
+  );
+}
