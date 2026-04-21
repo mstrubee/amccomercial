@@ -1107,6 +1107,7 @@ export type Database = {
           checkbox_action: string
           checkbox_color: string
           created_at: string
+          editable_en_proyecto: boolean
           id: string
           nombre: string
           orden: number
@@ -1116,6 +1117,7 @@ export type Database = {
           checkbox_action?: string
           checkbox_color?: string
           created_at?: string
+          editable_en_proyecto?: boolean
           id?: string
           nombre: string
           orden?: number
@@ -1125,6 +1127,7 @@ export type Database = {
           checkbox_action?: string
           checkbox_color?: string
           created_at?: string
+          editable_en_proyecto?: boolean
           id?: string
           nombre?: string
           orden?: number
