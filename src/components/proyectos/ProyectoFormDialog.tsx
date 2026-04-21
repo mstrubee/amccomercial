@@ -647,18 +647,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                                   </label>
                                 </div>
                               )}
-                              {row.subcategoria_id === GANADO_SUBCATEGORIA_ID && (row.ganado_presupuesto || row.ganado_op || row.ganado_fecha) && (
-                                <div className="mt-1.5 pl-6 flex items-center gap-2 flex-wrap">
-                                  <Trophy className="w-3 h-3 text-emerald-600" />
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {row.ganado_presupuesto != null && `Ppto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
-                                    {row.ganado_op && `OP: ${row.ganado_op} `}
-                                    {row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
-                                  </span>
-                                  <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => openGanadoEdit(row.empresa_id)}><Pencil className="w-3 h-3" /></button>
-                                  <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => clearGanadoData(row.empresa_id)}><Trash2 className="w-3 h-3" /></button>
-                                </div>
-                               )}
+                              <div className="pl-6">
+                                <EstatusInfoBlock
+                                  row={row}
+                                  historialItems={getHistorialForEmpresa(row.empresa_id)}
+                                  categorias={categorias || []}
+                                  onEdit={() => openGanadoEdit(row.empresa_id)}
+                                  onClear={() => clearGanadoData(row.empresa_id)}
+                                  isGanado={row.subcategoria_id === GANADO_SUBCATEGORIA_ID}
+                                />
+                              </div>
                               <VentasEmpresaSection proyectoEmpresaId={getProyectoEmpresaId(row.empresa_id)} />
                               </>
                             )}
