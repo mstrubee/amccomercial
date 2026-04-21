@@ -976,6 +976,174 @@ export type Database = {
           },
         ]
       }
+      hitos_proyecto_empresa_extra_rows: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          orden: number
+          proyecto_empresa_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          orden?: number
+          proyecto_empresa_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          orden?: number
+          proyecto_empresa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hitos_proyecto_empresa_extra_rows_proyecto_empresa_id_fkey"
+            columns: ["proyecto_empresa_id"]
+            isOneToOne: false
+            referencedRelation: "proyecto_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hitos_proyecto_empresa_values: {
+        Row: {
+          column_id: string
+          created_by: string
+          extra_row_id: string | null
+          id: string
+          proyecto_empresa_id: string
+          row_id: string | null
+          updated_at: string
+          valor: string
+        }
+        Insert: {
+          column_id: string
+          created_by: string
+          extra_row_id?: string | null
+          id?: string
+          proyecto_empresa_id: string
+          row_id?: string | null
+          updated_at?: string
+          valor?: string
+        }
+        Update: {
+          column_id?: string
+          created_by?: string
+          extra_row_id?: string | null
+          id?: string
+          proyecto_empresa_id?: string
+          row_id?: string | null
+          updated_at?: string
+          valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hitos_proyecto_empresa_values_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_template_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitos_proyecto_empresa_values_extra_row_id_fkey"
+            columns: ["extra_row_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_proyecto_empresa_extra_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitos_proyecto_empresa_values_proyecto_empresa_id_fkey"
+            columns: ["proyecto_empresa_id"]
+            isOneToOne: false
+            referencedRelation: "proyecto_empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitos_proyecto_empresa_values_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_template_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hitos_template_column_options: {
+        Row: {
+          column_id: string
+          created_at: string
+          id: string
+          orden: number
+          valor: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          id?: string
+          orden?: number
+          valor: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          id?: string
+          orden?: number
+          valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hitos_template_column_options_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "hitos_template_columns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hitos_template_columns: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+          orden: number
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+          orden?: number
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+          orden?: number
+          tipo?: string
+        }
+        Relationships: []
+      }
+      hitos_template_rows: {
+        Row: {
+          created_at: string
+          id: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
