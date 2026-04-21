@@ -341,27 +341,21 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     const row = empresaRows.find(r => r.empresa_id === empresa_id);
     const fecha = permiteFecha && !row?.fecha_categoria ? new Date().toISOString().split("T")[0] : row?.fecha_categoria || null;
 
-    // If selecting "Ganado", open dialog to capture extra data
-    if (newSubId === GANADO_SUBCATEGORIA_ID) {
-      setGanadoDialogEmpresaId(empresa_id);
-      setGanadoPrevCatId(row?.categoria_id || null);
-      setGanadoPrevSubId(row?.subcategoria_id || null);
-      setGanadoPresupuesto(row?.ganado_presupuesto ? String(row.ganado_presupuesto) : row?.monto ? String(row.monto) : "");
-      setGanadoOp(row?.ganado_op || "");
-      setGanadoFecha(row?.ganado_fecha || new Date().toISOString().split("T")[0]);
-      // Apply the category change optimistically
-      updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null });
-      setGanadoDialogOpen(true);
-      return;
-    }
-
-    // If changing away from Ganado, clear ganado fields
-    if (row?.subcategoria_id === GANADO_SUBCATEGORIA_ID && newSubId !== GANADO_SUBCATEGORIA_ID) {
-      updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null, ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
-      return;
-    }
-
+    // Always open the Estatus dialog for any change → captures monto + fecha
+    // (and OP only when subcategoría === Ganado).
+    setGanadoDialogEmpresaId(empresa_id);
+    setGanadoPrevCatId(row?.categoria_id || null);
+    setGanadoPrevSubId(row?.subcategoria_id || null);
+    // Preserve previously entered monto (UF). Falls back to monto cotización if any.
+    setGanadoPresupuesto(
+      row?.ganado_presupuesto ? String(row.ganado_presupuesto) : row?.monto ? String(row.monto) : ""
+    );
+    // OP only relevant for Ganado
+    setGanadoOp(newSubId === GANADO_SUBCATEGORIA_ID ? (row?.ganado_op || "") : "");
+    setGanadoFecha(new Date().toISOString().split("T")[0]);
+    // Apply the category change optimistically
     updateEmpresaRow(empresa_id, { categoria_id: newCatId, subcategoria_id: newSubId, fecha_categoria: permiteFecha ? fecha : null });
+    setGanadoDialogOpen(true);
   };
 
   const handleGanadoConfirm = () => {
