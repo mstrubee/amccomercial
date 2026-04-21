@@ -200,6 +200,17 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
       try { const p = JSON.parse(raw); return !!p.checked; } catch { return false; }
     });
   }, [checkboxCols, stagedValueFor, valueMap, defaultsMap]);
+
+  // Discarded row = has any "descartar" checkbox column marked
+  const isRowDescartado = useCallback((prefix: "r" | "e", rowId: string) => {
+    return checkboxCols.some(c => {
+      if (c.checkbox_action !== "descartar") return false;
+      const k = `${prefix}:${rowId}|c:${c.id}`;
+      const raw = stagedValueFor(k, valueMap.get(k) ?? (prefix === "r" ? defaultsMap.get(`${rowId}|${c.id}`) : "") ?? "");
+      if (!raw) return false;
+      try { const p = JSON.parse(raw); return !!p.checked; } catch { return false; }
+    });
+  }, [checkboxCols, stagedValueFor, valueMap, defaultsMap]);
   const completedHitos = useMemo(() => {
     let n = 0;
     leafTplRows.forEach(r => { if (isRowCompleted("r", r.id)) n++; });
@@ -371,8 +382,14 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                     return (
                     <tr key={row.id} className="border-t border-border" style={(() => {
                       const c = rowColorMap.get(row.id);
-                      if (!c?.color) return undefined;
-                      return { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` };
+                      const base: React.CSSProperties = c?.color
+                        ? { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` }
+                        : {};
+                      if (isRowDescartado("r", row.id)) {
+                        base.textDecoration = "line-through";
+                        base.opacity = 0.55;
+                      }
+                      return base;
                     })()}>
                       <td className="px-2 py-1 text-muted-foreground">
                         <div className="flex items-center gap-1" style={{ paddingLeft: depth * 10 }}>
@@ -413,8 +430,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   })}
                   {extraRows.map((row, idx) => {
                     if (hideCompleted && isRowCompleted("e", row.id)) return null;
+                    const descartada = isRowDescartado("e", row.id);
                     return (
-                    <tr key={row.id} className="border-t border-border">
+                    <tr key={row.id} className="border-t border-border" style={descartada ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>
                       <td className="px-2 py-1 text-muted-foreground">{tplRows.filter(r => !r.parent_id).length + idx + 1}</td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
