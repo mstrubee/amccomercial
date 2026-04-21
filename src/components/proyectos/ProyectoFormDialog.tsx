@@ -943,15 +943,47 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-2">
-                  <MontoInput
-                    label="Monto"
-                    value={ganadoPresupuesto ? Math.round(parseFloat(ganadoPresupuesto) * 38500) : 0}
-                    onChange={(clpValue) => {
-                      // MontoInput stores CLP; convert back to UF for our state.
-                      const uf = clpValue ? clpValue / 38500 : 0;
-                      setGanadoPresupuesto(uf ? uf.toFixed(2) : "");
-                    }}
-                  />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label>Monto {isGanado ? "Presupuesto" : ""}</Label>
+                      <button
+                        type="button"
+                        onClick={() => setGanadoMoneda(ganadoMoneda === "UF" ? "CLP" : "UF")}
+                        className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border border-border bg-secondary/50 text-muted-foreground hover:bg-secondary transition-colors"
+                      >
+                        {ganadoMoneda === "UF" ? "UF" : "$"}
+                      </button>
+                    </div>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={ganadoMoneda === "UF" ? 0.01 : 1}
+                      placeholder={ganadoMoneda === "UF" ? "Monto en UF" : "Monto en $"}
+                      value={
+                        ganadoMoneda === "UF"
+                          ? ganadoPresupuesto
+                          : ganadoPresupuesto
+                            ? String(Math.round(parseFloat(ganadoPresupuesto) * VALOR_UF))
+                            : ""
+                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (!raw) { setGanadoPresupuesto(""); return; }
+                        const num = parseFloat(raw);
+                        if (isNaN(num)) return;
+                        if (ganadoMoneda === "UF") setGanadoPresupuesto(raw);
+                        else setGanadoPresupuesto((num / VALOR_UF).toFixed(2));
+                      }}
+                      onFocus={(e) => { if (e.target.value === "0") setGanadoPresupuesto(""); }}
+                    />
+                    {ganadoPresupuesto && parseFloat(ganadoPresupuesto) > 0 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {ganadoMoneda === "UF"
+                          ? `≈ ${formatCLP(ufToCLP(parseFloat(ganadoPresupuesto)))}`
+                          : `≈ ${formatUF(parseFloat(ganadoPresupuesto))}`}
+                      </p>
+                    )}
+                  </div>
                   {isGanado && (
                     <div className="space-y-1">
                       <Label>OP</Label>
