@@ -28,6 +28,27 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
   const tplRows = useMemo(() => (template?.rows || []).slice().sort((a, b) => a.orden - b.orden), [template]);
   const extraRows = useMemo(() => (peData?.extraRows || []).slice().sort((a, b) => a.orden - b.orden), [peData]);
 
+  // Resolve effective color per template row (own or ancestor's, faded for inherited)
+  const rowColorMap = useMemo(() => {
+    const all = template?.rows || [];
+    const byId = new Map(all.map(r => [r.id, r] as const));
+    const cache = new Map<string, { color: string | null; own: boolean }>();
+    const resolve = (id: string): { color: string | null; own: boolean } => {
+      if (cache.has(id)) return cache.get(id)!;
+      const r = byId.get(id);
+      if (!r) { const v = { color: null, own: false }; cache.set(id, v); return v; }
+      if (r.color) { const v = { color: r.color, own: true }; cache.set(id, v); return v; }
+      if (r.parent_id) {
+        const parent = resolve(r.parent_id);
+        const v = { color: parent.color, own: false };
+        cache.set(id, v); return v;
+      }
+      const v = { color: null, own: false }; cache.set(id, v); return v;
+    };
+    all.forEach(r => resolve(r.id));
+    return cache;
+  }, [template]);
+
   // Build value lookup
   const valueMap = useMemo(() => {
     const m = new Map<string, string>();
