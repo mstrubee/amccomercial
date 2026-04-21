@@ -144,6 +144,8 @@ export default function HitosEjecucionPage() {
     return result;
   }, [rows]);
 
+  if (isLoading) return <div className="p-8 text-muted-foreground">Cargando…</div>;
+
   return (
     <div className="space-y-6">
       <div>
