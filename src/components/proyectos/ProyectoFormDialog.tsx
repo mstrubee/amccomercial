@@ -77,6 +77,8 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     return ids;
   })();
   const { data: allVentasForm } = useVentasByProyectoEmpresaIds(allPeIds);
+  const { data: historialEstatus } = useHistorialEstatusByIds(allPeIds);
+  const createHistorial = useCreateHistorialEstatus();
   const ventasTotalByEmpresa = (() => {
     const map = new Map<string, number>();
     const sourceItems = groupItems && groupItems.length > 0 ? groupItems : initialData ? [initialData] : [];
