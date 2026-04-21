@@ -96,7 +96,11 @@ export default function HitosEjecucionPanel({ proyectoEmpresaId, empresaName }: 
                 </thead>
                 <tbody>
                   {tplRows.map((row, idx) => (
-                    <tr key={row.id} className="border-t border-border">
+                    <tr key={row.id} className="border-t border-border" style={(() => {
+                      const c = rowColorMap.get(row.id);
+                      if (!c?.color) return undefined;
+                      return { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` };
+                    })()}>
                       <td className="px-2 py-1 text-muted-foreground">{idx + 1}</td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
