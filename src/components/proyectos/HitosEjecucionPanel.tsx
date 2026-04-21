@@ -300,7 +300,7 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                           ) : (
                             <span className="inline-block w-4" />
                           )}
-                          <span>{idx + 1}</span>
+                          <span>{numberMap.get(row.id) || idx + 1}</span>
                         </div>
                       </td>
                       {columns.map(c => (
