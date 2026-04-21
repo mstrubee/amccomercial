@@ -194,13 +194,34 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   </tr>
                 </thead>
                 <tbody>
-                  {tplRows.map((row, idx) => (
+                  {tplRows.map((row, idx) => {
+                    if (!isRowVisible(row.id)) return null;
+                    const hasChildren = (childrenMap.get(row.id) || []).length > 0;
+                    const collapsed = collapsedRows.has(row.id);
+                    const depth = depthMap.get(row.id) || 0;
+                    return (
                     <tr key={row.id} className="border-t border-border" style={(() => {
                       const c = rowColorMap.get(row.id);
                       if (!c?.color) return undefined;
                       return { backgroundColor: c.own ? `${c.color}33` : `${c.color}1A` };
                     })()}>
-                      <td className="px-2 py-1 text-muted-foreground">{idx + 1}</td>
+                      <td className="px-2 py-1 text-muted-foreground">
+                        <div className="flex items-center gap-1" style={{ paddingLeft: depth * 10 }}>
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleRow(row.id)}
+                              className="h-4 w-4 inline-flex items-center justify-center rounded hover:bg-muted"
+                              title={collapsed ? "Expandir" : "Colapsar"}
+                            >
+                              {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                          ) : (
+                            <span className="inline-block w-4" />
+                          )}
+                          <span>{idx + 1}</span>
+                        </div>
+                      </td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">
                           <CellEditor
@@ -219,7 +240,8 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                       ))}
                       <td></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {extraRows.map((row, idx) => (
                     <tr key={row.id} className="border-t border-border">
                       <td className="px-2 py-1 text-muted-foreground">{tplRows.length + idx + 1}</td>
