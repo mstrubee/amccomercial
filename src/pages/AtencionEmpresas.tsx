@@ -32,6 +32,7 @@ export default function ReunionesPage() {
   // Filter values: "cat:<id>" for category, "sub:<id>" for subcategory
   const [filterEstatusKeys, setFilterEstatusKeys] = useState<string[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Record<string, boolean>>({});
 
   // Build groups: proyecto -> empresa -> items
   const groups = useMemo(() => {
@@ -117,9 +118,9 @@ export default function ReunionesPage() {
   const completedItems = filtered.reduce((acc, g) => acc + g.items.filter(i => i.is_completed).length, 0);
 
   // Build flat rows for export (respecting hierarchy via indentation)
-  const buildExportRows = () => {
+  const buildExportRows = (groupsToExport = filtered) => {
     const rows: Array<{ proyecto: string; empresa: string; estatus: string; fecha: string; nota: string; estado: string; completado: string }> = [];
-    filtered.forEach(group => {
+    groupsToExport.forEach(group => {
       const cat = categorias.find(c => c.id === group.categoriaId);
       const sub = cat?.subcategorias_proyecto.find(s => s.id === group.subcategoriaId);
       const estatusLabel = sub ? `${cat?.nombre ?? ""} / ${sub.nombre}` : (cat?.nombre ?? "");
@@ -150,8 +151,13 @@ export default function ReunionesPage() {
     return rows;
   };
 
+  const getGroupsToExport = () => {
+    const selected = filtered.filter(g => selectedKeys[`${g.proyectoId}|${g.empresaId}`]);
+    return selected.length > 0 ? selected : filtered;
+  };
+
   const exportToExcel = () => {
-    const rows = buildExportRows();
+    const rows = buildExportRows(getGroupsToExport());
     const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
       Proyecto: r.proyecto,
       Empresa: r.empresa,
@@ -169,12 +175,15 @@ export default function ReunionesPage() {
   };
 
   const exportToPDF = () => {
-    const rows = buildExportRows();
+    const groupsToExport = getGroupsToExport();
+    const rows = buildExportRows(groupsToExport);
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     doc.setFontSize(14);
     doc.text("Reuniones — Notas por Proyecto y Empresa", 40, 40);
     doc.setFontSize(9);
-    doc.text(`${completedItems}/${totalItems} completados · ${filtered.length} registros · ${new Date().toLocaleString()}`, 40, 56);
+    const totalGroupItems = groupsToExport.reduce((acc, g) => acc + g.items.length, 0);
+    const completedGroupItems = groupsToExport.reduce((acc, g) => acc + g.items.filter(i => i.is_completed).length, 0);
+    doc.text(`${completedGroupItems}/${totalGroupItems} completados · ${groupsToExport.length} registros · ${new Date().toLocaleString()}`, 40, 56);
     autoTable(doc, {
       startY: 70,
       head: [["Proyecto", "Empresa", "Estatus (x Empresa)", "Fecha", "Nota", "Estado", "Completado el"]],
@@ -215,6 +224,28 @@ export default function ReunionesPage() {
         <span className="text-sm text-muted-foreground">
           {completedItems}/{totalItems} completados · {filtered.length} registros
         </span>
+
+        {(() => {
+          const selectedCount = filtered.filter(g => selectedKeys[`${g.proyectoId}|${g.empresaId}`]).length;
+          const allSelected = filtered.length > 0 && selectedCount === filtered.length;
+          return (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(c) => {
+                  if (c) {
+                    const next: Record<string, boolean> = {};
+                    filtered.forEach(g => { next[`${g.proyectoId}|${g.empresaId}`] = true; });
+                    setSelectedKeys(next);
+                  } else {
+                    setSelectedKeys({});
+                  }
+                }}
+              />
+              Seleccionar todo {selectedCount > 0 && `(${selectedCount})`}
+            </label>
+          );
+        })()}
 
         <div className="relative ml-auto">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -313,17 +344,24 @@ export default function ReunionesPage() {
           <ChevronsUpDown className="w-4 h-4 mr-1" /> Expandir/Contraer
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={filtered.length === 0}>
-              <Download className="w-4 h-4 mr-1" /> Exportar
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={exportToExcel}>Exportar a Excel (.xlsx)</DropdownMenuItem>
-            <DropdownMenuItem onClick={exportToPDF}>Exportar a PDF</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {(() => {
+          const selectedCount = filtered.filter(g => selectedKeys[`${g.proyectoId}|${g.empresaId}`]).length;
+          const exportCount = selectedCount > 0 ? selectedCount : filtered.length;
+          const label = selectedCount > 0 ? `Exportar (${selectedCount})` : "Exportar todo";
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exportCount === 0}>
+                  <Download className="w-4 h-4 mr-1" /> {label}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToExcel}>Exportar a Excel (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToPDF}>Exportar a PDF</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        })()}
       </div>
 
       {/* List */}
@@ -341,17 +379,25 @@ export default function ReunionesPage() {
             <Card key={key}>
               <Collapsible open={isExpanded} onOpenChange={() => setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))}>
                 <CardHeader className="py-3 px-4">
-                  <CollapsibleTrigger className="flex items-center gap-3 w-full text-left">
-                    <ChevronDown className={cn("w-4 h-4 transition-transform shrink-0", !isExpanded && "-rotate-90")} />
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-semibold">{group.proyectoName}</CardTitle>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{group.empresaName}</span>
-                        <span className="text-xs text-muted-foreground">· {completed}/{group.items.length} completados</span>
+                  <div className="flex items-center gap-3 w-full">
+                    <Checkbox
+                      checked={!!selectedKeys[key]}
+                      onCheckedChange={(c) => setSelectedKeys(prev => ({ ...prev, [key]: !!c }))}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Seleccionar para exportar"
+                    />
+                    <CollapsibleTrigger className="flex items-center gap-3 flex-1 text-left">
+                      <ChevronDown className={cn("w-4 h-4 transition-transform shrink-0", !isExpanded && "-rotate-90")} />
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm font-semibold">{group.proyectoName}</CardTitle>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{group.empresaName}</span>
+                          <span className="text-xs text-muted-foreground">· {completed}/{group.items.length} completados</span>
+                        </div>
                       </div>
-                    </div>
-                  </CollapsibleTrigger>
+                    </CollapsibleTrigger>
+                  </div>
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="pt-0 px-4 pb-4">
