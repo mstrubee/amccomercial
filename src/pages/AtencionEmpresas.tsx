@@ -225,6 +225,28 @@ export default function ReunionesPage() {
           {completedItems}/{totalItems} completados · {filtered.length} registros
         </span>
 
+        {(() => {
+          const selectedCount = filtered.filter(g => selectedKeys[`${g.proyectoId}|${g.empresaId}`]).length;
+          const allSelected = filtered.length > 0 && selectedCount === filtered.length;
+          return (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(c) => {
+                  if (c) {
+                    const next: Record<string, boolean> = {};
+                    filtered.forEach(g => { next[`${g.proyectoId}|${g.empresaId}`] = true; });
+                    setSelectedKeys(next);
+                  } else {
+                    setSelectedKeys({});
+                  }
+                }}
+              />
+              Seleccionar todo {selectedCount > 0 && `(${selectedCount})`}
+            </label>
+          );
+        })()}
+
         <div className="relative ml-auto">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 w-48" />
