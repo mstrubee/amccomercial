@@ -7,13 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Building2, Search, ChevronDown, ChevronsUpDown, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Building2, Search, ChevronDown, ChevronsUpDown, ClipboardCheck, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { formatChecklistDate, formatCompletedDate } from "@/lib/checklist-date-utils";
 
 export default function ReunionesPage() {
   const navigate = useNavigate();
@@ -110,6 +115,91 @@ export default function ReunionesPage() {
   // Stats
   const totalItems = filtered.reduce((acc, g) => acc + g.items.length, 0);
   const completedItems = filtered.reduce((acc, g) => acc + g.items.filter(i => i.is_completed).length, 0);
+
+  // Build flat rows for export (respecting hierarchy via indentation)
+  const buildExportRows = () => {
+    const rows: Array<{ proyecto: string; empresa: string; estatus: string; fecha: string; nota: string; estado: string; completado: string }> = [];
+    filtered.forEach(group => {
+      const cat = categorias.find(c => c.id === group.categoriaId);
+      const sub = cat?.subcategorias_proyecto.find(s => s.id === group.subcategoriaId);
+      const estatusLabel = sub ? `${cat?.nombre ?? ""} / ${sub.nombre}` : (cat?.nombre ?? "");
+
+      // Build tree
+      const childrenMap: Record<string, ChecklistItem[]> = {};
+      group.items.forEach(it => {
+        const pid = it.parent_id || "root";
+        if (!childrenMap[pid]) childrenMap[pid] = [];
+        childrenMap[pid].push(it);
+      });
+      const walk = (parentId: string, depth: number) => {
+        (childrenMap[parentId] || []).forEach(it => {
+          rows.push({
+            proyecto: group.proyectoName,
+            empresa: group.empresaName,
+            estatus: estatusLabel,
+            fecha: formatChecklistDate(it.created_at),
+            nota: `${"  ".repeat(depth)}${depth > 0 ? "↳ " : ""}${it.text}`,
+            estado: it.is_completed ? "Completado" : "Pendiente",
+            completado: it.is_completed && it.completed_at ? formatCompletedDate(it.completed_at) : "",
+          });
+          walk(it.id, depth + 1);
+        });
+      };
+      walk("root", 0);
+    });
+    return rows;
+  };
+
+  const exportToExcel = () => {
+    const rows = buildExportRows();
+    const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
+      Proyecto: r.proyecto,
+      Empresa: r.empresa,
+      "Estatus (x Empresa)": r.estatus,
+      Fecha: r.fecha,
+      Nota: r.nota,
+      Estado: r.estado,
+      "Completado el": r.completado,
+    })));
+    ws["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 28 }, { wch: 12 }, { wch: 60 }, { wch: 14 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reuniones");
+    const ts = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `reuniones_${ts}.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    const rows = buildExportRows();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Reuniones — Notas por Proyecto y Empresa", 40, 40);
+    doc.setFontSize(9);
+    doc.text(`${completedItems}/${totalItems} completados · ${filtered.length} registros · ${new Date().toLocaleString()}`, 40, 56);
+    autoTable(doc, {
+      startY: 70,
+      head: [["Proyecto", "Empresa", "Estatus (x Empresa)", "Fecha", "Nota", "Estado", "Completado el"]],
+      body: rows.map(r => [r.proyecto, r.empresa, r.estatus, r.fecha, r.nota, r.estado, r.completado]),
+      styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak" },
+      headStyles: { fillColor: [60, 60, 60] },
+      columnStyles: {
+        0: { cellWidth: 110 },
+        1: { cellWidth: 90 },
+        2: { cellWidth: 110 },
+        3: { cellWidth: 50 },
+        4: { cellWidth: "auto" },
+        5: { cellWidth: 55 },
+        6: { cellWidth: 70 },
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 5) {
+          if (data.cell.raw === "Completado") data.cell.styles.textColor = [22, 163, 74];
+          else data.cell.styles.textColor = [220, 38, 38];
+        }
+      },
+    });
+    const ts = new Date().toISOString().slice(0, 10);
+    doc.save(`reuniones_${ts}.pdf`);
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -222,6 +312,18 @@ export default function ReunionesPage() {
         <Button variant="outline" size="sm" onClick={toggleAll}>
           <ChevronsUpDown className="w-4 h-4 mr-1" /> Expandir/Contraer
         </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={filtered.length === 0}>
+              <Download className="w-4 h-4 mr-1" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={exportToExcel}>Exportar a Excel (.xlsx)</DropdownMenuItem>
+            <DropdownMenuItem onClick={exportToPDF}>Exportar a PDF</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* List */}
