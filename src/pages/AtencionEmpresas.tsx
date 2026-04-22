@@ -344,17 +344,24 @@ export default function ReunionesPage() {
           <ChevronsUpDown className="w-4 h-4 mr-1" /> Expandir/Contraer
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={filtered.length === 0}>
-              <Download className="w-4 h-4 mr-1" /> Exportar
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={exportToExcel}>Exportar a Excel (.xlsx)</DropdownMenuItem>
-            <DropdownMenuItem onClick={exportToPDF}>Exportar a PDF</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {(() => {
+          const selectedCount = filtered.filter(g => selectedKeys[`${g.proyectoId}|${g.empresaId}`]).length;
+          const exportCount = selectedCount > 0 ? selectedCount : filtered.length;
+          const label = selectedCount > 0 ? `Exportar (${selectedCount})` : "Exportar todo";
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={exportCount === 0}>
+                  <Download className="w-4 h-4 mr-1" /> {label}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToExcel}>Exportar a Excel (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToPDF}>Exportar a PDF</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        })()}
       </div>
 
       {/* List */}
