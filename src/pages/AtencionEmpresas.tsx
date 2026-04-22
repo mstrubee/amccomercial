@@ -372,17 +372,25 @@ export default function ReunionesPage() {
             <Card key={key}>
               <Collapsible open={isExpanded} onOpenChange={() => setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }))}>
                 <CardHeader className="py-3 px-4">
-                  <CollapsibleTrigger className="flex items-center gap-3 w-full text-left">
-                    <ChevronDown className={cn("w-4 h-4 transition-transform shrink-0", !isExpanded && "-rotate-90")} />
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-semibold">{group.proyectoName}</CardTitle>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{group.empresaName}</span>
-                        <span className="text-xs text-muted-foreground">· {completed}/{group.items.length} completados</span>
+                  <div className="flex items-center gap-3 w-full">
+                    <Checkbox
+                      checked={!!selectedKeys[key]}
+                      onCheckedChange={(c) => setSelectedKeys(prev => ({ ...prev, [key]: !!c }))}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Seleccionar para exportar"
+                    />
+                    <CollapsibleTrigger className="flex items-center gap-3 flex-1 text-left">
+                      <ChevronDown className={cn("w-4 h-4 transition-transform shrink-0", !isExpanded && "-rotate-90")} />
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm font-semibold">{group.proyectoName}</CardTitle>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{group.empresaName}</span>
+                          <span className="text-xs text-muted-foreground">· {completed}/{group.items.length} completados</span>
+                        </div>
                       </div>
-                    </div>
-                  </CollapsibleTrigger>
+                    </CollapsibleTrigger>
+                  </div>
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="pt-0 px-4 pb-4">
