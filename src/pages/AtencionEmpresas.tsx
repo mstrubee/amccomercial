@@ -118,9 +118,9 @@ export default function ReunionesPage() {
   const completedItems = filtered.reduce((acc, g) => acc + g.items.filter(i => i.is_completed).length, 0);
 
   // Build flat rows for export (respecting hierarchy via indentation)
-  const buildExportRows = () => {
+  const buildExportRows = (groupsToExport = filtered) => {
     const rows: Array<{ proyecto: string; empresa: string; estatus: string; fecha: string; nota: string; estado: string; completado: string }> = [];
-    filtered.forEach(group => {
+    groupsToExport.forEach(group => {
       const cat = categorias.find(c => c.id === group.categoriaId);
       const sub = cat?.subcategorias_proyecto.find(s => s.id === group.subcategoriaId);
       const estatusLabel = sub ? `${cat?.nombre ?? ""} / ${sub.nombre}` : (cat?.nombre ?? "");
@@ -151,8 +151,13 @@ export default function ReunionesPage() {
     return rows;
   };
 
+  const getGroupsToExport = () => {
+    const selected = filtered.filter(g => selectedKeys[`${g.proyectoId}|${g.empresaId}`]);
+    return selected.length > 0 ? selected : filtered;
+  };
+
   const exportToExcel = () => {
-    const rows = buildExportRows();
+    const rows = buildExportRows(getGroupsToExport());
     const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
       Proyecto: r.proyecto,
       Empresa: r.empresa,
@@ -170,12 +175,15 @@ export default function ReunionesPage() {
   };
 
   const exportToPDF = () => {
-    const rows = buildExportRows();
+    const groupsToExport = getGroupsToExport();
+    const rows = buildExportRows(groupsToExport);
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     doc.setFontSize(14);
     doc.text("Reuniones — Notas por Proyecto y Empresa", 40, 40);
     doc.setFontSize(9);
-    doc.text(`${completedItems}/${totalItems} completados · ${filtered.length} registros · ${new Date().toLocaleString()}`, 40, 56);
+    const totalGroupItems = groupsToExport.reduce((acc, g) => acc + g.items.length, 0);
+    const completedGroupItems = groupsToExport.reduce((acc, g) => acc + g.items.filter(i => i.is_completed).length, 0);
+    doc.text(`${completedGroupItems}/${totalGroupItems} completados · ${groupsToExport.length} registros · ${new Date().toLocaleString()}`, 40, 56);
     autoTable(doc, {
       startY: 70,
       head: [["Proyecto", "Empresa", "Estatus (x Empresa)", "Fecha", "Nota", "Estado", "Completado el"]],
