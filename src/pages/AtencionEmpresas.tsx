@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAllChecklistItems, ChecklistItem } from "@/hooks/useEmpresaChecklist";
+import { useCategorias } from "@/hooks/useCategorias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,14 +20,17 @@ export default function ReunionesPage() {
   const { data: empresas = [] } = useEmpresas();
   const { data: proyectos = [] } = useProyectos();
   const { data: allItems = [] } = useAllChecklistItems();
+  const { data: categorias = [] } = useCategorias();
   const [search, setSearch] = useState("");
   const [filterEmpresaIds, setFilterEmpresaIds] = useState<string[]>([]);
   const [filterProyectoIds, setFilterProyectoIds] = useState<string[]>([]);
+  // Filter values: "cat:<id>" for category, "sub:<id>" for subcategory
+  const [filterEstatusKeys, setFilterEstatusKeys] = useState<string[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
   // Build groups: proyecto -> empresa -> items
   const groups = useMemo(() => {
-    const result: { proyectoId: string; proyectoName: string; empresaId: string; empresaName: string; items: ChecklistItem[] }[] = [];
+    const result: { proyectoId: string; proyectoName: string; empresaId: string; empresaName: string; items: ChecklistItem[]; categoriaId: string | null; subcategoriaId: string | null }[] = [];
 
     // Get unique proyecto+empresa combos from items
     const combos = new Map<string, { proyectoId: string; empresaId: string; items: ChecklistItem[] }>();
@@ -41,7 +45,16 @@ export default function ReunionesPage() {
       const proy = proyectos.find(p => p.id === proyectoId);
       const emp = empresas.find(e => e.id === empresaId);
       if (!proy || !emp) return;
-      result.push({ proyectoId, proyectoName: proy.nombre, empresaId, empresaName: emp.nombre, items });
+      const pe = (proy as any).proyecto_empresas?.find((x: any) => x.empresa_id === empresaId);
+      result.push({
+        proyectoId,
+        proyectoName: proy.nombre,
+        empresaId,
+        empresaName: emp.nombre,
+        items,
+        categoriaId: pe?.categoria_id ?? null,
+        subcategoriaId: pe?.subcategoria_id ?? null,
+      });
     });
 
     return result.sort((a, b) => a.proyectoName.localeCompare(b.proyectoName));
@@ -52,6 +65,13 @@ export default function ReunionesPage() {
     let g = groups;
     if (filterProyectoIds.length > 0) g = g.filter(x => filterProyectoIds.includes(x.proyectoId));
     if (filterEmpresaIds.length > 0) g = g.filter(x => filterEmpresaIds.includes(x.empresaId));
+    if (filterEstatusKeys.length > 0) {
+      g = g.filter(x => {
+        const catKey = x.categoriaId ? `cat:${x.categoriaId}` : null;
+        const subKey = x.subcategoriaId ? `sub:${x.subcategoriaId}` : null;
+        return (catKey && filterEstatusKeys.includes(catKey)) || (subKey && filterEstatusKeys.includes(subKey));
+      });
+    }
     if (search) {
       const s = search.toLowerCase();
       g = g.filter(x => {
@@ -67,7 +87,7 @@ export default function ReunionesPage() {
       });
     }
     return g;
-  }, [groups, filterProyectoIds, filterEmpresaIds, search]);
+  }, [groups, filterProyectoIds, filterEmpresaIds, filterEstatusKeys, search, empresas]);
 
   // Unique empresas/proyectos that have checklist items
   const uniqueEmpresas = useMemo(() => {
@@ -153,6 +173,48 @@ export default function ReunionesPage() {
             ))}
             {filterEmpresaIds.length > 0 && (
               <Button variant="ghost" size="sm" className="w-full mt-1" onClick={() => setFilterEmpresaIds([])}>Limpiar</Button>
+            )}
+          </PopoverContent>
+        </Popover>
+
+        {/* Estatus (x Empresa) filter */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm">
+              Estatus (x Empresa) {filterEstatusKeys.length > 0 && `(${filterEstatusKeys.length})`}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 max-h-72 overflow-y-auto p-2">
+            {categorias.map(cat => {
+              const catKey = `cat:${cat.id}`;
+              return (
+                <div key={cat.id} className="mb-1">
+                  <label className="flex items-center gap-2 py-1 px-2 text-sm font-medium hover:bg-muted rounded cursor-pointer">
+                    <Checkbox
+                      checked={filterEstatusKeys.includes(catKey)}
+                      onCheckedChange={c => setFilterEstatusKeys(prev => c ? [...prev, catKey] : prev.filter(x => x !== catKey))}
+                    />
+                    <span className="inline-block w-2 h-2 rounded-full" style={{ background: cat.color }} />
+                    {cat.nombre}
+                  </label>
+                  {cat.subcategorias_proyecto.map(sub => {
+                    const subKey = `sub:${sub.id}`;
+                    return (
+                      <label key={sub.id} className="flex items-center gap-2 py-1 pl-7 pr-2 text-xs hover:bg-muted rounded cursor-pointer">
+                        <Checkbox
+                          checked={filterEstatusKeys.includes(subKey)}
+                          onCheckedChange={c => setFilterEstatusKeys(prev => c ? [...prev, subKey] : prev.filter(x => x !== subKey))}
+                        />
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: sub.color }} />
+                        {sub.nombre}
+                      </label>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {filterEstatusKeys.length > 0 && (
+              <Button variant="ghost" size="sm" className="w-full mt-1" onClick={() => setFilterEstatusKeys([])}>Limpiar</Button>
             )}
           </PopoverContent>
         </Popover>
