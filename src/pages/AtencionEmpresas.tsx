@@ -32,6 +32,7 @@ export default function ReunionesPage() {
   // Filter values: "cat:<id>" for category, "sub:<id>" for subcategory
   const [filterEstatusKeys, setFilterEstatusKeys] = useState<string[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Record<string, boolean>>({});
 
   // Build groups: proyecto -> empresa -> items
   const groups = useMemo(() => {
