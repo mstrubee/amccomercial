@@ -33,12 +33,25 @@ export function useVentasByProyectoEmpresaIds(ids: string[]) {
     queryKey: ["ventas_proyecto_empresa", "bulk", ids.sort().join(",")],
     enabled: ids.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ventas_proyecto_empresa")
-        .select("*")
-        .in("proyecto_empresa_id", ids);
-      if (error) throw error;
-      return data as VentaRow[];
+      // Fetch ALL rows via pagination to avoid Supabase's 1000-row default
+      // and the URL-length limit when `.in()` carries thousands of IDs.
+      const idSet = new Set(ids);
+      const pageSize = 1000;
+      const all: VentaRow[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("ventas_proyecto_empresa")
+          .select("*")
+          .order("created_at", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = (data || []) as VentaRow[];
+        for (const row of batch) {
+          if (idSet.has(row.proyecto_empresa_id)) all.push(row);
+        }
+        if (batch.length < pageSize) break;
+      }
+      return all;
     },
   });
 }
