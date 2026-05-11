@@ -432,7 +432,10 @@ export default function Proyectos() {
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
-      if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
+      if (g.some(p => p.proyecto_empresas?.some(pe => {
+        const eff = statusByPe.get(pe.id);
+        return (eff?.subcategoria?.id || pe.subcategoria_id) === GANADO_SUBCATEGORIA_ID;
+      }))) ganados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
@@ -440,7 +443,7 @@ export default function Proyectos() {
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
     return { totalProyectos, adjudicados, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
-  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones]);
+  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
