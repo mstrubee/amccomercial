@@ -1379,7 +1379,7 @@ function EstadoAmcPopoverInline({ currentStatus, estadosAmc, onUpdate }: { curre
 }
 
 /* ── Single project row ── */
-const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, estadosAmc, onUpdateEstadoAmcPE }: {
+const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, statusByPe, estadosAmc, onUpdateEstadoAmcPE }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1392,6 +1392,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   filterBotones: string[];
   filterEmpresas?: string[];
   ventasMap?: Map<string, number>;
+  statusByPe?: Map<string, any>;
   estadosAmc?: { id: string; nombre: string; color: string }[];
   onUpdateEstadoAmcPE: (peId: string, estado: string) => void;
 }) {
@@ -1411,7 +1412,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
           {/* Estado (x Proyecto) — project-level estado_amc */}
           <StatusBadge status={p.estado_amc} color={(estadosAmc || []).find(ea => ea.nombre === p.estado_amc)?.color} />
         </td>
-        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
+        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} /></td>
         <td className="px-5 py-3">
           {/* Estado AMC per empresa */}
           {pe0 && (
@@ -1450,7 +1451,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
 ProjectRow.displayName = "ProjectRow";
 
 /* ── Empresas cell component ── */
-const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
+const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap, statusByPe }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
@@ -1459,12 +1460,13 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
     <div className="space-y-1">
       {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
         const totalVentas = ventasMap?.get(pe.id) || 0;
-        const sub = (pe as any).subcategorias_proyecto;
-        const cat = (pe as any).categorias_proyecto;
+        const eff = statusByPe?.get(pe.id);
+        const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
+        const cat = eff?.categoria || (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
-        const fechaCat = (pe as any).fecha_categoria || null;
+        const fechaCat = eff ? eff.fecha : ((pe as any).fecha_categoria || null);
 
         return (
           <div key={pe.id} className="leading-tight">
@@ -1508,7 +1510,7 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
 });
 
 /* ── Group header empresas cell (name + category + monto) ── */
-const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
+const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap, statusByPe }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
   const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
   const allEmpresas = useMemo(() => {
     const seen = new Set<string>();
