@@ -133,6 +133,10 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   // 'UF' or 'CLP' for the dialog input
   const [ganadoMoneda, setGanadoMoneda] = useState<"UF" | "CLP">("UF");
 
+  // Pending historial entries — only persisted on form Save. Keyed by empresa_id so
+  // multiple changes during one editing session collapse to the latest.
+  const [pendingHistorial, setPendingHistorial] = useState<Map<string, { categoria_id: string | null; subcategoria_id: string | null; monto_uf: number; fecha: string }>>(new Map());
+
   // Contactos
   const [arqNombre, setArqNombre] = useState("");
   const [arqContacto, setArqContacto] = useState("");
