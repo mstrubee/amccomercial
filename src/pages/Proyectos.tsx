@@ -350,6 +350,50 @@ export default function Proyectos() {
     return map;
   }, [allHistorialData]);
 
+  /**
+   * Effective status per proyecto_empresa_id, using the latest historial entry
+   * as the source of truth (falling back to proyecto_empresas if no historial).
+   * Includes resolved category/subcategory metadata for badge rendering.
+   */
+  type EffectiveStatus = {
+    categoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
+    subcategoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
+    fecha: string | null;
+  };
+  const statusByPe = useMemo(() => {
+    const map = new Map<string, EffectiveStatus>();
+    if (!proyectos) return map;
+    const catById = new Map<string, { id: string; nombre: string; color: string; es_adjudicado: boolean }>();
+    const subById = new Map<string, { id: string; nombre: string; color: string; es_adjudicado: boolean }>();
+    for (const c of (categorias || [])) {
+      catById.set(c.id, { id: c.id, nombre: c.nombre, color: c.color, es_adjudicado: c.es_adjudicado });
+      for (const s of (c.subcategorias_proyecto || [])) {
+        subById.set(s.id, { id: s.id, nombre: s.nombre, color: s.color, es_adjudicado: s.es_adjudicado });
+      }
+    }
+    for (const p of proyectos) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        const latest = latestHistorialByPe.get(pe.id);
+        let categoria: EffectiveStatus["categoria"] = null;
+        let subcategoria: EffectiveStatus["subcategoria"] = null;
+        let fecha: string | null = null;
+        if (latest) {
+          if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
+          if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
+          fecha = latest.fecha || null;
+        } else {
+          const cat = (pe as any).categorias_proyecto;
+          const sub = (pe as any).subcategorias_proyecto;
+          if (cat) categoria = { id: cat.id, nombre: cat.nombre, color: cat.color, es_adjudicado: cat.es_adjudicado };
+          if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
+          fecha = (pe as any).fecha_categoria || null;
+        }
+        map.set(pe.id, { categoria, subcategoria, fecha });
+      }
+    }
+    return map;
+  }, [proyectos, categorias, latestHistorialByPe]);
+
   // Pre-compute ventas totals per proyecto_empresa ID (ppto + ventas adicionales)
   const ventasMap = useMemo(() => {
     const map = new Map<string, number>();
