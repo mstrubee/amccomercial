@@ -1,61 +1,65 @@
 ## Problema
 
-El badge de "Gran Total" en `src/pages/Proyectos.tsx` está sumando **todas** las entradas adjudicadas del historial (Ganado y otras), lo que infla el total cuando el usuario edita una misma categoría varias veces.
+Hoy hay dos fórmulas distintas para el "Gran Total" de una empresa en un proyecto:
 
-Ejemplo verificado:
-- JACIMA en "Casa MR" tiene dos entradas Ganado en el historial (440,81 y 512,78 UF) y `ganado_presupuesto = 440,81`.
-- El formulario de edición ya muestra correctamente `Gran Total: 440,81 UF` (última entrada vigente + 0 ventas adicionales).
-- El badge de la lista muestra `953,59 UF` (suma de ambas).
+- **Formulario** (`ProyectoFormDialog.ventasTotalByEmpresa`):
+  `pe.ganado_presupuesto + Σ ventas_proyecto_empresa[pe.id]`
+  → es el valor mostrado en el span seleccionado (`Gran Total: 1.981,82 UF ≈ $76.300.070`).
+- **Listado** (`Proyectos.ventasMap`, líneas 405-429):
+  `monto_uf de la última entrada adjudicada del historial + Σ ventas adicionales`
 
-## Regla acordada
+Cuando `ganado_presupuesto` no coincide con el `monto_uf` del último ítem del historial (porque el usuario editó el monto en el bloque "Ganado" sin generar una nueva entrada de historial, o viceversa), el badge del listado y el Gran Total del formulario muestran cifras distintas.
 
-Para cada `proyecto_empresa`, el Gran Total debe ser:
+El usuario confirma que el valor mostrado en el formulario es la verdad: ese mismo Gran Total debe usarse en todos los lugares que requieran "Gran Total".
 
+## Regla única (alineada al formulario)
+
+Para cada `proyecto_empresa pe`:
+
+```text
+GranTotal[pe.id] = (Number(pe.ganado_presupuesto) || 0)
+                 + Σ Number(v.monto_uf) para v en ventas_proyecto_empresa[pe.id]
 ```
-GranTotal[pe.id] = monto_uf de la ÚLTIMA entrada del historial cuya
-                   categoría/subcategoría es adjudicada
-                 + Σ monto_uf de ventas_proyecto_empresa[pe.id]
-```
 
-- "Última" = ordenada por `fecha` desc, desempatando por `created_at` desc (mismo criterio ya usado por `latestHistorialByPe`, fuente de verdad del estado).
-- Si la última entrada del historial **no** es adjudicada, su aporte al Gran Total es `0` (solo se suman ventas adicionales).
-- Esto también deduplica de forma natural el caso "dos estados iguales": solo cuenta la más reciente.
-- Es exactamente la misma lógica que ya aplica el formulario de edición vía `ganado_presupuesto + ventas adicionales`, por lo que ambos lados quedan consistentes.
+- `ganado_presupuesto` ya es la fuente de verdad del monto adjudicado de la empresa (lo escribe el formulario al editar el bloque Ganado y se persiste en `proyecto_empresas`).
+- `ventas_proyecto_empresa` aporta solo los adicionales (mismo criterio actual).
+- Si la empresa no está adjudicada, `ganado_presupuesto` es `null/0` y solo cuentan las ventas adicionales (consistente con el formulario).
+- El historial deja de participar en el cómputo del Gran Total. Sigue siendo la fuente del **estado** vigente (`statusByPe`), pero no del monto.
 
-## Cambio puntual (solo presentación)
+## Cambio puntual
 
-### Archivo: `src/pages/Proyectos.tsx` — `ventasMap` (líneas 405-428)
+### `src/pages/Proyectos.tsx` — `ventasMap` (líneas 405-429)
 
-Reemplazar el bucle que suma todas las entradas adjudicadas por uno que use `latestHistorialByPe` (ya existente, líneas 292-302):
+Reemplazar el bucle sobre `latestHistorialByPe` por uno que recorra `proyectos → proyecto_empresas` y use `ganado_presupuesto`. La suma de `allVentasData` se mantiene igual.
 
 ```text
 ventasMap = useMemo:
-  para cada (peId, latest) en latestHistorialByPe:
-    si latest tiene subcategoria_id en adjSub  ó
-       (sin subcategoria) categoria_id en adjCat:
-         monto = Number(latest.monto_uf) || 0
-         si monto > 0: map.set(peId, monto)
-
-  para cada v en allVentasData:
+  map = new Map<peId, number>()
+  para cada p en (proyectos || []):
+    para cada pe en (p.proyecto_empresas || []):
+      ppto = Number(pe.ganado_presupuesto) || 0
+      si ppto !== 0: map.set(pe.id, ppto)
+  para cada v en (allVentasData || []):
     map.set(v.proyecto_empresa_id,
-            (map.get(...) || 0) + Number(v.monto_uf))
-
+            (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf))
   return map
 ```
 
-Dependencias del `useMemo`: `[categorias, latestHistorialByPe, allVentasData]`.
+Dependencias del `useMemo`: `[proyectos, allVentasData]` (ya no depende de `categorias` ni `latestHistorialByPe`).
 
-No se tocan firmas ni componentes consumidores (`EmpresasCell`, `GroupEmpresasCell`, detalle expandido, KPIs que ya leen `ventasMap`). El `GroupEmpresasCell` ya agrega por `empresa_id` sumando los totales por PE; con la nueva regla, sigue funcionando.
+Consumidores que se benefician automáticamente sin cambios: `EmpresasCell`, `GroupEmpresasCell` (agrega por `empresa_id` sumando los totales por PE), detalle expandido y cualquier KPI que lea `ventasMap`.
 
 ### Sin otros cambios
 
-- No se modifica el formulario (`ProyectoFormDialog`), ya cumple la regla.
-- No se tocan tablas, RLS, mutaciones ni el cálculo de `statusByPe` / badges de estado.
-- No se altera `historial_estatus_empresa` (las entradas duplicadas siguen visibles en el popover de Historial; solo cambia el cómputo del Gran Total).
+- `ProyectoFormDialog.ventasTotalByEmpresa`: ya aplica esta fórmula.
+- `statusByPe` y badges de estado: siguen usando `latestHistorialByPe` (estado ≠ monto).
+- `historial_estatus_empresa`: no se modifica; el popover de Historial sigue mostrando todas las entradas.
+- `Finanzas.tsx` y `Dashboard.tsx`: usan `pe.monto_cotizacion`, que el formulario ya escribe igual a `ventasTotalByEmpresa` al guardar (línea 486 del form). Quedan consistentes con la nueva regla en cuanto el proyecto se guarde una vez. **No se tocan en este cambio**; si el usuario quiere que también respondan en vivo a `ventas_proyecto_empresa` sin re-guardar, lo hacemos en un paso aparte.
 
 ## Verificación tras el cambio
 
-1. JACIMA en "Casa MR" → badge debe mostrar `440,81 UF`.
-2. Una empresa con ventas adicionales en `ventas_proyecto_empresa` debe mostrar `monto_último_ganado + Σ adicionales`.
-3. Una empresa cuya última entrada del historial es **No Adjudicado** (p. ej. "Perdido") y tiene ventas adicionales debe mostrar solo el subtotal de adicionales.
-4. KPIs y agregados de fila madre deben coincidir con la suma de los badges hijos visibles.
+1. Empresa adjudicada con `ganado_presupuesto = 440,81` y sin adicionales → badge `440,81 UF`.
+2. Empresa con `ganado_presupuesto = 1.000` y dos adicionales (500 + 481,82) → badge `1.981,82 UF` (igual al span seleccionado).
+3. Empresa cuya última entrada del historial dice "Perdido" pero tiene `ganado_presupuesto = null` y 250 UF en adicionales → badge `250 UF`.
+4. Fila madre: la suma agregada por empresa coincide con la suma de los badges hijos visibles.
+5. El popover de Historial sigue mostrando todas las entradas (incluidas duplicadas) sin alterar el badge.
