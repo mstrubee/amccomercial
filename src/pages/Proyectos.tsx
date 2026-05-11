@@ -413,19 +413,20 @@ export default function Proyectos() {
         if (s.es_adjudicado) adjSub.add(s.id);
       }
     }
-    for (const h of (allHistorialData || [])) {
-      const monto = Number(h.monto_uf) || 0;
-      if (monto === 0) continue;
-      const isAdj = (h.subcategoria_id && adjSub.has(h.subcategoria_id))
-        || (!h.subcategoria_id && h.categoria_id && adjCat.has(h.categoria_id));
+    // Solo la ÚLTIMA entrada del historial por PE cuenta para el Gran Total.
+    // Si es adjudicada, su monto se suma; si no, aporta 0.
+    for (const [peId, latest] of latestHistorialByPe) {
+      const isAdj = (latest.subcategoria_id && adjSub.has(latest.subcategoria_id))
+        || (!latest.subcategoria_id && latest.categoria_id && adjCat.has(latest.categoria_id));
       if (!isAdj) continue;
-      map.set(h.proyecto_empresa_id, (map.get(h.proyecto_empresa_id) || 0) + monto);
+      const monto = Number(latest.monto_uf) || 0;
+      if (monto > 0) map.set(peId, monto);
     }
     for (const v of (allVentasData || [])) {
       map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
     }
     return map;
-  }, [categorias, allHistorialData, allVentasData]);
+  }, [categorias, latestHistorialByPe, allVentasData]);
 
   // KPI stats
   const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
