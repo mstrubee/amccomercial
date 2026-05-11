@@ -37,12 +37,24 @@ export function useHistorialEstatusByIds(ids: string[]) {
     queryKey: ["historial_estatus_empresa", "bulk", ids.sort().join(",")],
     enabled: ids.length > 0,
     queryFn: async () => {
-      const { data, error } = await (supabase.from("historial_estatus_empresa" as any) as any)
-        .select("*")
-        .in("proyecto_empresa_id", ids)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as HistorialEstatusRow[];
+      // Fetch ALL rows via pagination to avoid Supabase's 1000-row default
+      // and the URL-length limit when `.in()` carries thousands of IDs.
+      const idSet = new Set(ids);
+      const pageSize = 1000;
+      const all: HistorialEstatusRow[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await (supabase.from("historial_estatus_empresa" as any) as any)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = (data || []) as HistorialEstatusRow[];
+        for (const row of batch) {
+          if (idSet.has(row.proyecto_empresa_id)) all.push(row);
+        }
+        if (batch.length < pageSize) break;
+      }
+      return all;
     },
   });
 }
