@@ -1539,12 +1539,13 @@ const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresa
     <div className="space-y-1">
       {allEmpresas.map((pe) => {
         if (!pe.empresas) return null;
-        const sub = (pe as any).subcategorias_proyecto;
-        const cat = (pe as any).categorias_proyecto;
+        const eff = statusByPe?.get(pe.id);
+        const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
+        const cat = eff?.categoria || (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
-        const fechaCat = (pe as any).fecha_categoria || null;
+        const fechaCat = eff ? eff.fecha : ((pe as any).fecha_categoria || null);
         const totalVentas = ventasByEmpresa.get(pe.empresa_id) || 0;
         return (
           <div key={pe.id} className="leading-tight">
