@@ -279,14 +279,19 @@ export default function Proyectos() {
       p.proyecto_empresas?.some((pe) => filterEmpresas.includes(pe.empresa_id));
     const matchCategoria =
       filterCategorias.length === 0 ||
-      p.proyecto_empresas?.some((pe) => filterCategorias.includes(pe.categoria_id || "") || filterCategorias.includes(pe.subcategoria_id || ""));
+      p.proyecto_empresas?.some((pe) => {
+        const eff = statusByPe.get(pe.id);
+        const catId = eff?.categoria?.id || pe.categoria_id || "";
+        const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
+        return filterCategorias.includes(catId) || filterCategorias.includes(subId);
+      });
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
       return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink]);
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
