@@ -175,6 +175,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   useEffect(() => {
     if (!open) return;
     setCrearAlertaEmpresaIds(new Set());
+    setPendingHistorial(new Map());
     // Reset scroll to top when dialog opens
     setTimeout(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -286,6 +287,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   const handleDiscardClose = () => {
     setShowUnsavedAlert(false);
     snapshotRef.current = "";
+    setPendingHistorial(new Map());
     onOpenChange(false);
   };
 
@@ -382,17 +384,17 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     }
     updateEmpresaRow(ganadoDialogEmpresaId, updates);
 
-    // Save snapshot to historial (only if we have an existing proyecto_empresa link)
-    const peId = getProyectoEmpresaId(ganadoDialogEmpresaId);
-    if (peId) {
-      createHistorial.mutate({
-        proyecto_empresa_id: peId,
+    // Defer historial: store as pending — only persisted if user clicks Guardar.
+    setPendingHistorial((prev) => {
+      const next = new Map(prev);
+      next.set(ganadoDialogEmpresaId, {
         categoria_id: row?.categoria_id || null,
         subcategoria_id: row?.subcategoria_id || null,
         monto_uf: presupuestoVal || 0,
         fecha: ganadoFecha || todayLocalISO(),
       });
-    }
+      return next;
+    });
 
     setGanadoDialogOpen(false);
     setGanadoDialogEmpresaId(null);
@@ -405,6 +407,12 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
         categoria_id: ganadoPrevCatId,
         subcategoria_id: ganadoPrevSubId,
         fecha_categoria: null,
+      });
+      setPendingHistorial((prev) => {
+        if (!prev.has(ganadoDialogEmpresaId)) return prev;
+        const next = new Map(prev);
+        next.delete(ganadoDialogEmpresaId);
+        return next;
       });
     }
     setGanadoDialogOpen(false);
@@ -428,6 +436,11 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   };
 
   const getSelectValue = (row: EmpresaRow): string => {
+    const pending = pendingHistorial.get(row.empresa_id);
+    if (pending) {
+      if (pending.subcategoria_id) return `sub:${pending.subcategoria_id}`;
+      if (pending.categoria_id) return `cat:${pending.categoria_id}`;
+    }
     const historial = getHistorialForEmpresa(row.empresa_id);
     const latest = historial[0];
     if (latest) {
@@ -527,6 +540,22 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       duenos_nombre: duenosNombre, duenos_contacto: duenosContacto, duenos_mail: duenosMail, duenos_telefono: duenosTelefono,
       empresa_links,
     });
+
+    // Flush pending historial entries now that the form is being saved.
+    if (pendingHistorial.size > 0) {
+      for (const [empresaId, entry] of pendingHistorial.entries()) {
+        const peId = getProyectoEmpresaId(empresaId);
+        if (!peId) continue;
+        createHistorial.mutate({
+          proyecto_empresa_id: peId,
+          categoria_id: entry.categoria_id,
+          subcategoria_id: entry.subcategoria_id,
+          monto_uf: entry.monto_uf,
+          fecha: entry.fecha,
+        });
+      }
+      setPendingHistorial(new Map());
+    }
   };
 
   return (
