@@ -1311,7 +1311,26 @@ export default function Proyectos() {
         categorias={categorias}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
           await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
+          // Sync historial so the badge reflects the change (historial is the source of truth)
+          const { data: peRow } = await supabase
+            .from("proyecto_empresas")
+            .select("id, ganado_presupuesto")
+            .eq("proyecto_id", pId)
+            .eq("empresa_id", eId)
+            .maybeSingle();
+          if (peRow?.id) {
+            try {
+              await createHistorialMain.mutateAsync({
+                proyecto_empresa_id: peRow.id,
+                categoria_id: catId,
+                subcategoria_id: subId,
+                monto_uf: Number(peRow.ganado_presupuesto || 0),
+                fecha: new Date().toISOString().slice(0, 10),
+              });
+            } catch { /* historial creation is best-effort */ }
+          }
           qc.invalidateQueries({ queryKey: ["proyectos"] });
+          qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
         }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onUncomplete={(id, newDate) => {
