@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
+import { useHistorialEstatusByIds, useCreateHistorialEstatus, HistorialEstatusRow } from "@/hooks/useHistorialEstatus";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
@@ -330,6 +331,24 @@ export default function Proyectos() {
   }, [proyectos]);
 
   const { data: allVentasData } = useVentasByProyectoEmpresaIds(allPeIds);
+  const { data: allHistorialData } = useHistorialEstatusByIds(allPeIds);
+  const createHistorialMain = useCreateHistorialEstatus();
+
+  /**
+   * Latest historial entry per proyecto_empresa_id (sorted by fecha desc, then created_at desc).
+   * Source of truth for the status badge in the listing.
+   */
+  const latestHistorialByPe = useMemo(() => {
+    const map = new Map<string, HistorialEstatusRow>();
+    for (const h of (allHistorialData || [])) {
+      const existing = map.get(h.proyecto_empresa_id);
+      if (!existing) { map.set(h.proyecto_empresa_id, h); continue; }
+      const a = `${h.fecha}|${h.created_at}`;
+      const b = `${existing.fecha}|${existing.created_at}`;
+      if (a > b) map.set(h.proyecto_empresa_id, h);
+    }
+    return map;
+  }, [allHistorialData]);
 
   // Pre-compute ventas totals per proyecto_empresa ID (ppto + ventas adicionales)
   const ventasMap = useMemo(() => {
