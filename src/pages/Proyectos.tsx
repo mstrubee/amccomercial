@@ -399,20 +399,33 @@ export default function Proyectos() {
     return result;
   }, [filtered]);
 
-  // Pre-compute ventas totals per proyecto_empresa ID (ppto + ventas adicionales)
+  // Pre-compute Gran Total per proyecto_empresa ID:
+  //   Σ monto_uf de TODAS las entradas de historial con subcategoría/categoría adjudicada
+  // + Σ monto_uf de ventas_proyecto_empresa (ventas adicionales fuera del historial)
   const ventasMap = useMemo(() => {
     const map = new Map<string, number>();
-    for (const p of (proyectos || [])) {
-      for (const pe of (p.proyecto_empresas || [])) {
-        const ppto = Number((pe as any).ganado_presupuesto) || 0;
-        if (ppto !== 0) map.set(pe.id, ppto);
+    // Build adjudicado lookup from categorias/subcategorias
+    const adjCat = new Set<string>();
+    const adjSub = new Set<string>();
+    for (const c of (categorias || [])) {
+      if (c.es_adjudicado) adjCat.add(c.id);
+      for (const s of (c.subcategorias_proyecto || [])) {
+        if (s.es_adjudicado) adjSub.add(s.id);
       }
+    }
+    for (const h of (allHistorialData || [])) {
+      const monto = Number(h.monto_uf) || 0;
+      if (monto === 0) continue;
+      const isAdj = (h.subcategoria_id && adjSub.has(h.subcategoria_id))
+        || (!h.subcategoria_id && h.categoria_id && adjCat.has(h.categoria_id));
+      if (!isAdj) continue;
+      map.set(h.proyecto_empresa_id, (map.get(h.proyecto_empresa_id) || 0) + monto);
     }
     for (const v of (allVentasData || [])) {
       map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
     }
     return map;
-  }, [proyectos, allVentasData]);
+  }, [categorias, allHistorialData, allVentasData]);
 
   // KPI stats
   const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";

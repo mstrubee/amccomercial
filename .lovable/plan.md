@@ -1,60 +1,62 @@
-
 ## Problema detectado
 
-El badge `Empresa · Estatus` que aparece en cada fila de la línea madre (componente `GroupEmpresasCell` en `src/pages/Proyectos.tsx` ~línea 1478) se construye leyendo `proyecto_empresas.categoria_id` / `subcategoria_id` directamente de la tabla. Sin embargo, el formulario de edición y la lógica real de "estado especificado por el usuario" se basan en la última entrada de `historial_estatus_empresa` (ver `getSelectValue` en `ProyectoFormDialog.tsx` líneas 426-436).
+Los badges de empresa (en filas madre y filas hijas) muestran un monto que no corresponde al **Gran Total** real de la empresa. Ejemplo verificado en BD:
 
-Esto produce desincronización en al menos tres escenarios:
+- Proyecto "Casa MR" — empresa JACIMA — PE `7237c8b6…`
+- `proyecto_empresas.ganado_presupuesto`: `440,81` UF
+- `ventas_proyecto_empresa`: 0 filas
+- `historial_estatus_empresa` (subcategoría = Ganado):
+  - 12/03/2026 → `440,81` UF
+  - 12/03/2026 → `512,78` UF
+- **Badge muestra:** `440,81 UF`
+- **Gran Total esperado:** suma de las ventas registradas (las dos entradas Ganado del historial + cualquier venta adicional)
 
-1. El usuario abre el formulario, cambia el estatus → se inserta inmediatamente en `historial_estatus_empresa` (línea 384) y solo se actualiza `proyecto_empresas` localmente. Si cierra sin presionar **Guardar**, queda historial nuevo + `proyecto_empresas` viejo. El badge muestra el viejo, el formulario muestra el nuevo.
-2. Una alerta avanza la categoría (`onAdvanceCategoria`, línea 1242) → actualiza `proyecto_empresas` pero NO crea entrada en historial. El badge muestra el nuevo, el historial muestra el viejo.
-3. Cargas masivas o ediciones directas que tocan solo una de las dos tablas.
+## Causa raíz
 
-Decisiones del usuario:
-- **Fuente de verdad**: la última entrada del historial (más reciente por `fecha`, desempatando por `created_at`).
-- **Si no se presiona Guardar**: descartar todo, incluido el historial.
+`ventasMap` en `src/pages/Proyectos.tsx` (línea 403) calcula el total así:
 
-## Cambios
+```
+total = ganado_presupuesto (de proyecto_empresas)
+      + Σ monto_uf (de ventas_proyecto_empresa)
+```
 
-### 1. Badge del listado (línea madre) — usar historial como fuente
+`ganado_presupuesto` se sobrescribe cada vez que el usuario edita la categoría (solo guarda el último valor), por lo que ventas anteriores registradas como entradas Ganado en el **Historial** se pierden del cálculo. Las "ventas adicionales" reales viven en `historial_estatus_empresa` (cada entrada Ganado = una venta concreta con su monto y fecha), no en la tabla `ventas_proyecto_empresa`.
 
-Archivo: `src/pages/Proyectos.tsx` (`GroupEmpresasCell`)
+## Plan de cambio (solo presentación, sin tocar negocio)
 
-- Cargar el historial completo agrupado por `proyecto_empresa_id` mediante un nuevo hook `useHistorialEstatusByPeIds(peIds)` (similar al `useHistorialEstatusByIds` ya existente, pero compartido a nivel de página).
-- En `GroupEmpresasCell`, para cada empresa única del grupo, calcular la última entrada de historial entre todos los `proyecto_empresa_id` ligados a esa empresa (fecha desc, luego created_at desc).
-- Derivar `categoria` y `subcategoria` desde esa última entrada (no desde `proyecto_empresas`). Caer al valor de `proyecto_empresas` solo si no hay historial alguno.
-- La fecha mostrada en el badge será `fecha` del historial (no `fecha_categoria`).
-- Aplicar el mismo cambio a las filas hijas (badge individual por empresa) si lo hubiera, para mantener consistencia.
+### 1. Nueva fuente de verdad para el Gran Total por PE
 
-### 2. Formulario de edición — descartar al cerrar sin guardar
+En `src/pages/Proyectos.tsx`, reemplazar la lógica de `ventasMap`:
 
-Archivo: `src/components/proyectos/ProyectoFormDialog.tsx`
+```
+GranTotal[pe.id] = Σ monto_uf de TODAS las entradas de historial_estatus_empresa
+                   donde la subcategoría tiene es_adjudicado = true
+                 + Σ monto_uf de ventas_proyecto_empresa[pe.id]
+```
 
-- En `handleGanadoConfirm`, no llamar a `createHistorial.mutate` directamente. En su lugar, registrar la entrada como **pendiente** en estado local: `pendingHistorialEntries: { peId, categoria_id, subcategoria_id, monto_uf, fecha }[]`.
-- `getSelectValue` debe considerar primero `pendingHistorialEntries` (más reciente local), luego el historial real, y finalmente `proyecto_empresas`.
-- En `handleSubmit` (Guardar), después de actualizar `proyecto_empresas`, ejecutar `createHistorial.mutate` para cada entrada pendiente, y limpiar el estado pendiente.
-- Al cerrar el diálogo sin guardar (cancelar / `onOpenChange(false)`), simplemente descartar el estado pendiente; nada se persiste.
-- Eliminar la lógica de "revertir cambio de categoría" en `handleGanadoCancel` ya que ahora todo es local hasta Guardar.
+- Se elimina el uso directo de `ganado_presupuesto` para el badge (ya está representado por su entrada correspondiente en el historial).
+- Se ignoran entradas con `monto_uf = 0` (filas de cambio de estado sin venta).
+- `allHistorialData` ya está cargado y paginado correctamente desde el fix anterior; solo agregamos el cómputo.
 
-### 3. Sincronización al avanzar desde alertas
+### 2. Aplicación en los componentes
 
-Archivo: `src/pages/Proyectos.tsx` (`onAdvanceCategoria`, línea 1241)
+Los tres lugares que ya leen `ventasMap` se mantienen sin cambios de firma:
+- `EmpresasCell` (línea 1481) — fila hija.
+- `GroupEmpresasCell` (línea 1568) — fila madre, agrega por `empresa_id` en el grupo.
+- Detalle expandido (línea 1723).
 
-- Tras actualizar `proyecto_empresas`, crear también una entrada en `historial_estatus_empresa` con la nueva `categoria_id` / `subcategoria_id`, `fecha = hoy`, `monto_uf = ganado_presupuesto || 0`.
-- Invalidar `["historial_estatus_empresa"]` además de `["proyectos"]`.
+Solo cambia el contenido del Map.
 
-### 4. Pruebas manuales
+### 3. Sin cambios de schema ni de lógica de negocio
 
-- Cambiar estatus en el formulario y **cancelar** → badge no cambia, formulario al reabrirlo tampoco.
-- Cambiar estatus y **Guardar** → badge cambia inmediatamente y todos los usuarios lo ven (ya hay realtime en `historial_estatus_empresa`).
-- Completar una alerta que avanza categoría → badge se actualiza y queda registrado en historial.
-- Editar manualmente un registro de historial (eliminar la última entrada) → badge vuelve a la entrada anterior.
+- No se modifican tablas, RLS, ni mutaciones.
+- Solo cambia el cálculo presentacional en el listado de Proyectos.
+- El formulario (`ProyectoFormDialog`) ya muestra "Gran Total" con la misma intención y se ajustará en una iteración aparte si quedara desalineado.
 
-## Detalles técnicos
+### 4. Verificación
 
-- No se requiere migración de base de datos: la tabla `historial_estatus_empresa` ya existe con realtime habilitado.
-- Performance: cargar historial en bloque por todos los `proyecto_empresa_id` visibles (una sola query, ya paginada por el patrón `.range()` si el volumen lo amerita). Memorizar el "último por PE" en un `Map<string, HistorialEntry>` en `Proyectos.tsx` y pasarlo como prop a `GroupEmpresasCell`, igual que se hace con `ventasMap`.
-- El estado `pendingHistorialEntries` se guarda como un Map por `empresa_id` para que múltiples cambios al mismo registro durante una sesión de edición se sustituyan (solo el último cuenta al guardar).
+Tras el cambio, JACIMA en "Casa MR" debe mostrar `953,59 UF` (440,81 + 512,78). Validar también una empresa con ventas adicionales en `ventas_proyecto_empresa` para confirmar que ambas fuentes se suman.
 
-## Memoria a actualizar tras implementar
+## Pregunta antes de implementar
 
-Anotar en `mem://logic/proyectos/estatus-comerciales-empresa` que la fuente de verdad del estatus mostrado en el listado es la última entrada de `historial_estatus_empresa`, y que los cambios en el formulario son locales hasta presionar Guardar.
+¿Las entradas con subcategoría **Ganado** en el historial deben contarse **todas** como ventas independientes (suma completa), o sólo la **más reciente** debe representar el monto vigente? (La evidencia y la memoria *Additional Sales* sugieren "todas".)
