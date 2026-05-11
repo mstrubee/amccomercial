@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
+import { useHistorialEstatusByIds, useCreateHistorialEstatus, HistorialEstatusRow } from "@/hooks/useHistorialEstatus";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
@@ -268,6 +269,81 @@ export default function Proyectos() {
     return { categoriaLabels, subcategoriaLabels };
   }, [categorias]);
 
+  // Lift ventas + historial: single queries for all proyecto_empresa IDs.
+  // Defined BEFORE `filtered` because filters/KPIs read from `statusByPe`.
+  const allPeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const p of (proyectos || [])) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        ids.push(pe.id);
+      }
+    }
+    return ids;
+  }, [proyectos]);
+
+  const { data: allVentasData } = useVentasByProyectoEmpresaIds(allPeIds);
+  const { data: allHistorialData } = useHistorialEstatusByIds(allPeIds);
+  const createHistorialMain = useCreateHistorialEstatus();
+
+  /**
+   * Latest historial entry per proyecto_empresa_id (sorted by fecha desc, then created_at desc).
+   * Source of truth for the status badge in the listing.
+   */
+  const latestHistorialByPe = useMemo(() => {
+    const map = new Map<string, HistorialEstatusRow>();
+    for (const h of (allHistorialData || [])) {
+      const existing = map.get(h.proyecto_empresa_id);
+      if (!existing) { map.set(h.proyecto_empresa_id, h); continue; }
+      const a = `${h.fecha}|${h.created_at}`;
+      const b = `${existing.fecha}|${existing.created_at}`;
+      if (a > b) map.set(h.proyecto_empresa_id, h);
+    }
+    return map;
+  }, [allHistorialData]);
+
+  /**
+   * Effective status per proyecto_empresa_id, using the latest historial entry
+   * as the source of truth (falling back to proyecto_empresas if no historial).
+   */
+  type EffectiveStatus = {
+    categoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
+    subcategoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
+    fecha: string | null;
+  };
+  const statusByPe = useMemo(() => {
+    const map = new Map<string, EffectiveStatus>();
+    if (!proyectos) return map;
+    const catById = new Map<string, { id: string; nombre: string; color: string; es_adjudicado: boolean }>();
+    const subById = new Map<string, { id: string; nombre: string; color: string; es_adjudicado: boolean }>();
+    for (const c of (categorias || [])) {
+      catById.set(c.id, { id: c.id, nombre: c.nombre, color: c.color, es_adjudicado: c.es_adjudicado });
+      for (const s of (c.subcategorias_proyecto || [])) {
+        subById.set(s.id, { id: s.id, nombre: s.nombre, color: s.color, es_adjudicado: s.es_adjudicado });
+      }
+    }
+    for (const p of proyectos) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        const latest = latestHistorialByPe.get(pe.id);
+        let categoria: EffectiveStatus["categoria"] = null;
+        let subcategoria: EffectiveStatus["subcategoria"] = null;
+        let fecha: string | null = null;
+        if (latest) {
+          if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
+          if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
+          fecha = latest.fecha || null;
+        } else {
+          const cat = (pe as any).categorias_proyecto;
+          const sub = (pe as any).subcategorias_proyecto;
+          if (cat) categoria = { id: cat.id, nombre: cat.nombre, color: cat.color, es_adjudicado: cat.es_adjudicado };
+          if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
+          fecha = (pe as any).fecha_categoria || null;
+        }
+        map.set(pe.id, { categoria, subcategoria, fecha });
+      }
+    }
+    return map;
+  }, [proyectos, categorias, latestHistorialByPe]);
+
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = deferredSearch.trim().toLowerCase();
     const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
@@ -278,14 +354,19 @@ export default function Proyectos() {
       p.proyecto_empresas?.some((pe) => filterEmpresas.includes(pe.empresa_id));
     const matchCategoria =
       filterCategorias.length === 0 ||
-      p.proyecto_empresas?.some((pe) => filterCategorias.includes(pe.categoria_id || "") || filterCategorias.includes(pe.subcategoria_id || ""));
+      p.proyecto_empresas?.some((pe) => {
+        const eff = statusByPe.get(pe.id);
+        const catId = eff?.categoria?.id || pe.categoria_id || "";
+        const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
+        return filterCategorias.includes(catId) || filterCategorias.includes(subId);
+      });
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
       return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink]);
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -317,19 +398,6 @@ export default function Proyectos() {
     });
     return result;
   }, [filtered]);
-
-  // Lift ventas data: single query for all proyecto_empresa IDs
-  const allPeIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const p of (proyectos || [])) {
-      for (const pe of (p.proyecto_empresas || [])) {
-        ids.push(pe.id);
-      }
-    }
-    return ids;
-  }, [proyectos]);
-
-  const { data: allVentasData } = useVentasByProyectoEmpresaIds(allPeIds);
 
   // Pre-compute ventas totals per proyecto_empresa ID (ppto + ventas adicionales)
   const ventasMap = useMemo(() => {
@@ -364,7 +432,10 @@ export default function Proyectos() {
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
-      if (g.some(p => p.proyecto_empresas?.some(pe => pe.subcategoria_id === GANADO_SUBCATEGORIA_ID))) ganados++;
+      if (g.some(p => p.proyecto_empresas?.some(pe => {
+        const eff = statusByPe.get(pe.id);
+        return (eff?.subcategoria?.id || pe.subcategoria_id) === GANADO_SUBCATEGORIA_ID;
+      }))) ganados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
@@ -372,7 +443,7 @@ export default function Proyectos() {
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
     return { totalProyectos, adjudicados, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
-  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones]);
+  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -713,7 +784,7 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
                 }
 
                 // Grouped header
@@ -750,7 +821,7 @@ export default function Proyectos() {
                         <StatusBadge status={first.estado_amc} color={(estadosAmc || []).find(ea => ea.nombre === first.estado_amc)?.color} />
                       </td>
                       <td className="px-5 py-3">
-                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} />
+                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} />
                       </td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
@@ -875,7 +946,7 @@ export default function Proyectos() {
                                 <td colSpan={2} className="px-5 py-2 align-top">
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                                 </td>
-                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} /></td>
+                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} statusByPe={statusByPe} /></td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {/* Estado AMC per empresa */}
                                   <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -1240,7 +1311,26 @@ export default function Proyectos() {
         categorias={categorias}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
           await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
+          // Sync historial so the badge reflects the change (historial is the source of truth)
+          const { data: peRow } = await supabase
+            .from("proyecto_empresas")
+            .select("id, ganado_presupuesto")
+            .eq("proyecto_id", pId)
+            .eq("empresa_id", eId)
+            .maybeSingle();
+          if (peRow?.id) {
+            try {
+              await createHistorialMain.mutateAsync({
+                proyecto_empresa_id: peRow.id,
+                categoria_id: catId,
+                subcategoria_id: subId,
+                monto_uf: Number(peRow.ganado_presupuesto || 0),
+                fecha: new Date().toISOString().slice(0, 10),
+              });
+            } catch { /* historial creation is best-effort */ }
+          }
           qc.invalidateQueries({ queryKey: ["proyectos"] });
+          qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
         }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onUncomplete={(id, newDate) => {
@@ -1308,7 +1398,7 @@ function EstadoAmcPopoverInline({ currentStatus, estadosAmc, onUpdate }: { curre
 }
 
 /* ── Single project row ── */
-const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, estadosAmc, onUpdateEstadoAmcPE }: {
+const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, statusByPe, estadosAmc, onUpdateEstadoAmcPE }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -1321,6 +1411,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   filterBotones: string[];
   filterEmpresas?: string[];
   ventasMap?: Map<string, number>;
+  statusByPe?: Map<string, any>;
   estadosAmc?: { id: string; nombre: string; color: string }[];
   onUpdateEstadoAmcPE: (peId: string, estado: string) => void;
 }) {
@@ -1340,7 +1431,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
           {/* Estado (x Proyecto) — project-level estado_amc */}
           <StatusBadge status={p.estado_amc} color={(estadosAmc || []).find(ea => ea.nombre === p.estado_amc)?.color} />
         </td>
-        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} /></td>
+        <td className="px-5 py-3"><EmpresasCell proyectoEmpresas={p.proyecto_empresas} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} /></td>
         <td className="px-5 py-3">
           {/* Estado AMC per empresa */}
           {pe0 && (
@@ -1379,7 +1470,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
 ProjectRow.displayName = "ProjectRow";
 
 /* ── Empresas cell component ── */
-const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
+const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap, statusByPe }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
   if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
@@ -1388,12 +1479,13 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
     <div className="space-y-1">
       {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
         const totalVentas = ventasMap?.get(pe.id) || 0;
-        const sub = (pe as any).subcategorias_proyecto;
-        const cat = (pe as any).categorias_proyecto;
+        const eff = statusByPe?.get(pe.id);
+        const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
+        const cat = eff?.categoria || (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
-        const fechaCat = (pe as any).fecha_categoria || null;
+        const fechaCat = eff ? eff.fecha : ((pe as any).fecha_categoria || null);
 
         return (
           <div key={pe.id} className="leading-tight">
@@ -1437,7 +1529,7 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
 });
 
 /* ── Group header empresas cell (name + category + monto) ── */
-const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number> }) {
+const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap, statusByPe }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
   const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
   const allEmpresas = useMemo(() => {
     const seen = new Set<string>();
@@ -1466,12 +1558,13 @@ const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresa
     <div className="space-y-1">
       {allEmpresas.map((pe) => {
         if (!pe.empresas) return null;
-        const sub = (pe as any).subcategorias_proyecto;
-        const cat = (pe as any).categorias_proyecto;
+        const eff = statusByPe?.get(pe.id);
+        const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
+        const cat = eff?.categoria || (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
-        const fechaCat = (pe as any).fecha_categoria || null;
+        const fechaCat = eff ? eff.fecha : ((pe as any).fecha_categoria || null);
         const totalVentas = ventasByEmpresa.get(pe.empresa_id) || 0;
         return (
           <div key={pe.id} className="leading-tight">
