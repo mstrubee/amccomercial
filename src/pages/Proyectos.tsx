@@ -399,34 +399,21 @@ export default function Proyectos() {
     return result;
   }, [filtered]);
 
-  // Pre-compute Gran Total per proyecto_empresa ID:
-  //   Σ monto_uf de TODAS las entradas de historial con subcategoría/categoría adjudicada
-  // + Σ monto_uf de ventas_proyecto_empresa (ventas adicionales fuera del historial)
+  // Gran Total per proyecto_empresa — fuente única alineada al formulario:
+  //   ganado_presupuesto (monto adjudicado vigente) + Σ ventas_proyecto_empresa (adicionales)
   const ventasMap = useMemo(() => {
     const map = new Map<string, number>();
-    // Build adjudicado lookup from categorias/subcategorias
-    const adjCat = new Set<string>();
-    const adjSub = new Set<string>();
-    for (const c of (categorias || [])) {
-      if (c.es_adjudicado) adjCat.add(c.id);
-      for (const s of (c.subcategorias_proyecto || [])) {
-        if (s.es_adjudicado) adjSub.add(s.id);
+    for (const p of (proyectos || [])) {
+      for (const pe of (p.proyecto_empresas || [])) {
+        const ppto = Number((pe as any).ganado_presupuesto) || 0;
+        if (ppto !== 0) map.set(pe.id, ppto);
       }
-    }
-    // Solo la ÚLTIMA entrada del historial por PE cuenta para el Gran Total.
-    // Si es adjudicada, su monto se suma; si no, aporta 0.
-    for (const [peId, latest] of latestHistorialByPe) {
-      const isAdj = (latest.subcategoria_id && adjSub.has(latest.subcategoria_id))
-        || (!latest.subcategoria_id && latest.categoria_id && adjCat.has(latest.categoria_id));
-      if (!isAdj) continue;
-      const monto = Number(latest.monto_uf) || 0;
-      if (monto > 0) map.set(peId, monto);
     }
     for (const v of (allVentasData || [])) {
       map.set(v.proyecto_empresa_id, (map.get(v.proyecto_empresa_id) || 0) + Number(v.monto_uf));
     }
     return map;
-  }, [categorias, latestHistorialByPe, allVentasData]);
+  }, [proyectos, allVentasData]);
 
   // KPI stats
   const GANADO_SUBCATEGORIA_ID = "5ede8de9-4fd3-4670-85d5-4934af648e74";
