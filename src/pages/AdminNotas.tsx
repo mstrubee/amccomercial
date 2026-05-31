@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, RotateCcw, X, StickyNote, MapPin, Crosshair, Image, AlertTriangle } from "lucide-react";
+import JSZip from "jszip";
+import { Plus, Pencil, Trash2, RotateCcw, X, StickyNote, MapPin, Crosshair, AlertTriangle, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -88,8 +89,59 @@ function NotaCard({ nota, onEdit, onDelete }: { nota: AdminNota; onEdit: () => v
   );
 }
 
+async function exportarNotas(notas: AdminNota[]) {
+  const zip = new JSZip();
+  const imgFolder = zip.folder("imagenes")!;
+
+  const notasExport = await Promise.all(
+    notas.map(async (nota, idx) => {
+      const imagenesLocales: string[] = [];
+      for (const url of nota.imagenes ?? []) {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const ext = url.split(".").pop()?.split("?")[0] ?? "png";
+          const nombre = `nota_${idx + 1}_img_${imagenesLocales.length + 1}.${ext}`;
+          imgFolder.file(nombre, blob);
+          imagenesLocales.push(`imagenes/${nombre}`);
+        } catch {
+          imagenesLocales.push(url);
+        }
+      }
+      return {
+        id: nota.id,
+        titulo: nota.titulo,
+        contenido: nota.contenido,
+        prioridad: nota.prioridad,
+        estado: nota.estado,
+        elemento: nota.elemento_ruta
+          ? {
+              ruta: nota.elemento_ruta,
+              selector: nota.elemento_selector,
+              info: nota.elemento_info,
+            }
+          : null,
+        imagenes: imagenesLocales,
+        creada: nota.created_at,
+        actualizada: nota.updated_at,
+      };
+    })
+  );
+
+  zip.file("notas.json", JSON.stringify(notasExport, null, 2));
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `notas-amc-${new Date().toISOString().slice(0, 10)}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminNotas() {
   const { data: notas = [], isLoading } = useAdminNotas();
+  const [exportando, setExportando] = useState(false);
   const { data: papelera = [] } = useAdminNotasPapelera();
   const eliminar = useEliminarNota();
   const restaurar = useRestaurarNota();
@@ -131,6 +183,18 @@ export default function AdminNotas() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={exportando || notas.length === 0}
+            onClick={async () => {
+              setExportando(true);
+              try { await exportarNotas(notas); } finally { setExportando(false); }
+            }}
+            className="gap-2"
+          >
+            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {exportando ? "Exportando..." : "Exportar"}
+          </Button>
           <Button
             variant={modoActivo ? "destructive" : "outline"}
             onClick={modoActivo ? desactivarModo : activarModo}
