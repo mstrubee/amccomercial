@@ -150,7 +150,7 @@ export default function AdminNotas() {
         <div className="flex items-center gap-2 p-3 rounded-xl bg-orange-50 border border-orange-200 text-sm text-orange-800">
           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shrink-0" />
           <p>
-            <strong>Modo notas activo.</strong> Haz clic en cualquier elemento de la pantalla para capturarlo. El panel lateral te permite crear notas rápidas.
+            <strong>Modo notas activo.</strong> Navega con normalidad. Mantén <kbd className="px-1 py-0.5 rounded border border-orange-300 bg-orange-100 font-mono text-xs">Ctrl</kbd> presionado y haz clic sobre cualquier elemento para capturarlo.
           </p>
           <button onClick={desactivarModo} className="ml-auto shrink-0 text-orange-500 hover:text-orange-700">
             <X className="w-4 h-4" />

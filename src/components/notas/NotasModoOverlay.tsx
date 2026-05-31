@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useNotasModo, ElementoCapturado } from "@/contexts/NotasModoContext";
 
@@ -32,30 +32,21 @@ function getTextoPreview(el: Element): string {
 }
 
 export default function NotasModoOverlay() {
-  const { modoActivo, setElementoCapturado, panelAbierto } = useNotasModo();
+  const { modoActivo, setElementoCapturado } = useNotasModo();
   const location = useLocation();
   const highlightRef = useRef<HTMLDivElement>(null);
-  const hoveredRef = useRef<Element | null>(null);
-  const [, forceUpdate] = useState(0);
+  const ctrlHeldRef = useRef(false);
 
   useEffect(() => {
     if (!modoActivo) {
       if (highlightRef.current) highlightRef.current.style.display = "none";
+      document.body.style.cursor = "";
       return;
     }
 
-    document.body.style.cursor = "crosshair";
-
     const isPanel = (el: Element) => el.closest("[data-notas-panel]") !== null;
 
-    const onMouseOver = (e: MouseEvent) => {
-      const target = e.target as Element;
-      if (!target || isPanel(target)) {
-        if (highlightRef.current) highlightRef.current.style.display = "none";
-        hoveredRef.current = null;
-        return;
-      }
-      hoveredRef.current = target;
+    const showHighlight = (target: Element) => {
       const rect = target.getBoundingClientRect();
       const h = highlightRef.current;
       if (h) {
@@ -67,20 +58,44 @@ export default function NotasModoOverlay() {
       }
     };
 
-    const onMouseOut = (e: MouseEvent) => {
-      const related = e.relatedTarget as Element | null;
-      if (!related || isPanel(related)) {
-        if (highlightRef.current) highlightRef.current.style.display = "none";
-        hoveredRef.current = null;
+    const hideHighlight = () => {
+      if (highlightRef.current) highlightRef.current.style.display = "none";
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Control") {
+        ctrlHeldRef.current = true;
+        document.body.style.cursor = "crosshair";
       }
     };
 
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Control") {
+        ctrlHeldRef.current = false;
+        document.body.style.cursor = "";
+        hideHighlight();
+      }
+    };
+
+    const onMouseOver = (e: MouseEvent) => {
+      if (!ctrlHeldRef.current) return;
+      const target = e.target as Element;
+      if (!target || isPanel(target)) { hideHighlight(); return; }
+      showHighlight(target);
+    };
+
+    const onMouseOut = (e: MouseEvent) => {
+      if (!ctrlHeldRef.current) return;
+      const related = e.relatedTarget as Element | null;
+      if (!related || isPanel(related)) hideHighlight();
+    };
+
     const onClick = (e: MouseEvent) => {
+      if (!ctrlHeldRef.current) return;
       const target = e.target as Element;
       if (!target || isPanel(target)) return;
-      e.preventDefault();
-      e.stopPropagation();
 
+      // Captura el elemento sin bloquear la navegación
       const capturado: ElementoCapturado = {
         ruta: location.pathname,
         selector: getCssSelector(target),
@@ -89,23 +104,26 @@ export default function NotasModoOverlay() {
         clases: Array.from(target.classList).slice(0, 6).join(" "),
       };
       setElementoCapturado(capturado);
-      forceUpdate((n) => n + 1);
-
-      if (highlightRef.current) highlightRef.current.style.display = "none";
+      hideHighlight();
     };
 
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keyup", onKeyUp);
     document.addEventListener("mouseover", onMouseOver, true);
     document.addEventListener("mouseout", onMouseOut, true);
     document.addEventListener("click", onClick, true);
 
     return () => {
       document.body.style.cursor = "";
+      ctrlHeldRef.current = false;
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp);
       document.removeEventListener("mouseover", onMouseOver, true);
       document.removeEventListener("mouseout", onMouseOut, true);
       document.removeEventListener("click", onClick, true);
-      if (highlightRef.current) highlightRef.current.style.display = "none";
+      hideHighlight();
     };
-  }, [modoActivo, location.pathname, setElementoCapturado, panelAbierto]);
+  }, [modoActivo, location.pathname, setElementoCapturado]);
 
   return (
     <div

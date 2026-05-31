@@ -87,7 +87,7 @@ export default function NotasModoPanel() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Instrucción */}
         <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
-          Haz clic en cualquier elemento de la pantalla para capturarlo y asociarlo a una nota.
+          Navega con normalidad. Mantén <kbd className="px-1 py-0.5 rounded border bg-background font-mono text-[10px]">Ctrl</kbd> presionado y haz clic en cualquier elemento para capturarlo.
         </p>
 
         {/* Elemento capturado */}
