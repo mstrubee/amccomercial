@@ -18,11 +18,12 @@ import {
   ListChecks,
   BarChart3,
   Upload,
-    FolderTree,
-    HardDrive,
-    ClipboardCheck,
-    ClipboardList,
-    type LucideIcon,
+  FolderTree,
+  HardDrive,
+  ClipboardCheck,
+  ClipboardList,
+  StickyNote,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -78,6 +79,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
     { path: "/repositorio-tipo", label: "Repositorio Tipo", allowTipo1: false, icon: FolderTree },
     { path: "/drive", label: "Drive", allowTipo1: false, icon: HardDrive },
     { path: "/hitos-ejecucion", label: "Hitos Ejecución Proyectos", allowTipo1: false, icon: ClipboardList },
+    { path: "/notas", label: "Notas", allowTipo1: false, icon: StickyNote },
   ];
 
   const adminSubItems = isAdmin

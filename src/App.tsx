@@ -14,6 +14,9 @@ import FloatingChat from "@/components/mensajeria/FloatingChat";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { NotasModoProvider } from "@/contexts/NotasModoContext";
+import NotasModoPanel from "@/components/notas/NotasModoPanel";
+import NotasModoOverlay from "@/components/notas/NotasModoOverlay";
 
 // Lazy-loaded pages
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -33,6 +36,7 @@ const DrivePage = lazy(() => import("@/pages/DrivePage"));
 const Calendario = lazy(() => import("@/pages/Calendario"));
 const ReunionesPage = lazy(() => import("@/pages/AtencionEmpresas"));
 const HitosEjecucionPage = lazy(() => import("@/pages/HitosEjecucionPage"));
+const AdminNotas = lazy(() => import("@/pages/AdminNotas"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const PageFallback = () => (
@@ -77,7 +81,9 @@ function AppRoutes() {
   }
 
   return (
+    <NotasModoProvider>
     <AppLayout isAdmin={isAdmin} isUsuarioTipo1={isUsuarioTipo1} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
+      <NotasModoOverlay />
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={canAccessSection("dashboard") ? <Dashboard /> : <Navigate to={canAccessSection("proyectos") ? "/proyectos" : canAccessSection("empresas") ? "/empresas" : canAccessSection("finanzas") ? "/finanzas" : canAccessSection("alertas") ? "/alertas" : "/"} replace />} />
@@ -93,6 +99,7 @@ function AppRoutes() {
           {isAdmin && <Route path="/repositorio-tipo" element={<RepositorioTipoPage />} />}
           {isAdmin && <Route path="/drive" element={<DrivePage />} />}
           {isAdmin && <Route path="/hitos-ejecucion" element={<HitosEjecucionPage />} />}
+          {isAdmin && <Route path="/notas" element={<AdminNotas />} />}
           {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
           {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
           <Route path="/calendario" element={<Calendario />} />
@@ -124,7 +131,9 @@ function AppRoutes() {
           </div>
         );
       })()}
+      {isAdmin && <NotasModoPanel />}
     </AppLayout>
+    </NotasModoProvider>
   );
 }
 
