@@ -34,6 +34,8 @@ export default function ContactosColumn({ proyecto, groupItems }: Props) {
         const catLabel = catLabelMap.get(pc.clientes.categoria_id) || "";
         const display = catLabel ? `${pc.clientes.nombre} (${catLabel})` : pc.clientes.nombre;
         linkedClientes.set(pc.clientes.id, display);
+      } else if (pc.cliente_id) {
+        linkedClientes.set(pc.cliente_id, "(cliente sin datos)");
       }
     }
     for (const pc of (p.proyecto_captadores || [])) {

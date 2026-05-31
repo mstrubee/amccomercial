@@ -379,6 +379,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                       if (isRowDescartado("r", row.id)) {
                         base.textDecoration = "line-through";
                         base.opacity = 0.55;
+                      } else if (!hasChildren && isRowCompleted("r", row.id)) {
+                        base.textDecoration = "line-through";
+                        base.opacity = 0.6;
                       }
                       return base;
                     })()}>
@@ -422,8 +425,9 @@ const HitosEjecucionPanel = forwardRef<HitosEjecucionPanelHandle, Props>(functio
                   {extraRows.map((row, idx) => {
                     if (hideCompleted && isRowCompleted("e", row.id)) return null;
                     const descartada = isRowDescartado("e", row.id);
+                    const completada = !descartada && isRowCompleted("e", row.id);
                     return (
-                    <tr key={row.id} className="border-t border-border" style={descartada ? { textDecoration: "line-through", opacity: 0.55 } : undefined}>
+                    <tr key={row.id} className="border-t border-border" style={descartada ? { textDecoration: "line-through", opacity: 0.55 } : completada ? { textDecoration: "line-through", opacity: 0.6 } : undefined}>
                       <td className="px-2 py-1 text-muted-foreground">{tplRows.filter(r => !r.parent_id).length + idx + 1}</td>
                       {columns.map(c => (
                         <td key={c.id} className="px-2 py-1">

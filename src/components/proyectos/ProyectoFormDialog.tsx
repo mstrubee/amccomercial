@@ -186,7 +186,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       setRegion((initialData as any).region || "");
       setDireccion(initialData.direccion);
       setComuna(initialData.comuna);
-      setEstadoObra(initialData.estado_obra);
+      setEstadoObra(initialData.estado_obra ?? "");
       setFechaEstadoObra(initialData.fecha_estado_obra || "");
       setEstadoAmc(initialData.estado_amc);
       setNotas(initialData.notas || "");
