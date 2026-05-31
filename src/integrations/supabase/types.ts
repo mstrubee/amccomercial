@@ -47,6 +47,54 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_notas: {
+        Row: {
+          contenido: string | null
+          created_at: string | null
+          deleted_at: string | null
+          elemento_info: Json | null
+          elemento_ruta: string | null
+          elemento_selector: string | null
+          estado: string
+          id: string
+          imagenes: string[] | null
+          prioridad: string
+          titulo: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contenido?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          elemento_info?: Json | null
+          elemento_ruta?: string | null
+          elemento_selector?: string | null
+          estado?: string
+          id?: string
+          imagenes?: string[] | null
+          prioridad?: string
+          titulo?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contenido?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          elemento_info?: Json | null
+          elemento_ruta?: string | null
+          elemento_selector?: string | null
+          estado?: string
+          id?: string
+          imagenes?: string[] | null
+          prioridad?: string
+          titulo?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       alerta_clasificaciones: {
         Row: {
           alerta_id: string
