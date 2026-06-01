@@ -41,6 +41,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 
 type View = "list" | "chat" | "new" | "settings";
 type SubsectionScope = "all" | "general" | `empresa:${string}`;
@@ -88,6 +89,8 @@ export default function FloatingChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pendingContextOpenRef = useRef<OpenProjectChatDetail | null>(null);
+  const fabWrapRef = useRef<HTMLDivElement>(null);
+  const [fabRect, setFabRect] = useState<DOMRect | null>(null);
 
   const { user, isAdmin } = useAuth();
   const { data: theme } = useThemeSettings();
@@ -95,6 +98,20 @@ export default function FloatingChat() {
   const side = pos.split("-")[0];
   const isBottom = side === "left" || side === "right";
   const isLeft = side === "left" || side === "bottom";
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (fabWrapRef.current) setFabRect(fabWrapRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, side, chatSize.w, chatSize.h]);
 
   const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences(user);
   const isSoundMuted = (prefs?.sound_option || "pop") === "mute";
