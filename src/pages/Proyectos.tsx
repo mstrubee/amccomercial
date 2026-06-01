@@ -519,13 +519,11 @@ export default function Proyectos() {
       // 2) Create new rows for newly added empresas
       const newLinks = data.empresa_links.filter((l: any) => !existingMap.has(l.empresa_id));
       if (newLinks.length > 0) {
-        const baseProject = group[0];
         const projectsToInsert = newLinks.map((link: any) => ({
           ...sharedFields,
           notas: "",
           monto_estimado: null,
           adjudicado: !!link.adjudicado,
-          numero: (baseProject as any).numero,
         }));
         const { data: created, error: insErr } = await supabase
           .from("proyectos")
