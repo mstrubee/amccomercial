@@ -1177,7 +1177,7 @@ export default function Proyectos() {
           mode="edit"
           initialData={editParentGroup[0]}
           groupItems={editParentGroup}
-          isLoading={updateProyecto.isPending}
+          isLoading={isSavingParent}
           isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => editParentGroup.some(p => p.id === a.proyecto_id))}
           onCompleteAlerta={(a) => setAlertaCompleteTarget(a)}
