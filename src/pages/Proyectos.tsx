@@ -1205,10 +1205,13 @@ export default function Proyectos() {
               return;
             }
 
+            if (isSavingParent) return;
+            setIsSavingParent(true);
             try {
               await executeParentSubmit(data, sharedFields, editParentGroup, [], selectedEmpresaIds);
-            } finally {
               setEditParentGroup(null);
+            } finally {
+              setIsSavingParent(false);
             }
           }}
         />
