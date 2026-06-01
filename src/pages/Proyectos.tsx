@@ -1296,11 +1296,14 @@ export default function Proyectos() {
                 if (pendingParentSubmit && editParentGroup) {
                   const { data, toDelete } = pendingParentSubmit;
                   const selectedEmpresaIds = new Set<string>(data.empresa_links.map((l: any) => l.empresa_id));
+                  if (isSavingParent) return;
+                  setIsSavingParent(true);
                   try {
                     await executeParentSubmit(data, data.sharedFields, editParentGroup, toDelete, selectedEmpresaIds);
-                  } finally {
                     setPendingParentSubmit(null);
                     setEditParentGroup(null);
+                  } finally {
+                    setIsSavingParent(false);
                   }
                 }
               }}
