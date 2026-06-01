@@ -570,7 +570,7 @@ export default function FloatingChat() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={fabWrapRef}>
       <button
         onClick={() => setOpen(!open)}
         className={cn(
@@ -599,19 +599,26 @@ export default function FloatingChat() {
         {isSoundMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
       </button>
 
-      <AnimatePresence>
-        {open && (
+      {createPortal(
+        <AnimatePresence>
+          {open && fabRect && (() => {
+            const gap = 8;
+            const top = isBottom
+              ? fabRect.top - chatSize.h - gap
+              : fabRect.bottom + gap;
+            const left = isLeft
+              ? fabRect.left
+              : fabRect.right - chatSize.w;
+            const clampedTop = Math.max(8, Math.min(top, window.innerHeight - chatSize.h - 8));
+            const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - chatSize.w - 8));
+            return (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            style={{ width: chatSize.w, height: chatSize.h }}
-            className={cn(
-              "absolute bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
-              isBottom ? "bottom-full mb-2" : "top-full mt-2",
-              isLeft ? "left-0" : "right-0"
-            )}
+            style={{ position: "fixed", top: clampedTop, left: clampedLeft, width: chatSize.w, height: chatSize.h, zIndex: 100 }}
+            className="bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Resize handle top-right */}
             <div
