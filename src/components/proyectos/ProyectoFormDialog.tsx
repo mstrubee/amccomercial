@@ -596,7 +596,16 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={estadoObra}
-                    onChange={(e) => setEstadoObra(e.target.value)}
+                    onChange={(e) => {
+                      setEstadoObra(e.target.value);
+                      if (e.target.value) {
+                        const today = new Date();
+                        const yyyy = today.getFullYear();
+                        const mm = String(today.getMonth() + 1).padStart(2, "0");
+                        const dd = String(today.getDate()).padStart(2, "0");
+                        setFechaEstadoObra(`${yyyy}-${mm}-${dd}`);
+                      }
+                    }}
                   >
                     <option value="">Seleccionar...</option>
                     {["Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra/Ejecución", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"].map((opt) => (
