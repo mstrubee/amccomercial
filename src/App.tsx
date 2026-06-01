@@ -104,28 +104,6 @@ function AppRoutes() {
         </Routes>
       </Suspense>
       <AlertaWidget />
-      {(() => {
-        const pos = theme?.theme_floating_position || "left-14";
-        const [side, idxStr] = pos.split("-");
-        const idx = parseInt(idxStr || "14", 10);
-        let style: React.CSSProperties = {};
-        if (side === "left") {
-          const pct = 5 + (90 * idx) / 14;
-          style = { left: 16, top: `${pct}%`, position: "fixed" };
-        } else if (side === "right") {
-          const pct = 5 + (90 * idx) / 14;
-          style = { right: 16, top: `${pct}%`, position: "fixed" };
-        } else {
-          const pct = 8 + (84 * idx) / 14;
-          style = { left: `${pct}%`, bottom: 16, position: "fixed" };
-        }
-        return (
-          <div className="z-50 flex items-center gap-2" style={style}>
-            {isAdmin && <FloatingUserStatus />}
-            <FloatingChat />
-          </div>
-        );
-      })()}
       {isAdmin && <NotasModoPanel />}
     </AppLayout>
     </NotasModoProvider>
