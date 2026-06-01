@@ -30,6 +30,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import logoAmc from "@/assets/logo-amc.png";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
 import PersonalizacionDialog from "@/components/personalizacion/PersonalizacionDialog";
+import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
+import FloatingChat from "@/components/mensajeria/FloatingChat";
 
 interface Props {
   children: React.ReactNode;
