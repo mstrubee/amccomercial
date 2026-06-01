@@ -489,7 +489,7 @@ export default function Proyectos() {
 
     try {
       // 1) Build all parallel operations for existing rows
-      const ops: Promise<any>[] = [];
+      const ops: PromiseLike<any>[] = [];
       const peUpserts: any[] = [];
       const idsToDelete: string[] = [];
 
