@@ -172,11 +172,12 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
 
   const isDirty = () => snapshotRef.current !== "" && snapshotRef.current !== buildSnapshot();
 
+  // Initializes all form fields when the dialog opens or the target project changes.
+  // empresas is intentionally excluded — empresa rows have their own effect below.
   useEffect(() => {
     if (!open) return;
     setCrearAlertaEmpresaIds(new Set());
     setPendingHistorial(new Map());
-    // Reset scroll to top when dialog opens
     setTimeout(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
     }, 0);
@@ -192,45 +193,6 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       setNotas(initialData.notas || "");
       setFechaIngreso((initialData as any).fecha_ingreso || todayLocalISO());
       setClasificacionId((initialData as any).clasificacion_id || null);
-
-      // Build empresa rows from existing links (or from all group items for parent edit)
-      if (empresas) {
-        // Collect all empresa links across group items (parent edit) or just from this project
-        const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null; fecha_categoria: string | null; ganado_presupuesto: number | null; ganado_op: string | null; ganado_fecha: string | null }[] = [];
-        const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
-        for (const item of sourceItems) {
-          for (const pe of (item.proyecto_empresas || [])) {
-            if (!allLinks.some((l) => l.empresa_id === pe.empresa_id)) {
-              allLinks.push({
-                empresa_id: pe.empresa_id,
-                monto_cotizacion: (pe as any).monto_cotizacion || 0,
-                categoria_id: (pe as any).categoria_id || null,
-                subcategoria_id: (pe as any).subcategoria_id || null,
-                fecha_categoria: (pe as any).fecha_categoria || null,
-                ganado_presupuesto: (pe as any).ganado_presupuesto || null,
-                ganado_op: (pe as any).ganado_op || null,
-                ganado_fecha: (pe as any).ganado_fecha || null,
-              });
-            }
-          }
-        }
-        const rows = empresas.map((emp) => {
-          const link = allLinks.find((l) => l.empresa_id === emp.id);
-          return {
-            empresa_id: emp.id,
-            selected: !!link,
-            monto: link?.monto_cotizacion || 0,
-            categoria_id: link?.categoria_id || null,
-            subcategoria_id: link?.subcategoria_id || null,
-            fecha_categoria: link?.fecha_categoria || null,
-            ganado_presupuesto: (link as any)?.ganado_presupuesto || null,
-            ganado_op: (link as any)?.ganado_op || null,
-            ganado_fecha: (link as any)?.ganado_fecha || null,
-          };
-        });
-        setEmpresaRows(rows);
-      }
-
       setArqNombre(initialData.arq_nombre || "");
       setArqContacto(initialData.arq_contacto || "");
       setArqMail(initialData.arq_mail || "");
@@ -252,24 +214,56 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       setEstadoAmc("Vigente"); setNotas("");
       setFechaIngreso(todayLocalISO());
       setClasificacionId(null);
-      // All empresas selected by default for new projects
-      if (empresas) {
-        setEmpresaRows(empresas.map((emp) => ({
-          empresa_id: emp.id,
-          selected: true,
-          monto: 0,
-          categoria_id: null,
-          subcategoria_id: null,
-          fecha_categoria: null,
-          ganado_presupuesto: null,
-          ganado_op: null,
-          ganado_fecha: null,
-        })));
-      }
       setArqNombre(""); setArqContacto(""); setArqMail(""); setArqTelefono("");
       setConstNombre(""); setConstContacto(""); setConstMail(""); setConstTelefono("");
       setItoNombre(""); setItoContacto(""); setItoMail(""); setItoTelefono("");
       setDuenosNombre(""); setDuenosContacto(""); setDuenosMail(""); setDuenosTelefono("");
+    }
+  }, [open, initialData]);
+
+  // Initializes empresa rows separately so that async loading of empresas data
+  // does not reset other form fields (like estadoObra) after the user has edited them.
+  useEffect(() => {
+    if (!open || !empresas) return;
+    if (initialData) {
+      const allLinks: { empresa_id: string; monto_cotizacion: number; categoria_id: string | null; subcategoria_id: string | null; fecha_categoria: string | null; ganado_presupuesto: number | null; ganado_op: string | null; ganado_fecha: string | null }[] = [];
+      const sourceItems = groupItems && groupItems.length > 0 ? groupItems : [initialData];
+      for (const item of sourceItems) {
+        for (const pe of (item.proyecto_empresas || [])) {
+          if (!allLinks.some((l) => l.empresa_id === pe.empresa_id)) {
+            allLinks.push({
+              empresa_id: pe.empresa_id,
+              monto_cotizacion: (pe as any).monto_cotizacion || 0,
+              categoria_id: (pe as any).categoria_id || null,
+              subcategoria_id: (pe as any).subcategoria_id || null,
+              fecha_categoria: (pe as any).fecha_categoria || null,
+              ganado_presupuesto: (pe as any).ganado_presupuesto || null,
+              ganado_op: (pe as any).ganado_op || null,
+              ganado_fecha: (pe as any).ganado_fecha || null,
+            });
+          }
+        }
+      }
+      setEmpresaRows(empresas.map((emp) => {
+        const link = allLinks.find((l) => l.empresa_id === emp.id);
+        return {
+          empresa_id: emp.id,
+          selected: !!link,
+          monto: link?.monto_cotizacion || 0,
+          categoria_id: link?.categoria_id || null,
+          subcategoria_id: link?.subcategoria_id || null,
+          fecha_categoria: link?.fecha_categoria || null,
+          ganado_presupuesto: (link as any)?.ganado_presupuesto || null,
+          ganado_op: (link as any)?.ganado_op || null,
+          ganado_fecha: (link as any)?.ganado_fecha || null,
+        };
+      }));
+    } else {
+      setEmpresaRows(empresas.map((emp) => ({
+        empresa_id: emp.id, selected: true, monto: 0,
+        categoria_id: null, subcategoria_id: null, fecha_categoria: null,
+        ganado_presupuesto: null, ganado_op: null, ganado_fecha: null,
+      })));
     }
   }, [open, initialData, empresas]);
 
