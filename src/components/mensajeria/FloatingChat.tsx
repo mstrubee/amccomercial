@@ -41,6 +41,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 
 type View = "list" | "chat" | "new" | "settings";
 type SubsectionScope = "all" | "general" | `empresa:${string}`;
@@ -88,6 +89,8 @@ export default function FloatingChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pendingContextOpenRef = useRef<OpenProjectChatDetail | null>(null);
+  const fabWrapRef = useRef<HTMLDivElement>(null);
+  const [fabRect, setFabRect] = useState<DOMRect | null>(null);
 
   const { user, isAdmin } = useAuth();
   const { data: theme } = useThemeSettings();
@@ -95,6 +98,20 @@ export default function FloatingChat() {
   const side = pos.split("-")[0];
   const isBottom = side === "left" || side === "right";
   const isLeft = side === "left" || side === "bottom";
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (fabWrapRef.current) setFabRect(fabWrapRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, side, chatSize.w, chatSize.h]);
 
   const { prefs, updatePrefs, uploadCustomSound, playNotificationSound } = useChatPreferences(user);
   const isSoundMuted = (prefs?.sound_option || "pop") === "mute";
@@ -553,7 +570,7 @@ export default function FloatingChat() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={fabWrapRef}>
       <button
         onClick={() => setOpen(!open)}
         className={cn(
@@ -582,19 +599,26 @@ export default function FloatingChat() {
         {isSoundMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
       </button>
 
-      <AnimatePresence>
-        {open && (
+      {createPortal(
+        <AnimatePresence>
+          {open && fabRect && (() => {
+            const gap = 8;
+            const top = isBottom
+              ? fabRect.top - chatSize.h - gap
+              : fabRect.bottom + gap;
+            const left = isLeft
+              ? fabRect.left
+              : fabRect.right - chatSize.w;
+            const clampedTop = Math.max(8, Math.min(top, window.innerHeight - chatSize.h - 8));
+            const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - chatSize.w - 8));
+            return (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            style={{ width: chatSize.w, height: chatSize.h }}
-            className={cn(
-              "absolute bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden",
-              isBottom ? "bottom-full mb-2" : "top-full mt-2",
-              isLeft ? "left-0" : "right-0"
-            )}
+            style={{ position: "fixed", top: clampedTop, left: clampedLeft, width: chatSize.w, height: chatSize.h, zIndex: 100 }}
+            className="bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Resize handle top-right */}
             <div
@@ -1131,8 +1155,11 @@ export default function FloatingChat() {
               )}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body
+      )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
