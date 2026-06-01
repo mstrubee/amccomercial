@@ -125,6 +125,7 @@ export default function Proyectos() {
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
+  const [isSavingParent, setIsSavingParent] = useState(false);
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
   const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
 
