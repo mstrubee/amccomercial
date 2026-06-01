@@ -113,7 +113,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
           </AnimatePresence>
         </div>
 
-        <nav className="flex-1 py-4 px-3 space-y-1">
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
