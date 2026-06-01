@@ -30,6 +30,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import logoAmc from "@/assets/logo-amc.png";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
 import PersonalizacionDialog from "@/components/personalizacion/PersonalizacionDialog";
+import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
+import FloatingChat from "@/components/mensajeria/FloatingChat";
 
 interface Props {
   children: React.ReactNode;
@@ -213,6 +215,10 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
               </motion.p>
             )}
           </AnimatePresence>
+          <div className="flex items-center justify-center gap-2 py-2">
+            {isAdmin && <FloatingUserStatus />}
+            <FloatingChat />
+          </div>
           <button
             onClick={onSignOut}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground transition-colors w-full"
