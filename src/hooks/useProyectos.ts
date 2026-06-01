@@ -196,10 +196,9 @@ export function useUpdateProyecto() {
         if (linkError) throw linkError;
       }
 
-      // Await refetch so the UI shows updated data before dialog closes
-      await qc.invalidateQueries({ queryKey: ["proyectos"] });
     },
     onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["proyectos"] });
       toast.success("Proyecto actualizado");
       logActivity.mutate({ action: "editar", entity_type: "proyecto", entity_id: variables.id, entity_name: variables.nombre, details: variables.nombre });
     },
