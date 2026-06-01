@@ -379,6 +379,15 @@ export default function Proyectos() {
     return sizes;
   }, [proyectos]);
 
+  const allGroupsByKey = useMemo(() => {
+    const groups = new Map<string, ProyectoWithEmpresas[]>();
+    (proyectos || []).forEach((p) => {
+      const key = p.nombre.trim().toLowerCase();
+      groups.set(key, [...(groups.get(key) || []), p]);
+    });
+    return groups;
+  }, [proyectos]);
+
   // Group projects by name
   const groupedRows = useMemo(() => {
     const groups: Record<string, ProyectoWithEmpresas[]> = {};
@@ -482,7 +491,18 @@ export default function Proyectos() {
       // 1) Update existing rows in the group
       for (const p of group) {
         const pe = p.proyecto_empresas?.[0];
-        if (pe && selectedEmpresaIds.has(pe.empresa_id)) {
+        if (!pe) {
+          const { error: upErr } = await supabase
+            .from("proyectos")
+            .update({
+              ...sharedFields,
+              notas: p.notas || "",
+              monto_estimado: null,
+              adjudicado: !!p.adjudicado,
+            } as any)
+            .eq("id", p.id);
+          if (upErr) throw upErr;
+        } else if (selectedEmpresaIds.has(pe.empresa_id)) {
           const link = data.empresa_links.find((l: any) => l.empresa_id === pe.empresa_id);
           if (!link) continue;
           const { error: upErr } = await supabase
@@ -855,6 +875,7 @@ export default function Proyectos() {
 
                 // Grouped header
                 const first = items[0];
+                const actionItems = allGroupsByKey.get(key) || items;
                 return (
                   <Fragment key={key}>
                     <tr
@@ -956,11 +977,11 @@ export default function Proyectos() {
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
                             <Folder className="w-3.5 h-3.5 text-amber-500" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(items); }}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(actionItems); }}>
                             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                           </Button>
                           {isAdmin && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" title="Eliminar grupo" onClick={(e) => { e.stopPropagation(); setDeleteGroupTarget(items); }}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" title="Eliminar grupo" onClick={(e) => { e.stopPropagation(); setDeleteGroupTarget(actionItems); }}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           )}
