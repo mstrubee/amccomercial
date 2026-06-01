@@ -61,7 +61,6 @@ function getQueryClient() {
 
 function AppRoutes() {
   const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
-  const { data: theme } = useThemeSettings();
   usePresenceHeartbeat(user?.id);
 
   if (loading) {
