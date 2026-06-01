@@ -125,6 +125,7 @@ export default function Proyectos() {
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
+  const [isSavingParent, setIsSavingParent] = useState(false);
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
   const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
 
@@ -1176,7 +1177,7 @@ export default function Proyectos() {
           mode="edit"
           initialData={editParentGroup[0]}
           groupItems={editParentGroup}
-          isLoading={updateProyecto.isPending}
+          isLoading={isSavingParent}
           isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => editParentGroup.some(p => p.id === a.proyecto_id))}
           onCompleteAlerta={(a) => setAlertaCompleteTarget(a)}
@@ -1204,10 +1205,13 @@ export default function Proyectos() {
               return;
             }
 
+            if (isSavingParent) return;
+            setIsSavingParent(true);
             try {
               await executeParentSubmit(data, sharedFields, editParentGroup, [], selectedEmpresaIds);
-            } finally {
               setEditParentGroup(null);
+            } finally {
+              setIsSavingParent(false);
             }
           }}
         />
@@ -1292,11 +1296,14 @@ export default function Proyectos() {
                 if (pendingParentSubmit && editParentGroup) {
                   const { data, toDelete } = pendingParentSubmit;
                   const selectedEmpresaIds = new Set<string>(data.empresa_links.map((l: any) => l.empresa_id));
+                  if (isSavingParent) return;
+                  setIsSavingParent(true);
                   try {
                     await executeParentSubmit(data, data.sharedFields, editParentGroup, toDelete, selectedEmpresaIds);
-                  } finally {
                     setPendingParentSubmit(null);
                     setEditParentGroup(null);
+                  } finally {
+                    setIsSavingParent(false);
                   }
                 }
               }}
