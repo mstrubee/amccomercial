@@ -465,6 +465,11 @@ export default function Proyectos() {
     toDelete: ProyectoWithEmpresas[],
     selectedEmpresaIds: Set<string>,
   ) => {
+    // Batch parent-group save: perform all DB writes directly so we only
+    // show ONE success toast and trigger ONE cache invalidation at the end.
+    // Avoids the "loop"/multi-toast effect and the race condition where
+    // concurrent invalidations during a sequential mutation chain leave
+    // the projects list cache stale.
     const existingMap = new Map<string, ProyectoWithEmpresas>();
     for (const p of group) {
       for (const pe of (p.proyecto_empresas || [])) {
@@ -472,23 +477,82 @@ export default function Proyectos() {
       }
     }
 
-    for (const p of group) {
-      const pe = p.proyecto_empresas?.[0];
-      if (pe && selectedEmpresaIds.has(pe.empresa_id)) {
-        const link = data.empresa_links.find((l: any) => l.empresa_id === pe.empresa_id)!;
-        await updateProyecto.mutateAsync({
-          ...sharedFields, notas: p.notas || "", monto_estimado: null, empresa_links: [link], id: p.id,
-        });
-      } else if (toDelete.some((d) => d.id === p.id)) {
-        await deleteProyecto.mutateAsync(p.id);
-      }
-    }
+    try {
+      // 1) Update existing rows in the group
+      for (const p of group) {
+        const pe = p.proyecto_empresas?.[0];
+        if (pe && selectedEmpresaIds.has(pe.empresa_id)) {
+          const link = data.empresa_links.find((l: any) => l.empresa_id === pe.empresa_id);
+          if (!link) continue;
+          const { error: upErr } = await supabase
+            .from("proyectos")
+            .update({
+              ...sharedFields,
+              notas: p.notas || "",
+              monto_estimado: null,
+              adjudicado: !!link.adjudicado,
+            } as any)
+            .eq("id", p.id);
+          if (upErr) throw upErr;
 
-    const newLinks = data.empresa_links.filter((l: any) => !existingMap.has(l.empresa_id));
-    for (const link of newLinks) {
-      await createProyecto.mutateAsync({
-        ...sharedFields, notas: "", monto_estimado: null, empresa_links: [link],
-      });
+          const { error: peErr } = await supabase
+            .from("proyecto_empresas")
+            .upsert({
+              proyecto_id: p.id,
+              empresa_id: link.empresa_id,
+              monto_cotizacion: link.monto_cotizacion || 0,
+              adjudicado: !!link.adjudicado,
+              categoria_id: link.categoria_id || null,
+              subcategoria_id: link.subcategoria_id || null,
+              fecha_categoria: link.fecha_categoria || null,
+              ganado_presupuesto: link.ganado_presupuesto || null,
+              ganado_op: link.ganado_op || null,
+              ganado_fecha: link.ganado_fecha || null,
+            }, { onConflict: "proyecto_id,empresa_id" });
+          if (peErr) throw peErr;
+        } else if (toDelete.some((d) => d.id === p.id)) {
+          const { error: delErr } = await supabase.from("proyectos").delete().eq("id", p.id);
+          if (delErr) throw delErr;
+        }
+      }
+
+      // 2) Create new rows for newly added empresas
+      const newLinks = data.empresa_links.filter((l: any) => !existingMap.has(l.empresa_id));
+      if (newLinks.length > 0) {
+        const projectsToInsert = newLinks.map((link: any) => ({
+          ...sharedFields,
+          notas: "",
+          monto_estimado: null,
+          adjudicado: !!link.adjudicado,
+        }));
+        const { data: created, error: insErr } = await supabase
+          .from("proyectos")
+          .insert(projectsToInsert as any[])
+          .select();
+        if (insErr) throw insErr;
+        const peRows = (created || []).map((p: any, i: number) => ({
+          proyecto_id: p.id,
+          empresa_id: newLinks[i].empresa_id,
+          monto_cotizacion: newLinks[i].monto_cotizacion || 0,
+          adjudicado: !!newLinks[i].adjudicado,
+          categoria_id: newLinks[i].categoria_id || null,
+          subcategoria_id: newLinks[i].subcategoria_id || null,
+          fecha_categoria: newLinks[i].fecha_categoria || null,
+          ganado_presupuesto: newLinks[i].ganado_presupuesto || null,
+          ganado_op: newLinks[i].ganado_op || null,
+          ganado_fecha: newLinks[i].ganado_fecha || null,
+        }));
+        if (peRows.length > 0) {
+          const { error: peInsErr } = await supabase.from("proyecto_empresas").insert(peRows);
+          if (peInsErr) throw peInsErr;
+        }
+      }
+
+      await qcMain.invalidateQueries({ queryKey: ["proyectos"] });
+      toast.success("Proyecto actualizado");
+    } catch (e: any) {
+      toast.error("Error al actualizar: " + (e?.message || "desconocido"));
+      throw e;
     }
   };
 
