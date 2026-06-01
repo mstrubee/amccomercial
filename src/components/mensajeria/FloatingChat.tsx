@@ -1155,8 +1155,11 @@ export default function FloatingChat() {
               )}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body
+      )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
