@@ -1,33 +1,26 @@
-## Plan
+## Problema
 
-1. **Corregir el flujo de Guardar en línea madre**
-   - Haré que el formulario espere todo el guardado antes de cerrar o disparar procesos secundarios.
-   - Bloquearé el botón mientras se guarda para evitar dobles submits durante los 10–15 segundos.
+El panel del chat (FloatingChat) se renderiza como `absolute` dentro del sidebar `<aside>`. Como el sidebar tiene su propio contexto de apilamiento y el contenido principal lo cubre por la derecha, el panel del chat se ve "cortado" por la tabla/contenido de Proyectos cuando se abre.
 
-2. **Evitar los toasts múltiples reales**
-   - El problema no parece venir solo de `executeParentSubmit`: el formulario también dispara sincronización de clientes e historial fuera del `await`, y esos hooks pueden invalidar/confirmar por separado.
-   - Cambiaré esas acciones para que no generen confirmaciones múltiples durante el guardado de línea madre, o para que queden integradas/silenciosas en el flujo principal.
+## Solución
 
-3. **Asegurar que `Estado Obra` se guarde y se refleje**
-   - Revisaré el payload exacto que se envía desde `ProyectoFormDialog` a `executeParentSubmit`.
-   - Mantendré la actualización de `estado_obra` y `fecha_estado_obra` aplicada a todas las sublíneas del grupo.
-   - Después de escribir en la base, invalidaré `proyectos` una sola vez y recién ahí cerraré el diálogo.
+Renderizar el panel del chat mediante **React Portal** (`createPortal` a `document.body`) usando posicionamiento `fixed`, calculado a partir del `getBoundingClientRect()` del botón flotante (FAB). Así el panel flota por encima de todo (sidebar, tabla, alertas, etc.) sin verse interrumpido.
 
-4. **Mejorar el estado visual de carga**
-   - Usaré un estado local de guardado para el diálogo de línea madre, porque actualmente `isLoading={updateProyecto.isPending}` no se activa cuando se usan escrituras directas.
-   - El botón debe mostrar `Guardando...` y quedar deshabilitado hasta terminar.
+### Cambios en `src/components/mensajeria/FloatingChat.tsx`
 
-## Archivos a modificar
+1. Agregar un `ref` al botón FAB (`fabRef`) y un estado `fabRect` que se actualice al abrir el chat y en `resize`/`scroll` de la ventana.
+2. Envolver el `<motion.div>` del panel (líneas 587–...) en `createPortal(..., document.body)`.
+3. Cambiar las clases de posicionamiento:
+   - Quitar `absolute`, `bottom-full mb-2 / top-full mt-2`, `left-0 / right-0`.
+   - Usar `fixed z-[100]` y `style={{ position: 'fixed', left, top, width, height }}` calculado desde `fabRect` + `chatSize` + `isBottom`/`isLeft` (mismo criterio actual: si `isBottom` → top = `fabRect.top - chatSize.h - 8`; si `isLeft` → left alineado al FAB, si no → right alineado).
+4. Mantener intactos el resize handle, el tamaño persistido, los handlers y toda la lógica interna del chat. Solo cambia el contenedor de posicionamiento.
 
-- `src/pages/Proyectos.tsx`
-- `src/components/proyectos/ProyectoFormDialog.tsx` si hace falta ajustar el submit async/silencioso
-- Posiblemente `src/hooks/useSyncClienteProyecto.ts` si hay que permitir sincronización silenciosa sin toast
+### Detalles técnicos
 
-## Resultado esperado
+- Z-index: `z-[100]` (por encima del sidebar y de la barra de alertas inferior).
+- Recalcular `fabRect` en: `open === true` (efecto), `window resize`, `scroll` (passive listener), y al cambiar `side`.
+- No tocar lógica de negocio ni hooks de datos: es un cambio puramente de presentación/layout.
 
-Al editar una línea madre, cambiar **Estado Obra** y presionar **Guardar**:
-- el botón muestra carga inmediatamente,
-- no hay múltiples confirmaciones,
-- aparece un solo toast final,
-- el diálogo se cierra solo al terminar,
-- el estado queda guardado y persiste al recargar.
+### Archivos a modificar
+
+- `src/components/mensajeria/FloatingChat.tsx` (único archivo).
