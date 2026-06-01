@@ -488,58 +488,77 @@ export default function Proyectos() {
     }
 
     try {
-      // 1) Update existing rows in the group
+      // 1) Build all parallel operations for existing rows
+      const ops: PromiseLike<any>[] = [];
+      const peUpserts: any[] = [];
+      const idsToDelete: string[] = [];
+
       for (const p of group) {
         const pe = p.proyecto_empresas?.[0];
         if (!pe) {
-          const { error: upErr } = await supabase
-            .from("proyectos")
-            .update({
-              ...sharedFields,
-              notas: p.notas || "",
-              monto_estimado: null,
-              adjudicado: !!p.adjudicado,
-            } as any)
-            .eq("id", p.id);
-          if (upErr) throw upErr;
+          ops.push(
+            supabase
+              .from("proyectos")
+              .update({
+                ...sharedFields,
+                notas: p.notas || "",
+                monto_estimado: null,
+                adjudicado: !!p.adjudicado,
+              } as any)
+              .eq("id", p.id)
+              .then(({ error }) => { if (error) throw error; })
+          );
         } else if (selectedEmpresaIds.has(pe.empresa_id)) {
           const link = data.empresa_links.find((l: any) => l.empresa_id === pe.empresa_id);
           if (!link) continue;
-          const { error: upErr } = await supabase
-            .from("proyectos")
-            .update({
-              ...sharedFields,
-              notas: p.notas || "",
-              monto_estimado: null,
-              adjudicado: !!link.adjudicado,
-            } as any)
-            .eq("id", p.id);
-          if (upErr) throw upErr;
-
-          const { error: peErr } = await supabase
-            .from("proyecto_empresas")
-            .upsert({
-              proyecto_id: p.id,
-              empresa_id: link.empresa_id,
-              monto_cotizacion: link.monto_cotizacion || 0,
-              adjudicado: !!link.adjudicado,
-              categoria_id: link.categoria_id || null,
-              subcategoria_id: link.subcategoria_id || null,
-              fecha_categoria: link.fecha_categoria || null,
-              ganado_presupuesto: link.ganado_presupuesto || null,
-              ganado_op: link.ganado_op || null,
-              ganado_fecha: link.ganado_fecha || null,
-            }, { onConflict: "proyecto_id,empresa_id" });
-          if (peErr) throw peErr;
+          ops.push(
+            supabase
+              .from("proyectos")
+              .update({
+                ...sharedFields,
+                notas: p.notas || "",
+                monto_estimado: null,
+                adjudicado: !!link.adjudicado,
+              } as any)
+              .eq("id", p.id)
+              .then(({ error }) => { if (error) throw error; })
+          );
+          peUpserts.push({
+            proyecto_id: p.id,
+            empresa_id: link.empresa_id,
+            monto_cotizacion: link.monto_cotizacion || 0,
+            adjudicado: !!link.adjudicado,
+            categoria_id: link.categoria_id || null,
+            subcategoria_id: link.subcategoria_id || null,
+            fecha_categoria: link.fecha_categoria || null,
+            ganado_presupuesto: link.ganado_presupuesto || null,
+            ganado_op: link.ganado_op || null,
+            ganado_fecha: link.ganado_fecha || null,
+          });
         } else if (toDelete.some((d) => d.id === p.id)) {
-          const { error: delErr } = await supabase.from("proyectos").delete().eq("id", p.id);
-          if (delErr) throw delErr;
+          idsToDelete.push(p.id);
         }
       }
 
-      // 2) Create new rows for newly added empresas
+      if (peUpserts.length > 0) {
+        ops.push(
+          supabase
+            .from("proyecto_empresas")
+            .upsert(peUpserts, { onConflict: "proyecto_id,empresa_id" })
+            .then(({ error }) => { if (error) throw error; })
+        );
+      }
+      if (idsToDelete.length > 0) {
+        ops.push(
+          supabase.from("proyectos").delete().in("id", idsToDelete)
+            .then(({ error }) => { if (error) throw error; })
+        );
+      }
+
+      // 2) Create new rows for newly added empresas (must wait for insert id, so chain after)
       const newLinks = data.empresa_links.filter((l: any) => !existingMap.has(l.empresa_id));
-      if (newLinks.length > 0) {
+      const newRowsPromise = (async () => {
+        if (newLinks.length === 0) return;
         const projectsToInsert = newLinks.map((link: any) => ({
           ...sharedFields,
           notas: "",
@@ -567,10 +586,13 @@ export default function Proyectos() {
           const { error: peInsErr } = await supabase.from("proyecto_empresas").insert(peRows);
           if (peInsErr) throw peInsErr;
         }
-      }
+      })();
 
-      await qcMain.invalidateQueries({ queryKey: ["proyectos"] });
+      await Promise.all([...ops, newRowsPromise]);
+
       toast.success("Proyecto actualizado");
+      // Fire-and-forget cache refresh — dialog can close immediately
+      qcMain.invalidateQueries({ queryKey: ["proyectos"] });
     } catch (e: any) {
       toast.error("Error al actualizar: " + (e?.message || "desconocido"));
       throw e;
