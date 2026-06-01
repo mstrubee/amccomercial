@@ -591,7 +591,36 @@ export default function Proyectos() {
       await Promise.all([...ops, newRowsPromise]);
 
       toast.success("Proyecto actualizado");
-      // Fire-and-forget cache refresh — dialog can close immediately
+
+      // Optimistically patch the list cache so the UI updates instantly,
+      // then revalidate in the background.
+      const groupIds = new Set(group.map((p) => p.id));
+      const sharedPatch: any = { ...sharedFields };
+      qcMain.setQueriesData({ queryKey: ["proyectos"] }, (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((p: any) => {
+          if (!groupIds.has(p.id)) return p;
+          const pe = p.proyecto_empresas?.[0];
+          const link = pe ? data.empresa_links.find((l: any) => l.empresa_id === pe.empresa_id) : null;
+          const newPe = pe && link ? [{
+            ...pe,
+            monto_cotizacion: link.monto_cotizacion || 0,
+            adjudicado: !!link.adjudicado,
+            categoria_id: link.categoria_id || null,
+            subcategoria_id: link.subcategoria_id || null,
+            fecha_categoria: link.fecha_categoria || null,
+            ganado_presupuesto: link.ganado_presupuesto || null,
+            ganado_op: link.ganado_op || null,
+            ganado_fecha: link.ganado_fecha || null,
+          }] : p.proyecto_empresas;
+          return {
+            ...p,
+            ...sharedPatch,
+            adjudicado: link ? !!link.adjudicado : p.adjudicado,
+            proyecto_empresas: newPe,
+          };
+        });
+      });
       qcMain.invalidateQueries({ queryKey: ["proyectos"] });
     } catch (e: any) {
       toast.error("Error al actualizar: " + (e?.message || "desconocido"));
