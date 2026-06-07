@@ -110,7 +110,16 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
 
   const label = type === "cliente" ? "Cliente" : "Captador";
   const allItems = type === "cliente" ? (clientes || []) : (captadores || []) as any[];
-  const available = allItems.filter((c: any) => !linkedItems.has(c.id) && c.nombre.toLowerCase().includes(search.toLowerCase()));
+
+  // Build a set of already-linked names to prevent the same person appearing in
+  // both "vinculados" and "disponibles" when there are duplicate DB records.
+  const linkedNames = new Set(Array.from(linkedItems.values()).map(v => v.toLowerCase().split(" (")[0].trim()));
+
+  const available = allItems.filter((c: any) => {
+    if (linkedItems.has(c.id)) return false;
+    if (linkedNames.has(c.nombre.toLowerCase().trim())) return false;
+    return c.nombre.toLowerCase().includes(search.toLowerCase());
+  });
 
   // Link to the first (canonical) project row only — avoids duplicate records
   // across N empresa rows that share the same logical project.
@@ -131,6 +140,18 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
 
   const handleCreate = () => {
     if (!newNombre.trim()) return;
+
+    // If a client/captador with this name already exists, link to the existing one
+    const existing = allItems.find(
+      (c: any) => c.nombre.trim().toLowerCase() === newNombre.trim().toLowerCase()
+    );
+    if (existing) {
+      handleLink(existing.id);
+      setNewNombre("");
+      setShowCreate(false);
+      return;
+    }
+
     const catId = categoriasCliente?.[0]?.id || "";
     if (!catId) return;
     const mutate = type === "cliente" ? createCliente : createCaptador;
@@ -138,7 +159,7 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
       { categoria_id: catId, nombre: newNombre.trim(), contactos: [] } as any,
       {
         onSuccess: (data: any) => {
-          handleLink(data.id); // links to all group rows
+          handleLink(data.id);
           setNewNombre("");
           setShowCreate(false);
         },

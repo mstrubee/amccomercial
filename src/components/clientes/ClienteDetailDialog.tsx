@@ -173,10 +173,10 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
       if (prefix) {
         const campo = (p as any)[`${prefix}_nombre`] as string | null;
         if (campo) {
+          // Exact match only — substring matching causes false positives
+          // (e.g. "Tomas" matching "Tomas Hevia Castro")
           const nombres = campo.split("/").map((n: string) => n.trim().toLowerCase());
-          if (nombres.some(n => n === nombreLower || n.includes(nombreLower) || nombreLower.includes(n))) {
-            return true;
-          }
+          if (nombres.some(n => n === nombreLower)) return true;
         }
       }
       return false;

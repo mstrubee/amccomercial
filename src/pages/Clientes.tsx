@@ -118,15 +118,24 @@ function ClientesTab({ categorias, clientes, canEdit, canDelete, isAdmin, onCrea
     }
   }, [location.state, clientes]);
 
-  const filtered = clientes.filter((c) => {
-    const contactoMatch = (c.contactos_cliente || []).some(ct =>
-      ct.contacto.toLowerCase().includes(search.toLowerCase()) ||
-      ct.email.toLowerCase().includes(search.toLowerCase())
-    );
-    const matchSearch = c.nombre.toLowerCase().includes(search.toLowerCase()) || contactoMatch;
-    const matchCat = filterCat === "Todas" || c.categoria_id === filterCat;
-    return matchSearch && matchCat;
-  });
+  const filtered = (() => {
+    // Deduplicate by name within each category — same person can appear twice
+    // if two DB records share the same nombre (e.g. created from both Clientes
+    // page and project form without checking for existing).
+    const seen = new Map<string, boolean>(); // "categoriaId|nombreLower" → seen
+    return clientes.filter((c) => {
+      const key = `${c.categoria_id}|${c.nombre.trim().toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.set(key, true);
+      const contactoMatch = (c.contactos_cliente || []).some(ct =>
+        ct.contacto.toLowerCase().includes(search.toLowerCase()) ||
+        ct.email.toLowerCase().includes(search.toLowerCase())
+      );
+      const matchSearch = c.nombre.toLowerCase().includes(search.toLowerCase()) || contactoMatch;
+      const matchCat = filterCat === "Todas" || c.categoria_id === filterCat;
+      return matchSearch && matchCat;
+    });
+  })();
 
   const grouped = categorias.map((cat) => ({
     cat,
