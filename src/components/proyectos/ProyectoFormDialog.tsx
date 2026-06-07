@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { RESUME_PROYECTO_KEY, RESUME_PROYECTO_EVENT } from "@/components/proyectos/BackToProyectoFloat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -65,6 +67,7 @@ interface EmpresaRow {
 }
 
 export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCreateAlertaFromCategoria, onCompleteAlerta, isLoading, initialData, mode, isChildRow, groupItems, alertas, isAdmin }: Props) {
+  const navigate = useNavigate();
   const { data: empresas } = useEmpresas();
   const { data: categorias } = useCategorias();
   const { data: clasificaciones } = useClasificaciones();
@@ -970,6 +973,20 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   duenosNombre={duenosNombre} duenosContacto={duenosContacto} duenosMail={duenosMail} duenosTelefono={duenosTelefono}
                   setDuenosNombre={setDuenosNombre} setDuenosContacto={setDuenosContacto} setDuenosMail={setDuenosMail} setDuenosTelefono={setDuenosTelefono}
                   onClienteMappingsChange={handleClienteMappingsChange}
+                  onNavigateToCreateCliente={() => {
+                    try {
+                      const snapshot = {
+                        proyectoId: initialData?.id ?? null,
+                        groupIds: groupItems?.map(g => g.id) ?? null,
+                        mode,
+                        ts: Date.now(),
+                      };
+                      sessionStorage.setItem(RESUME_PROYECTO_KEY, JSON.stringify(snapshot));
+                      window.dispatchEvent(new Event(RESUME_PROYECTO_EVENT));
+                    } catch {}
+                    onOpenChange(false);
+                    navigate("/clientes?from=proyecto");
+                  }}
                 />
               </CollapsibleSection>
               </>)}
@@ -1103,6 +1120,7 @@ interface ContactosSectionProps {
   duenosNombre: string; duenosContacto: string; duenosMail: string; duenosTelefono: string;
   setDuenosNombre: (v: string) => void; setDuenosContacto: (v: string) => void; setDuenosMail: (v: string) => void; setDuenosTelefono: (v: string) => void;
   onClienteMappingsChange?: (mappings: Map<string, ContactoRow>) => void;
+  onNavigateToCreateCliente?: () => void;
 }
 
 const CONTACTO_CAT_MAP: Record<string, string> = {
@@ -1386,6 +1404,7 @@ function ContactosSection(props: ContactosSectionProps) {
                 clientes={availableClientes}
                 onSelect={(c) => applyCliente(c, setters, values, title)}
                 categoryId={catForTitle?.id}
+                onNavigateToCreate={props.onNavigateToCreateCliente}
               />
             </div>
             {rows.map((row, idx) => {
@@ -1615,7 +1634,7 @@ function HistorialPopover({
 }
 
 /* ── Client Picker Popover with create new ── */
-function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWithCategoria[]; onSelect: (c: ClienteWithCategoria) => void; categoryId?: string }) {
+function ClientePicker({ clientes, onSelect, categoryId, onNavigateToCreate }: { clientes: ClienteWithCategoria[]; onSelect: (c: ClienteWithCategoria) => void; categoryId?: string; onNavigateToCreate?: () => void }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -1681,7 +1700,21 @@ function ClientePicker({ clientes, onSelect, categoryId }: { clientes: ClienteWi
                 )}
               </div>
               <div className="border-t p-2 space-y-1">
-                <Button type="button" variant="ghost" size="sm" className="w-full h-7 text-xs gap-1" onClick={() => setShowCreate(true)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-xs gap-1"
+                  onClick={() => {
+                    if (onNavigateToCreate) {
+                      setOpen(false);
+                      setSearch("");
+                      onNavigateToCreate();
+                    } else {
+                      setShowCreate(true);
+                    }
+                  }}
+                >
                   <UserPlus className="w-3 h-3" /> Crear nuevo cliente
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="w-full h-7 text-xs" onClick={() => { setOpen(false); setSearch(""); }}>

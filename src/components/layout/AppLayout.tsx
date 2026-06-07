@@ -32,6 +32,7 @@ import { useThemeSettings } from "@/hooks/useThemeSettings";
 import PersonalizacionDialog from "@/components/personalizacion/PersonalizacionDialog";
 import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
 import FloatingChat from "@/components/mensajeria/FloatingChat";
+import BackToProyectoFloat from "@/components/proyectos/BackToProyectoFloat";
 
 interface Props {
   children: React.ReactNode;
@@ -248,6 +249,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
 
       {/* Personalización Dialog */}
       <PersonalizacionDialog open={personalizacionOpen} onOpenChange={setPersonalizacionOpen} />
+      <BackToProyectoFloat />
     </div>
   );
 }
