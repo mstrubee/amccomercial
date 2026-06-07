@@ -357,10 +357,72 @@ export function useSyncClienteProyecto() {
     return changed;
   };
 
+  /**
+   * Scan ALL projects for a client's name in denormalized contact fields and
+   * recover any contact/email/phone data that is missing from contactos_cliente.
+   * Used to restore contacts lost due to the destructive sync bug.
+   */
+  const recoverContactosFromProyectos = async (
+    clienteId: string,
+    clienteNombre: string
+  ): Promise<{ contacto: string; email: string; telefono: string }[]> => {
+    // Fetch all projects that have the client name in any contact field
+    const { data: proyectos } = await supabase
+      .from("proyectos")
+      .select("id, arq_nombre, arq_contacto, arq_mail, arq_telefono, const_nombre, const_contacto, const_mail, const_telefono, ito_nombre, ito_contacto, ito_mail, ito_telefono, duenos_nombre, duenos_contacto, duenos_mail, duenos_telefono")
+      .or(
+        ALL_PREFIXES.map(p => `${p}_nombre.ilike.%${clienteNombre}%`).join(",")
+      );
+
+    if (!proyectos || proyectos.length === 0) return [];
+
+    // Get current contacts to avoid duplicates
+    const { data: existing } = await supabase
+      .from("contactos_cliente")
+      .select("contacto, email, telefono")
+      .eq("cliente_id", clienteId);
+    const existingNames = new Set((existing || []).map(c => c.contacto.trim().toLowerCase()));
+
+    const nombreLower = clienteNombre.trim().toLowerCase();
+    const recovered: { contacto: string; email: string; telefono: string }[] = [];
+    const seenContactos = new Set<string>();
+
+    for (const p of proyectos) {
+      for (const prefix of ALL_PREFIXES) {
+        const campo = (p as any)[`${prefix}_nombre`] as string | null;
+        if (!campo) continue;
+        const nombres = campo.split("/").map((n: string) => n.trim());
+        const idx = nombres.findIndex(n => n.toLowerCase() === nombreLower);
+        if (idx === -1) continue;
+
+        const contactoArr = ((p as any)[`${prefix}_contacto`] as string || "").split("/");
+        const mailArr = ((p as any)[`${prefix}_mail`] as string || "").split("/");
+        const telArr = ((p as any)[`${prefix}_telefono`] as string || "").split("/");
+
+        const contacto = (contactoArr[idx] || "").trim();
+        const email = (mailArr[idx] || "").trim();
+        const telefono = (telArr[idx] || "").trim();
+
+        if (!contacto && !email && !telefono) continue;
+        const key = contacto.toLowerCase();
+        if (seenContactos.has(key)) continue;
+        seenContactos.add(key);
+
+        // Only include if not already in contactos_cliente
+        if (contacto && existingNames.has(key)) continue;
+
+        recovered.push({ contacto, email, telefono });
+      }
+    }
+
+    return recovered;
+  };
+
   return {
     syncClienteToLinkedProyectos,
     syncProyectoToLinkedClientes,
     complementClienteFromLinkedProyectos,
     complementClienteFromProject,
+    recoverContactosFromProyectos,
   };
 }

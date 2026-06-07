@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Save, X, Mail, Phone, User, FolderOpen, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Save, X, Mail, Phone, User, FolderOpen, ChevronRight, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,9 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const updateCliente = useUpdateCliente();
   const navigate = useNavigate();
   const { data: proyectos, isLoading: loadingProyectos } = useProyectos();
-  const { syncClienteToLinkedProyectos } = useSyncClienteProyecto();
+  const { syncClienteToLinkedProyectos, recoverContactosFromProyectos } = useSyncClienteProyecto();
+  const [recovering, setRecovering] = useState(false);
+  const [recoveredPreview, setRecoveredPreview] = useState<{ contacto: string; email: string; telefono: string }[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
@@ -198,6 +200,42 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
 
   return (
     <>
+      {/* Preview de contactos recuperados */}
+      {recoveredPreview && (
+        <AlertDialog open onOpenChange={(v) => !v && setRecoveredPreview(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Contactos encontrados en proyectos</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 mt-2">
+                  <p className="text-sm text-muted-foreground">Se encontraron los siguientes contactos en los campos de proyectos. ¿Deseas agregarlos a este cliente?</p>
+                  {recoveredPreview.map((c, i) => (
+                    <div key={i} className="rounded-lg border border-border p-2 text-xs space-y-0.5">
+                      {c.contacto && <p><span className="font-medium">Nombre:</span> {c.contacto}</p>}
+                      {c.email && <p><span className="font-medium">Email:</span> {c.email}</p>}
+                      {c.telefono && <p><span className="font-medium">Tel:</span> {c.telefono}</p>}
+                    </div>
+                  ))}
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                setContactos(prev => [
+                  ...prev,
+                  ...recoveredPreview.map(c => ({ contacto: c.contacto, email: c.email, telefono: c.telefono })),
+                ]);
+                setHasChanges(true);
+                setRecoveredPreview(null);
+              }}>
+                Agregar {recoveredPreview.length} contacto(s)
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else onOpenChange(v); }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -256,9 +294,30 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Contactos</Label>
                 </CollapsibleTrigger>
                 {editing && (
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addContacto}>
-                    <Plus className="w-3 h-3" /> Agregar
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button" variant="outline" size="sm" className="h-7 text-xs gap-1"
+                      title="Recuperar contactos perdidos escaneando proyectos"
+                      disabled={recovering}
+                      onClick={async () => {
+                        if (!cliente) return;
+                        setRecovering(true);
+                        const found = await recoverContactosFromProyectos(cliente.id, cliente.nombre);
+                        setRecovering(false);
+                        if (found.length === 0) {
+                          import("sonner").then(({ toast }) => toast.info("No se encontraron contactos adicionales en proyectos"));
+                        } else {
+                          setRecoveredPreview(found);
+                        }
+                      }}
+                    >
+                      {recovering ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      Recuperar
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addContacto}>
+                      <Plus className="w-3 h-3" /> Agregar
+                    </Button>
+                  </div>
                 )}
               </div>
               <CollapsibleContent className="pt-2 space-y-3">

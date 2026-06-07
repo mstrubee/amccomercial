@@ -1011,8 +1011,8 @@ export default function Proyectos() {
                   <Fragment key={key}>
                     <tr
                       id={`proyecto-row-${first.id}`}
-                      className={`hover:bg-secondary/30 transition-colors ${isCaptador ? "" : "cursor-pointer"} border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
-                      onClick={() => !isCaptador && toggleGroup(key)}
+                      className={`hover:bg-secondary/30 transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
+                      onClick={() => toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
                         <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} /> {parentNum}
@@ -1135,8 +1135,10 @@ export default function Proyectos() {
                           for (const pe of (p.proyecto_empresas || [])) {
                             if (!seenEmpresas.has(pe.empresa_id)) {
                               seenEmpresas.add(pe.empresa_id);
-                              // Skip empresas that don't match the active filter
-                              if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
+                              // Captadores: only show empresas in their visible list
+                              if (captadorEmpresaIds && !captadorEmpresaIds.has(pe.empresa_id)) continue;
+                              // Regular empresa filter
+                              if (!captadorEmpresaIds && filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
                               childRows.push({ p, pe });
                             }
                           }
@@ -1235,8 +1237,8 @@ export default function Proyectos() {
                                     >
                                       <MessageCircle className="w-3.5 h-3.5 text-chart-potential fill-chart-potential" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                    {!isCaptador && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>}
+                                    {!isCaptador && <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                                   </div>
                                 </td>
                               </motion.tr>
