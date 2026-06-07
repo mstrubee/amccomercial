@@ -973,6 +973,20 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   duenosNombre={duenosNombre} duenosContacto={duenosContacto} duenosMail={duenosMail} duenosTelefono={duenosTelefono}
                   setDuenosNombre={setDuenosNombre} setDuenosContacto={setDuenosContacto} setDuenosMail={setDuenosMail} setDuenosTelefono={setDuenosTelefono}
                   onClienteMappingsChange={handleClienteMappingsChange}
+                  onNavigateToCreateCliente={() => {
+                    try {
+                      const snapshot = {
+                        proyectoId: initialData?.id ?? null,
+                        groupIds: groupItems?.map(g => g.id) ?? null,
+                        mode,
+                        ts: Date.now(),
+                      };
+                      sessionStorage.setItem(RESUME_PROYECTO_KEY, JSON.stringify(snapshot));
+                      window.dispatchEvent(new Event(RESUME_PROYECTO_EVENT));
+                    } catch {}
+                    onOpenChange(false);
+                    navigate("/clientes?from=proyecto");
+                  }}
                 />
               </CollapsibleSection>
               </>)}
@@ -1106,6 +1120,7 @@ interface ContactosSectionProps {
   duenosNombre: string; duenosContacto: string; duenosMail: string; duenosTelefono: string;
   setDuenosNombre: (v: string) => void; setDuenosContacto: (v: string) => void; setDuenosMail: (v: string) => void; setDuenosTelefono: (v: string) => void;
   onClienteMappingsChange?: (mappings: Map<string, ContactoRow>) => void;
+  onNavigateToCreateCliente?: () => void;
 }
 
 const CONTACTO_CAT_MAP: Record<string, string> = {
@@ -1389,20 +1404,7 @@ function ContactosSection(props: ContactosSectionProps) {
                 clientes={availableClientes}
                 onSelect={(c) => applyCliente(c, setters, values, title)}
                 categoryId={catForTitle?.id}
-                onNavigateToCreate={() => {
-                  try {
-                    const snapshot = {
-                      proyectoId: initialData?.id ?? null,
-                      groupIds: groupItems?.map(g => g.id) ?? null,
-                      mode,
-                      ts: Date.now(),
-                    };
-                    sessionStorage.setItem(RESUME_PROYECTO_KEY, JSON.stringify(snapshot));
-                    window.dispatchEvent(new Event(RESUME_PROYECTO_EVENT));
-                  } catch {}
-                  onOpenChange(false);
-                  navigate("/clientes?from=proyecto");
-                }}
+                onNavigateToCreate={props.onNavigateToCreateCliente}
               />
             </div>
             {rows.map((row, idx) => {
