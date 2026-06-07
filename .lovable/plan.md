@@ -1,48 +1,31 @@
-## Objetivo
+## Problema
 
-Cambiar el comportamiento del botón **"Crear nuevo cliente"** dentro del `ClientePicker` (en `ProyectoFormDialog`) para que, en lugar de abrir el mini-formulario inline, lleve al usuario a la sección **Clientes y Captadores** (`/clientes`). Al salir del editor, mostrar un **botón flotante** que permita volver al editor de proyecto en el mismo punto.
+En el popover de `ClientePicker` (dentro de la sección **Contactos** del editor de proyecto) se ven clientes repetidos: el mismo nombre aparece varias veces porque existen filas duplicadas en `clientes` (mismo `nombre`, distinto `id`), cada una con su propio contacto.
 
-## Cambios
+Verificado en BD: hay clientes con 2–5 filas duplicadas por nombre (`ANF arquitectos` x5, `Estudio Valdes` x4, `GVAA` x3, etc.).
 
-### 1. `src/components/proyectos/ProyectoFormDialog.tsx`
-- En el `onClick` del botón "Crear nuevo cliente":
-  1. Cerrar el popover del picker.
-  2. Guardar en `sessionStorage` un snapshot con: `proyectoId` (o "new"), `grupoId`, `empresaId` del row activo, el rol de contacto que se estaba editando, y la ruta de retorno `/proyectos`.
-  3. Cerrar el diálogo de edición (`onOpenChange(false)`).
-  4. `navigate("/clientes?from=proyecto")`.
-- Al montar el diálogo, si recibe una prop/flag de "reanudar" (o detecta el snapshot), abrir automáticamente el proyecto correcto y el row correcto en modo edición.
+## Solución (solo UI)
 
-### 2. `src/pages/Proyectos.tsx`
-- Al montar, leer el snapshot de `sessionStorage` (clave p. ej. `amc:resume-proyecto-edit`). Si existe, abrir `ProyectoFormDialog` con ese `grupoId` y mantener la marca hasta que el usuario lo cierre normalmente (la marca se limpia al guardar o cerrar el diálogo).
+Deduplicar la lista del dropdown y la lógica de selección de cliente, agrupando por nombre normalizado y **fusionando** sus `contactos_cliente`. Sin tocar la base de datos.
 
-### 3. Nuevo componente `src/components/proyectos/BackToProyectoFloat.tsx`
-- Análogo a `BackToAlertasFloat.tsx`.
-- Se renderiza globalmente desde `AppLayout` (o desde `AppRoutes`) **solo cuando**:
-  - existe el snapshot en `sessionStorage`, **y**
-  - la ruta actual **no** es `/proyectos`.
-- Posición: `fixed top-4 right-4 z-[100]` (esquina superior derecha, always-on-top).
-- Contenido: ícono + texto "Volver a Editar Proyecto" + botón `X` para cerrar (descarta el snapshot).
-- Click principal: `navigate("/proyectos")`; `Proyectos.tsx` detecta el snapshot y reabre el diálogo.
+### Cambios en `src/components/proyectos/ProyectoFormDialog.tsx`
 
-### 4. `src/components/layout/AppLayout.tsx`
-- Montar `<BackToProyectoFloat />` junto a los otros widgets flotantes para que aparezca en cualquier ruta.
+1. **`ClientePicker`**
+   - Antes de filtrar, construir `dedupedClientes` a partir de `clientes`:
+     - Clave = `nombre.trim().toLowerCase()`.
+     - Para cada grupo, conservar el primer registro como base y fusionar los `contactos_cliente` de todos los duplicados (eliminando contactos idénticos por `contacto + email + telefono`).
+   - Usar `dedupedClientes` en `filtered` y en el `.map()` del listado.
+   - El `onSelect` sigue pasando el cliente fusionado (mantiene `id` del primero, lo cual es suficiente para `categoria_id` y para la búsqueda por `nombre`).
 
-## Detalles técnicos
+2. **`ContactosSection` → `getClientesForCategory` / `applyCliente` / `handleContactoChange`**
+   - Aplicar la misma deduplicación a la lista que se pasa como `availableClientes` al `ClientePicker` y a los lookups por `nombre`, para que los contactos disponibles del cliente seleccionado incluyan los de **todas** las filas duplicadas (no solo los de la primera fila encontrada).
+   - Implementarlo con un helper local `dedupeClientesByNombre(clientes)` reutilizable.
 
-- Snapshot:
-  ```ts
-  sessionStorage.setItem("amc:resume-proyecto-edit", JSON.stringify({
-    grupoId, empresaId, rolContacto, ts: Date.now()
-  }));
-  ```
-- El float usa un `useEffect` + listener a `storage` y a un evento custom (`amc:resume-changed`) para reaccionar a cambios en la misma pestaña.
-- El botón "X" del float llama `sessionStorage.removeItem(...)` y dispara el evento custom.
-- Estilos con tokens semánticos del design system (sin colores crudos).
-- Sin cambios de backend ni de lógica de negocio.
+### No se cambia
 
-## Archivos
+- Esquema, RLS, mutaciones ni hook `useClientes`.
+- La limpieza de duplicados en BD queda como tarea aparte (lo pueden hacer desde **Clientes y Captadores**).
 
-- `src/components/proyectos/ProyectoFormDialog.tsx` (editar)
-- `src/pages/Proyectos.tsx` (editar — auto-reabrir el diálogo)
-- `src/components/proyectos/BackToProyectoFloat.tsx` (nuevo)
-- `src/components/layout/AppLayout.tsx` (montar el float)
+### Archivos
+
+- `src/components/proyectos/ProyectoFormDialog.tsx` (único archivo).
