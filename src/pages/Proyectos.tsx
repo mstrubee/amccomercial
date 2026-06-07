@@ -130,6 +130,29 @@ export default function Proyectos() {
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
   const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
 
+  // Resume "Editar Proyecto" after navigating to /clientes to create a client.
+  useEffect(() => {
+    if (!proyectos || proyectos.length === 0) return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem(RESUME_PROYECTO_KEY); } catch { return; }
+    if (!raw) return;
+    try {
+      const snap = JSON.parse(raw) as { proyectoId: string | null; groupIds: string[] | null; mode: "create" | "edit" };
+      if (snap.groupIds && snap.groupIds.length > 0) {
+        const group = proyectos.filter(p => snap.groupIds!.includes(p.id));
+        if (group.length > 0) setEditParentGroup(group);
+      } else if (snap.proyectoId) {
+        const target = proyectos.find(p => p.id === snap.proyectoId);
+        if (target) setEditTarget(target);
+      }
+      sessionStorage.removeItem(RESUME_PROYECTO_KEY);
+      window.dispatchEvent(new Event(RESUME_PROYECTO_EVENT));
+    } catch {
+      try { sessionStorage.removeItem(RESUME_PROYECTO_KEY); } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyectos]);
+
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [highlightProyectoId, setHighlightProyectoId] = useState<string | null>(null);
   const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string; defaultCategoriaProyectoId?: string; defaultSubcategoriaProyectoId?: string } | null>(null);
