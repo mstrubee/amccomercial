@@ -1329,6 +1329,49 @@ function ContactosSection(props: ContactosSectionProps) {
     });
   };
 
+  // When client (firma) changes, reset contact/email/telefono for that row
+  const handleClienteChange = (
+    setters: ((v: string) => void)[],
+    values: string[],
+    idx: number,
+    sectionTitle: string,
+    newNombre: string
+  ) => {
+    const rows = splitToRows(values[0], values[1], values[2], values[3]);
+    rows[idx] = { ...rows[idx], nombre: newNombre, contacto: "", email: "", telefono: "" };
+    const [n, c, e, t] = rowsToStrings(rows);
+    setters[0](n); setters[1](c); setters[2](e); setters[3](t);
+    // Update client mapping
+    const client = getClientesForCategory(sectionTitle).find(cl => cl.nombre === newNombre);
+    setClienteMap(prev => {
+      const next = new Map(prev);
+      if (client) next.set(`${sectionTitle}:${idx}`, client.id);
+      else next.delete(`${sectionTitle}:${idx}`);
+      return next;
+    });
+  };
+
+  // When contact person changes, auto-fill email + phone from contactos_cliente
+  const handleContactoChange = (
+    setters: ((v: string) => void)[],
+    values: string[],
+    idx: number,
+    sectionTitle: string,
+    newContacto: string
+  ) => {
+    const rows = splitToRows(values[0], values[1], values[2], values[3]);
+    const selectedCliente = getClientesForCategory(sectionTitle).find(cl => cl.nombre === rows[idx].nombre);
+    const ct = (selectedCliente?.contactos_cliente || []).find(c => c.contacto === newContacto);
+    rows[idx] = {
+      ...rows[idx],
+      contacto: newContacto,
+      email: ct?.email || rows[idx].email,
+      telefono: ct?.telefono || rows[idx].telefono,
+    };
+    const [n, c, e, t] = rowsToStrings(rows);
+    setters[0](n); setters[1](c); setters[2](e); setters[3](t);
+  };
+
   return (
     <div className="space-y-4">
       {sections.map(({ title, values, setters }) => {
@@ -1345,26 +1388,78 @@ function ContactosSection(props: ContactosSectionProps) {
                 categoryId={catForTitle?.id}
               />
             </div>
-            {rows.map((row, idx) => (
-              <div key={idx} className="relative">
-                {rows.length > 1 && (
-                  <button
-                    type="button"
-                    className="absolute -right-1 -top-1 z-10 rounded-full bg-destructive/10 p-0.5 text-destructive hover:bg-destructive/20 transition-colors"
-                    onClick={() => removeRow(setters, values, idx, title)}
-                    title="Eliminar contacto"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Nombre" value={row.nombre} onChange={(e) => updateRow(setters, values, idx, "nombre", e.target.value)} />
-                  <Input placeholder="Contacto" value={row.contacto} onChange={(e) => updateRow(setters, values, idx, "contacto", e.target.value)} />
-                  <Input placeholder="Email" value={row.email} onChange={(e) => updateRow(setters, values, idx, "email", e.target.value)} />
-                  <Input placeholder="Teléfono" value={row.telefono} onChange={(e) => updateRow(setters, values, idx, "telefono", e.target.value)} />
+            {rows.map((row, idx) => {
+              const selectedCliente = availableClientes.find(c => c.nombre === row.nombre);
+              const contactsOfCliente = selectedCliente?.contactos_cliente || [];
+              return (
+                <div key={idx} className="relative">
+                  {rows.length > 1 && (
+                    <button
+                      type="button"
+                      className="absolute -right-1 -top-1 z-10 rounded-full bg-destructive/10 p-0.5 text-destructive hover:bg-destructive/20 transition-colors"
+                      onClick={() => removeRow(setters, values, idx, title)}
+                      title="Eliminar contacto"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Firma / Cliente selector */}
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={row.nombre}
+                      onChange={(e) => handleClienteChange(setters, values, idx, title, e.target.value)}
+                    >
+                      <option value="">Seleccionar firma...</option>
+                      {availableClientes.map(c => (
+                        <option key={c.id} value={c.nombre}>{c.nombre}</option>
+                      ))}
+                      {/* Keep legacy value if not in list */}
+                      {row.nombre && !availableClientes.find(c => c.nombre === row.nombre) && (
+                        <option value={row.nombre}>{row.nombre}</option>
+                      )}
+                    </select>
+
+                    {/* Contacto selector — dropdown when client has contacts, text input otherwise */}
+                    {contactsOfCliente.length > 0 ? (
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={row.contacto}
+                        onChange={(e) => handleContactoChange(setters, values, idx, title, e.target.value)}
+                      >
+                        <option value="">Seleccionar contacto...</option>
+                        {contactsOfCliente.map(ct => (
+                          <option key={ct.id} value={ct.contacto}>{ct.contacto}</option>
+                        ))}
+                        {/* Keep legacy value if not in list */}
+                        {row.contacto && !contactsOfCliente.find(ct => ct.contacto === row.contacto) && (
+                          <option value={row.contacto}>{row.contacto}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <Input
+                        placeholder="Contacto"
+                        value={row.contacto}
+                        onChange={(e) => updateRow(setters, values, idx, "contacto", e.target.value)}
+                      />
+                    )}
+
+                    {/* Email — auto-filled, editable */}
+                    <Input
+                      placeholder="Email"
+                      value={row.email}
+                      onChange={(e) => updateRow(setters, values, idx, "email", e.target.value)}
+                    />
+                    {/* Teléfono — auto-filled, editable */}
+                    <Input
+                      placeholder="Teléfono"
+                      value={row.telefono}
+                      onChange={(e) => updateRow(setters, values, idx, "telefono", e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}
