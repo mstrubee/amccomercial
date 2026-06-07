@@ -1,26 +1,48 @@
-## Problema
+## Objetivo
 
-El panel del chat (FloatingChat) se renderiza como `absolute` dentro del sidebar `<aside>`. Como el sidebar tiene su propio contexto de apilamiento y el contenido principal lo cubre por la derecha, el panel del chat se ve "cortado" por la tabla/contenido de Proyectos cuando se abre.
+Cambiar el comportamiento del botón **"Crear nuevo cliente"** dentro del `ClientePicker` (en `ProyectoFormDialog`) para que, en lugar de abrir el mini-formulario inline, lleve al usuario a la sección **Clientes y Captadores** (`/clientes`). Al salir del editor, mostrar un **botón flotante** que permita volver al editor de proyecto en el mismo punto.
 
-## Solución
+## Cambios
 
-Renderizar el panel del chat mediante **React Portal** (`createPortal` a `document.body`) usando posicionamiento `fixed`, calculado a partir del `getBoundingClientRect()` del botón flotante (FAB). Así el panel flota por encima de todo (sidebar, tabla, alertas, etc.) sin verse interrumpido.
+### 1. `src/components/proyectos/ProyectoFormDialog.tsx`
+- En el `onClick` del botón "Crear nuevo cliente":
+  1. Cerrar el popover del picker.
+  2. Guardar en `sessionStorage` un snapshot con: `proyectoId` (o "new"), `grupoId`, `empresaId` del row activo, el rol de contacto que se estaba editando, y la ruta de retorno `/proyectos`.
+  3. Cerrar el diálogo de edición (`onOpenChange(false)`).
+  4. `navigate("/clientes?from=proyecto")`.
+- Al montar el diálogo, si recibe una prop/flag de "reanudar" (o detecta el snapshot), abrir automáticamente el proyecto correcto y el row correcto en modo edición.
 
-### Cambios en `src/components/mensajeria/FloatingChat.tsx`
+### 2. `src/pages/Proyectos.tsx`
+- Al montar, leer el snapshot de `sessionStorage` (clave p. ej. `amc:resume-proyecto-edit`). Si existe, abrir `ProyectoFormDialog` con ese `grupoId` y mantener la marca hasta que el usuario lo cierre normalmente (la marca se limpia al guardar o cerrar el diálogo).
 
-1. Agregar un `ref` al botón FAB (`fabRef`) y un estado `fabRect` que se actualice al abrir el chat y en `resize`/`scroll` de la ventana.
-2. Envolver el `<motion.div>` del panel (líneas 587–...) en `createPortal(..., document.body)`.
-3. Cambiar las clases de posicionamiento:
-   - Quitar `absolute`, `bottom-full mb-2 / top-full mt-2`, `left-0 / right-0`.
-   - Usar `fixed z-[100]` y `style={{ position: 'fixed', left, top, width, height }}` calculado desde `fabRect` + `chatSize` + `isBottom`/`isLeft` (mismo criterio actual: si `isBottom` → top = `fabRect.top - chatSize.h - 8`; si `isLeft` → left alineado al FAB, si no → right alineado).
-4. Mantener intactos el resize handle, el tamaño persistido, los handlers y toda la lógica interna del chat. Solo cambia el contenedor de posicionamiento.
+### 3. Nuevo componente `src/components/proyectos/BackToProyectoFloat.tsx`
+- Análogo a `BackToAlertasFloat.tsx`.
+- Se renderiza globalmente desde `AppLayout` (o desde `AppRoutes`) **solo cuando**:
+  - existe el snapshot en `sessionStorage`, **y**
+  - la ruta actual **no** es `/proyectos`.
+- Posición: `fixed top-4 right-4 z-[100]` (esquina superior derecha, always-on-top).
+- Contenido: ícono + texto "Volver a Editar Proyecto" + botón `X` para cerrar (descarta el snapshot).
+- Click principal: `navigate("/proyectos")`; `Proyectos.tsx` detecta el snapshot y reabre el diálogo.
 
-### Detalles técnicos
+### 4. `src/components/layout/AppLayout.tsx`
+- Montar `<BackToProyectoFloat />` junto a los otros widgets flotantes para que aparezca en cualquier ruta.
 
-- Z-index: `z-[100]` (por encima del sidebar y de la barra de alertas inferior).
-- Recalcular `fabRect` en: `open === true` (efecto), `window resize`, `scroll` (passive listener), y al cambiar `side`.
-- No tocar lógica de negocio ni hooks de datos: es un cambio puramente de presentación/layout.
+## Detalles técnicos
 
-### Archivos a modificar
+- Snapshot:
+  ```ts
+  sessionStorage.setItem("amc:resume-proyecto-edit", JSON.stringify({
+    grupoId, empresaId, rolContacto, ts: Date.now()
+  }));
+  ```
+- El float usa un `useEffect` + listener a `storage` y a un evento custom (`amc:resume-changed`) para reaccionar a cambios en la misma pestaña.
+- El botón "X" del float llama `sessionStorage.removeItem(...)` y dispara el evento custom.
+- Estilos con tokens semánticos del design system (sin colores crudos).
+- Sin cambios de backend ni de lógica de negocio.
 
-- `src/components/mensajeria/FloatingChat.tsx` (único archivo).
+## Archivos
+
+- `src/components/proyectos/ProyectoFormDialog.tsx` (editar)
+- `src/pages/Proyectos.tsx` (editar — auto-reabrir el diálogo)
+- `src/components/proyectos/BackToProyectoFloat.tsx` (nuevo)
+- `src/components/layout/AppLayout.tsx` (montar el float)
