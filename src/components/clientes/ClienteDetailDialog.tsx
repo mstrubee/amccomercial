@@ -14,7 +14,6 @@ import {
 import { ClienteWithCategoria, CategoriaCliente, useUpdateCliente } from "@/hooks/useClientes";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useSyncClienteProyecto, complementClienteFromProyectos } from "@/hooks/useSyncClienteProyecto";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ContactoForm {
   id?: string;
@@ -46,48 +45,12 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const hasComplemented = useRef<string | null>(null);
-  const hasAutoLinked = useRef<string | null>(null);
 
   useEffect(() => {
     if (cliente) {
       resetForm();
     }
   }, [cliente]);
-
-  // Auto-create formal proyecto_clientes records for any denormalized matches not yet in the join table
-  useEffect(() => {
-    if (!open || !cliente || !proyectos) return;
-    if (hasAutoLinked.current === cliente.id) return;
-    hasAutoLinked.current = cliente.id;
-
-    const CAT_TO_PREFIX: Record<string, string> = {
-      Arquitectura: "arq", Constructora: "const", ITO: "ito", Dueños: "duenos",
-    };
-    const catNombreActual = categorias.find(c => c.id === cliente.categoria_id)?.nombre || "";
-    const prefix = CAT_TO_PREFIX[catNombreActual];
-    if (!prefix) return;
-
-    const nombreLower = cliente.nombre.trim().toLowerCase();
-    const alreadyLinked = new Set(
-      proyectos.flatMap(p => (p.proyecto_clientes || []).filter(pc => pc.cliente_id === cliente.id).map(pc => pc.proyecto_id))
-    );
-
-    const toLink = proyectos.filter(p => {
-      if (alreadyLinked.has(p.id)) return false;
-      const campo = (p as any)[`${prefix}_nombre`] as string | null;
-      if (!campo) return false;
-      const nombres = campo.split("/").map((n: string) => n.trim().toLowerCase());
-      return nombres.some(n => n === nombreLower || n.includes(nombreLower) || nombreLower.includes(n));
-    });
-
-    if (toLink.length === 0) return;
-
-    // Silently create the missing formal links
-    const records = toLink.map(p => ({ proyecto_id: p.id, cliente_id: cliente.id }));
-    supabase.from("proyecto_clientes" as any)
-      .upsert(records, { onConflict: "proyecto_id,cliente_id", ignoreDuplicates: true })
-      .then(() => { /* links created — query will refresh on next load */ });
-  }, [open, cliente, proyectos, categorias]);
 
   // Complement empty client fields from linked projects on dialog open
   useEffect(() => {

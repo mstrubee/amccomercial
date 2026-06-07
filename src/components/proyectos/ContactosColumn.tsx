@@ -112,25 +112,20 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
   const allItems = type === "cliente" ? (clientes || []) : (captadores || []) as any[];
   const available = allItems.filter((c: any) => !linkedItems.has(c.id) && c.nombre.toLowerCase().includes(search.toLowerCase()));
 
-  // Link/unlink across ALL project rows in the group so the client
-  // appears consistently regardless of which row is rendered.
+  // Link to the first (canonical) project row only — avoids duplicate records
+  // across N empresa rows that share the same logical project.
   const handleLink = (id: string) => {
-    proyectoIds.forEach((pid) => {
-      if (type === "cliente") {
-        linkCliente.mutate({ proyecto_id: pid, cliente_id: id });
-      } else {
-        linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
-      }
-    });
+    const pid = proyectoIds[0];
+    if (!pid) return;
+    if (type === "cliente") linkCliente.mutate({ proyecto_id: pid, cliente_id: id });
+    else linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
   };
 
+  // Unlink from ALL rows so the client disappears from every empresa view.
   const handleUnlink = (id: string) => {
     proyectoIds.forEach((pid) => {
-      if (type === "cliente") {
-        unlinkCliente.mutate({ proyecto_id: pid, cliente_id: id });
-      } else {
-        unlinkCaptador.mutate({ proyecto_id: pid, captador_id: id });
-      }
+      if (type === "cliente") unlinkCliente.mutate({ proyecto_id: pid, cliente_id: id });
+      else unlinkCaptador.mutate({ proyecto_id: pid, captador_id: id });
     });
   };
 

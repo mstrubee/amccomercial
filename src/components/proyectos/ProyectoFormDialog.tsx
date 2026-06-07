@@ -31,6 +31,7 @@ import { REGIONES_CHILE } from "@/data/chile-geo";
 import { useClientes, useCategoriasCliente, useCreateCliente, ClienteWithCategoria, CategoriaCliente } from "@/hooks/useClientes";
 import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
 import { useSyncClienteProyecto } from "@/hooks/useSyncClienteProyecto";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
@@ -517,6 +518,20 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
           : [],
       }));
       syncProyectoToLinkedClientes(updates);
+
+      // Create formal proyecto_clientes records for every mapped client.
+      // This ensures the join table stays in sync with the denormalized fields
+      // so clients always appear in the "Proyectos vinculados" list.
+      if (initialData?.id) {
+        const records = Array.from(clienteMappings.keys()).map((clienteId) => ({
+          proyecto_id: initialData.id,
+          cliente_id: clienteId,
+        }));
+        supabase
+          .from("proyecto_clientes" as any)
+          .upsert(records, { onConflict: "proyecto_id,cliente_id", ignoreDuplicates: true })
+          .then(() => {}); // fire-and-forget, non-blocking
+      }
     }
 
     onSubmit({
