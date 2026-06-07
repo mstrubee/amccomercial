@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ interface UserRecord {
   roles: string[];
 }
 
-const ROLE_LABELS: Record<string, string> = {
+const ROLE_LABELS_DEFAULT: Record<string, string> = {
   admin: "Administrador",
   usuario_tipo_1: "Usuario Tipo 1",
   usuario_tipo_2: "Usuario Tipo 2",
@@ -47,6 +47,8 @@ export default function Usuarios() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showRoleLabels, setShowRoleLabels] = useState(false);
+  const [roleLabels, setRoleLabels] = useState<Record<string, string>>(ROLE_LABELS_DEFAULT);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
   const [permissionsUser, setPermissionsUser] = useState<UserRecord | null>(null);
@@ -96,7 +98,22 @@ export default function Usuarios() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); fetchCaptadores(); }, []);
+  useEffect(() => {
+    fetchUsers();
+    fetchCaptadores();
+    // Load custom role labels from app_settings
+    supabase.from("app_settings").select("key, value")
+      .in("key", ["role_label_usuario_tipo_1", "role_label_usuario_tipo_2"])
+      .then(({ data }) => {
+        if (!data?.length) return;
+        const overrides: Record<string, string> = {};
+        for (const row of data) {
+          if (row.key === "role_label_usuario_tipo_1") overrides.usuario_tipo_1 = row.value;
+          if (row.key === "role_label_usuario_tipo_2") overrides.usuario_tipo_2 = row.value;
+        }
+        setRoleLabels(prev => ({ ...prev, ...overrides }));
+      });
+  }, []);
 
   const handleDelete = async () => {
     if (!deleteUser) return;
@@ -127,9 +144,14 @@ export default function Usuarios() {
           <h1 className="text-3xl font-bold text-foreground">Usuarios</h1>
           <p className="text-muted-foreground mt-1">Gestión de acceso al sistema</p>
         </div>
-        <Button className="gap-2" onClick={() => { setEditUser(null); setShowForm(true); }}>
-          <Plus className="w-4 h-4" /> Nuevo Usuario
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowRoleLabels(true)}>
+            <Settings2 className="w-3.5 h-3.5" /> Nombres de roles
+          </Button>
+          <Button className="gap-2" onClick={() => { setEditUser(null); setShowForm(true); }}>
+            <Plus className="w-4 h-4" /> Nuevo Usuario
+          </Button>
+        </div>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -161,7 +183,7 @@ export default function Usuarios() {
                 <td className="px-5 py-3">
                   {u.roles.map((r) => (
                     <span key={r} className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary mr-1">
-                      {ROLE_LABELS[r] || r}
+                      {roleLabels[r] || r}
                     </span>
                   ))}
                   {u.roles.length === 0 && <span className="text-muted-foreground text-xs">Sin rol</span>}
@@ -222,6 +244,7 @@ export default function Usuarios() {
         open={showForm}
         onOpenChange={setShowForm}
         editUser={editUser}
+        roleLabels={roleLabels}
         onSuccess={() => { setShowForm(false); fetchUsers(); }}
       />
 
@@ -253,6 +276,13 @@ export default function Usuarios() {
           onSaved={() => { setLinkCaptadorUser(null); fetchCaptadores(); }}
         />
       )}
+
+      <RoleLabelsDialog
+        open={showRoleLabels}
+        onOpenChange={setShowRoleLabels}
+        current={roleLabels}
+        onSaved={(updated) => setRoleLabels(prev => ({ ...prev, ...updated }))}
+      />
 
       <AlertDialog open={!!deleteUser} onOpenChange={(v) => !v && setDeleteUser(null)}>
         <AlertDialogContent>
@@ -476,11 +506,12 @@ function PermissionsDialog({ open, onOpenChange, user }: {
   );
 }
 
-function UserFormDialog({ open, onOpenChange, editUser, onSuccess }: {
+function UserFormDialog({ open, onOpenChange, editUser, onSuccess, roleLabels }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editUser: UserRecord | null;
   onSuccess: () => void;
+  roleLabels?: Record<string, string>;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -565,8 +596,8 @@ function UserFormDialog({ open, onOpenChange, editUser, onSuccess }: {
             >
               <option value="">Sin rol</option>
               <option value="admin">Administrador</option>
-              <option value="usuario_tipo_1">Usuario Tipo 1</option>
-              <option value="usuario_tipo_2">Usuario Tipo 2</option>
+              <option value="usuario_tipo_1">{roleLabels?.usuario_tipo_1 || "Usuario Tipo 1"}</option>
+              <option value="usuario_tipo_2">{roleLabels?.usuario_tipo_2 || "Usuario Tipo 2"}</option>
             </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -574,6 +605,67 @@ function UserFormDialog({ open, onOpenChange, editUser, onSuccess }: {
             <Button type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── RoleLabelsDialog ── */
+function RoleLabelsDialog({
+  open, onOpenChange, current, onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  current: Record<string, string>;
+  onSaved: (updated: Record<string, string>) => void;
+}) {
+  const [label1, setLabel1] = useState(current.usuario_tipo_1 || "Usuario Tipo 1");
+  const [label2, setLabel2] = useState(current.usuario_tipo_2 || "Usuario Tipo 2");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await Promise.all([
+        supabase.from("app_settings").upsert({ key: "role_label_usuario_tipo_1", value: label1 }, { onConflict: "key" }),
+        supabase.from("app_settings").upsert({ key: "role_label_usuario_tipo_2", value: label2 }, { onConflict: "key" }),
+      ]);
+      onSaved({ usuario_tipo_1: label1, usuario_tipo_2: label2 });
+      toast.success("Nombres de roles actualizados");
+      onOpenChange(false);
+    } catch {
+      toast.error("Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Nombres de tipos de usuario</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">
+            Personaliza cómo se llaman los roles en toda la app. Los permisos no cambian, solo el nombre visible.
+          </p>
+          <div className="space-y-1.5">
+            <Label>Usuario Tipo 1</Label>
+            <Input value={label1} onChange={(e) => setLabel1(e.target.value)} placeholder="ej. Administrativo" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Usuario Tipo 2</Label>
+            <Input value={label2} onChange={(e) => setLabel2(e.target.value)} placeholder="ej. Captador" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Guardar
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
