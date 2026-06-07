@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown, ChevronRight, Settings2, Mail, Phone, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,20 @@ function ClientesTab({ categorias, clientes, canEdit, canDelete, isAdmin, onCrea
   const [deleteTarget, setDeleteTarget] = useState<ClienteWithCategoria | null>(null);
   const [showCatManager, setShowCatManager] = useState(false);
   const [detailTarget, setDetailTarget] = useState<ClienteWithCategoria | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Auto-open the client dialog when returning from Proyectos via the back button
+  useEffect(() => {
+    const openId = (location.state as any)?.openClienteId as string | undefined;
+    if (!openId || !clientes.length) return;
+    const target = clientes.find(c => c.id === openId);
+    if (target) {
+      setDetailTarget(target);
+      // Clear the state so it doesn't re-open on further navigations
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, clientes]);
 
   const filtered = clientes.filter((c) => {
     const contactoMatch = (c.contactos_cliente || []).some(ct =>

@@ -136,8 +136,18 @@ export default function Proyectos() {
   const [showBackToAlertas, setShowBackToAlertas] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const fromClientes = (location.state as any)?.from === "clientes";
-  const fromClienteNombre = (location.state as any)?.clienteNombre as string | undefined;
+
+  // Latch the back-to-clientes state in a ref the moment we land on this page.
+  // location.state gets wiped when setSearchParams fires (e.g. clearing ?highlight=).
+  const backToClientesRef = useRef<{ clienteId?: string; clienteNombre?: string } | null>(null);
+  const [showBackToClientes, setShowBackToClientes] = useState(() => {
+    const s = location.state as any;
+    if (s?.from === "clientes") {
+      backToClientesRef.current = { clienteId: s.clienteId, clienteNombre: s.clienteNombre };
+      return true;
+    }
+    return false;
+  });
 
   const { data: alertas } = useAlertas();
   const { data: categorias } = useCategorias();
@@ -643,18 +653,27 @@ export default function Proyectos() {
   return (
     <>
     {showBackToAlertas && <BackToAlertasFloat />}
-    {fromClientes && (
+    {showBackToClientes && (
       <motion.div
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
-        className="fixed top-4 right-4 z-50"
+        className="fixed top-4 right-4 z-[9999] flex items-center gap-1 bg-card border border-border shadow-xl rounded-full pl-1 pr-2 py-1"
       >
         <button
-          onClick={() => navigate("/clientes")}
-          className="flex items-center gap-2 bg-card border border-border shadow-lg rounded-full px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+          onClick={() => navigate("/clientes", {
+            state: { openClienteId: backToClientesRef.current?.clienteId },
+          })}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors rounded-full hover:bg-accent"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver a Clientes{fromClienteNombre ? ` · ${fromClienteNombre}` : ""}
+          Volver a Clientes{backToClientesRef.current?.clienteNombre ? ` · ${backToClientesRef.current.clienteNombre}` : ""}
+        </button>
+        <button
+          onClick={() => setShowBackToClientes(false)}
+          className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          title="Cerrar"
+        >
+          <X className="w-3.5 h-3.5" />
         </button>
       </motion.div>
     )}

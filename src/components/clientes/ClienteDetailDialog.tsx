@@ -344,7 +344,11 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                             onClick={() => {
                               onOpenChange(false);
                               navigate(`/proyectos?highlight=${p.id}`, {
-                                state: { from: "clientes", clienteNombre: cliente?.nombre },
+                                state: {
+                                  from: "clientes",
+                                  clienteId: cliente?.id,
+                                  clienteNombre: cliente?.nombre,
+                                },
                               });
                             }}
                           >
