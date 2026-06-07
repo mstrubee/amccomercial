@@ -1267,7 +1267,7 @@ function ContactosSection(props: ContactosSectionProps) {
     if (!clientes || !categoriasCliente) return [];
     const cat = categoriasCliente.find((c) => c.nombre === CONTACTO_CAT_MAP[title]);
     if (!cat) return [];
-    return clientes.filter((c) => c.categoria_id === cat.id);
+    return dedupeClientesByNombre(clientes.filter((c) => c.categoria_id === cat.id));
   };
 
   const applyCliente = (cliente: ClienteWithCategoria, setters: ((v: string) => void)[], values: string[], sectionTitle: string) => {
