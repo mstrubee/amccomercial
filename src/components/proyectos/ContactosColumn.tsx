@@ -18,14 +18,16 @@ interface Props {
 export default function ContactosColumn({ proyecto, groupItems }: Props) {
   const items = groupItems || [proyecto];
   const { data: categoriasCliente } = useCategoriasCliente();
-  
-  // Build a map from categoria_id to short label
+
   const catLabelMap = new Map<string, string>();
   for (const cat of (categoriasCliente || [])) {
     catLabelMap.set(cat.id, cat.nombre);
   }
 
-  // Gather unique linked clientes and captadores across all group items
+  // All project row IDs in this group — needed to link/unlink across all rows
+  const allProyectoIds = items.map(p => p.id);
+
+  // Gather unique linked clientes and captadores across ALL group rows
   const linkedClientes = new Map<string, string>();
   const linkedCaptadores = new Map<string, string>();
   for (const p of items) {
@@ -43,30 +45,27 @@ export default function ContactosColumn({ proyecto, groupItems }: Props) {
     }
   }
 
-  const hasClientes = linkedClientes.size > 0;
-  const hasCaptadores = linkedCaptadores.size > 0;
-
   return (
     <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
       <ContactoPopover
         type="cliente"
-        proyectoId={proyecto.id}
+        proyectoIds={allProyectoIds}
         linkedItems={linkedClientes}
-        hasItems={hasClientes}
+        hasItems={linkedClientes.size > 0}
       />
       <ContactoPopover
         type="captador"
-        proyectoId={proyecto.id}
+        proyectoIds={allProyectoIds}
         linkedItems={linkedCaptadores}
-        hasItems={hasCaptadores}
+        hasItems={linkedCaptadores.size > 0}
       />
     </div>
   );
 }
 
-function ContactoPopover({ type, proyectoId, linkedItems, hasItems }: {
+function ContactoPopover({ type, proyectoIds, linkedItems, hasItems }: {
   type: "cliente" | "captador";
-  proyectoId: string;
+  proyectoIds: string[];
   linkedItems: Map<string, string>;
   hasItems: boolean;
 }) {
@@ -83,15 +82,15 @@ function ContactoPopover({ type, proyectoId, linkedItems, hasItems }: {
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start" onClick={(e) => e.stopPropagation()}>
-        <ContactoPopoverContent type={type} proyectoId={proyectoId} linkedItems={linkedItems} onClose={() => setOpen(false)} />
+        <ContactoPopoverContent type={type} proyectoIds={proyectoIds} linkedItems={linkedItems} onClose={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   );
 }
 
-function ContactoPopoverContent({ type, proyectoId, linkedItems, onClose }: {
+function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
   type: "cliente" | "captador";
-  proyectoId: string;
+  proyectoIds: string[];
   linkedItems: Map<string, string>;
   onClose: () => void;
 }) {
@@ -113,20 +112,26 @@ function ContactoPopoverContent({ type, proyectoId, linkedItems, onClose }: {
   const allItems = type === "cliente" ? (clientes || []) : (captadores || []) as any[];
   const available = allItems.filter((c: any) => !linkedItems.has(c.id) && c.nombre.toLowerCase().includes(search.toLowerCase()));
 
+  // Link/unlink across ALL project rows in the group so the client
+  // appears consistently regardless of which row is rendered.
   const handleLink = (id: string) => {
-    if (type === "cliente") {
-      linkCliente.mutate({ proyecto_id: proyectoId, cliente_id: id });
-    } else {
-      linkCaptador.mutate({ proyecto_id: proyectoId, captador_id: id });
-    }
+    proyectoIds.forEach((pid) => {
+      if (type === "cliente") {
+        linkCliente.mutate({ proyecto_id: pid, cliente_id: id });
+      } else {
+        linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
+      }
+    });
   };
 
   const handleUnlink = (id: string) => {
-    if (type === "cliente") {
-      unlinkCliente.mutate({ proyecto_id: proyectoId, cliente_id: id });
-    } else {
-      unlinkCaptador.mutate({ proyecto_id: proyectoId, captador_id: id });
-    }
+    proyectoIds.forEach((pid) => {
+      if (type === "cliente") {
+        unlinkCliente.mutate({ proyecto_id: pid, cliente_id: id });
+      } else {
+        unlinkCaptador.mutate({ proyecto_id: pid, captador_id: id });
+      }
+    });
   };
 
   const handleCreate = () => {
@@ -138,7 +143,7 @@ function ContactoPopoverContent({ type, proyectoId, linkedItems, onClose }: {
       { categoria_id: catId, nombre: newNombre.trim(), contactos: [] } as any,
       {
         onSuccess: (data: any) => {
-          handleLink(data.id);
+          handleLink(data.id); // links to all group rows
           setNewNombre("");
           setShowCreate(false);
         },
