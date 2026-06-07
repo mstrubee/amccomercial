@@ -1162,10 +1162,10 @@ function ContactosSection(props: ContactosSectionProps) {
     { title: "Dueños", values: [props.duenosNombre, props.duenosContacto, props.duenosMail, props.duenosTelefono], setters: [props.setDuenosNombre, props.setDuenosContacto, props.setDuenosMail, props.setDuenosTelefono] },
   ];
 
-  // Auto-detect existing client associations on mount by matching names
-  // AND fill in missing fields bidirectionally (project ↔ client)
+  // Auto-detect existing client associations on mount by matching names.
+  // Only fills empty project fields from client data (Project ← Client, read-only direction).
+  // Does NOT auto-write to the DB — that would corrupt data silently.
   const hasAutoFilled = useRef(false);
-  const { complementClienteFromProject } = useSyncClienteProyecto();
 
   useEffect(() => {
     if (!clientes || !categoriasCliente) return;
@@ -1174,7 +1174,6 @@ function ContactosSection(props: ContactosSectionProps) {
     const newMap = new Map<string, string>();
     const fieldsToFill: { setters: ((v: string) => void)[]; values: string[]; rows: ContactoRow[] }[] = [];
     let needsUpdate = false;
-    const clientsToComplement: { clienteId: string; clienteNombre: string; catNombre: string; contacto: string; email: string; telefono: string }[] = [];
 
     for (const section of sections) {
       const rows = splitToRows(section.values[0], section.values[1], section.values[2], section.values[3]);
@@ -1192,32 +1191,18 @@ function ContactosSection(props: ContactosSectionProps) {
 
         newMap.set(`${section.title}:${idx}`, match.id);
 
-        // Fill in missing fields from the client's contactos
+        // Project ← Client: fill empty project fields from client data (safe, UI only)
         const clientContactos = match.contactos_cliente || [];
         const clientContacto = clientContactos.map(c => c.contacto).filter(Boolean).join(" / ");
         const clientEmail = clientContactos.map(c => c.email).filter(Boolean).join(" / ");
         const clientTelefono = clientContactos.map(c => c.telefono).filter(Boolean).join(" / ");
 
-        // Project ← Client: fill empty project fields
         if (!row.contacto && clientContacto) { row.contacto = clientContacto; sectionChanged = true; }
         if (!row.email && clientEmail) { row.email = clientEmail; sectionChanged = true; }
         if (!row.telefono && clientTelefono) { row.telefono = clientTelefono; sectionChanged = true; }
 
-        // Client ← Project: if client is missing data but project has it
-        const needsClientUpdate =
-          (!clientContacto && row.contacto) ||
-          (!clientEmail && row.email) ||
-          (!clientTelefono && row.telefono);
-        if (needsClientUpdate) {
-          clientsToComplement.push({
-            clienteId: match.id,
-            clienteNombre: match.nombre,
-            catNombre: section.title,
-            contacto: row.contacto,
-            email: row.email,
-            telefono: row.telefono,
-          });
-        }
+        // NOTE: Client ← Project auto-DB-write removed — it corrupted contact data silently.
+        // The syncProyectoToLinkedClientes call in handleSubmit handles this safely on save.
       });
 
       if (sectionChanged) {
@@ -1236,17 +1221,6 @@ function ContactosSection(props: ContactosSectionProps) {
         setters[1](c);
         setters[2](e);
         setters[3](t);
-      }
-    }
-
-    // Push project data to clients with empty fields (fire-and-forget)
-    if (clientsToComplement.length > 0) {
-      hasAutoFilled.current = true;
-      for (const item of clientsToComplement) {
-        complementClienteFromProject(
-          item.clienteId, item.clienteNombre, item.catNombre,
-          item.contacto, item.email, item.telefono
-        );
       }
     }
   }, [clientes, categoriasCliente]);

@@ -74,7 +74,8 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
           email: c.email,
           telefono: c.telefono,
         })));
-        setHasChanges(true);
+        // Do NOT mark as dirty — the auto-fill is transparent to the user.
+        // hasChanges only becomes true when the user explicitly edits a field.
       }
     });
   }, [open, cliente, categorias]);

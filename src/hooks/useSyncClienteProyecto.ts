@@ -96,23 +96,55 @@ export async function syncProyectoToClientes(
   let updatedCount = 0;
 
   for (const update of clienteUpdates) {
+    // Update client name
     const { error: nameErr } = await supabase
       .from("clientes")
       .update({ nombre: update.nombre } as any)
       .eq("id", update.clienteId);
     if (nameErr) continue;
 
-    await supabase.from("contactos_cliente").delete().eq("cliente_id", update.clienteId);
+    if (update.contactos.length === 0) { updatedCount++; continue; }
 
-    if (update.contactos.length > 0) {
-      const rows = update.contactos.map((c, i) => ({
-        cliente_id: update.clienteId,
-        contacto: c.contacto,
-        email: c.email,
-        telefono: c.telefono,
-        orden: i,
-      }));
-      await supabase.from("contactos_cliente").insert(rows);
+    // Fetch existing contacts — we NEVER delete them, only add/update
+    const { data: existing } = await supabase
+      .from("contactos_cliente")
+      .select("id, contacto, email, telefono, orden")
+      .eq("cliente_id", update.clienteId)
+      .order("orden", { ascending: true });
+
+    const existingList = existing || [];
+    let nextOrden = existingList.length > 0
+      ? Math.max(...existingList.map(e => e.orden)) + 1
+      : 0;
+
+    for (const c of update.contactos) {
+      if (!c.contacto && !c.email && !c.telefono) continue;
+
+      // Try to find existing contact by name (case-insensitive exact match)
+      const match = c.contacto
+        ? existingList.find(
+            e => e.contacto.trim().toLowerCase() === c.contacto.trim().toLowerCase()
+          )
+        : null;
+
+      if (match) {
+        // Only fill EMPTY fields — never overwrite data the user set in Clientes
+        const patches: Record<string, string> = {};
+        if (!match.email && c.email) patches.email = c.email;
+        if (!match.telefono && c.telefono) patches.telefono = c.telefono;
+        if (Object.keys(patches).length > 0) {
+          await supabase.from("contactos_cliente").update(patches).eq("id", match.id);
+        }
+      } else if (c.contacto) {
+        // New person not yet in client's contact list → add them
+        await supabase.from("contactos_cliente").insert({
+          cliente_id: update.clienteId,
+          contacto: c.contacto,
+          email: c.email || "",
+          telefono: c.telefono || "",
+          orden: nextOrden++,
+        });
+      }
     }
 
     updatedCount++;
