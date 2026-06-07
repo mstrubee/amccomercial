@@ -334,6 +334,7 @@ export default function AdminNotas() {
 
       {/* Diálogo crear/editar */}
       <NotaDialog
+        key={editNota?.id ?? "nueva"}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         nota={editNota}
