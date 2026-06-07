@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback, memo, useDeferredValue } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -134,6 +134,10 @@ export default function Proyectos() {
   const [alertaCreateContext, setAlertaCreateContext] = useState<{ proyecto_id: string; empresa_id: string | null; defaultTexto?: string; parentAlertaId?: string; defaultClasificacionId?: string; defaultSubclasificacionId?: string; defaultCategoriaProyectoId?: string; defaultSubcategoriaProyectoId?: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showBackToAlertas, setShowBackToAlertas] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromClientes = (location.state as any)?.from === "clientes";
+  const fromClienteNombre = (location.state as any)?.clienteNombre as string | undefined;
 
   const { data: alertas } = useAlertas();
   const { data: categorias } = useCategorias();
@@ -639,6 +643,21 @@ export default function Proyectos() {
   return (
     <>
     {showBackToAlertas && <BackToAlertasFloat />}
+    {fromClientes && (
+      <motion.div
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="fixed top-4 right-4 z-50"
+      >
+        <button
+          onClick={() => navigate("/clientes")}
+          className="flex items-center gap-2 bg-card border border-border shadow-lg rounded-full px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver a Clientes{fromClienteNombre ? ` · ${fromClienteNombre}` : ""}
+        </button>
+      </motion.div>
+    )}
     <div className="h-full flex flex-col overflow-hidden gap-4">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>

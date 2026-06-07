@@ -317,13 +317,18 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                           <button
                             key={p.id}
                             type="button"
-                            className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                            className="w-full text-left rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer group"
                             onClick={() => {
                               onOpenChange(false);
-                              navigate(`/proyectos?highlight=${p.id}`);
+                              navigate(`/proyectos?highlight=${p.id}`, {
+                                state: { from: "clientes", clienteNombre: cliente?.nombre },
+                              });
                             }}
                           >
-                            <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium text-card-foreground">{p.nombre}</p>
+                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                            </div>
                             {cat && <p className="text-xs text-muted-foreground">Categoría: {cat}</p>}
                           </button>
                         );
