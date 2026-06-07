@@ -1130,6 +1130,32 @@ const CONTACTO_CAT_MAP: Record<string, string> = {
   "Dueños": "Dueños",
 };
 
+// Dedupe clientes by normalized nombre, merging their contactos_cliente
+// (removing duplicate contacts by contacto+email+telefono).
+function dedupeClientesByNombre(list: ClienteWithCategoria[]): ClienteWithCategoria[] {
+  const map = new Map<string, ClienteWithCategoria>();
+  for (const c of list) {
+    const key = (c.nombre || "").trim().toLowerCase();
+    if (!key) continue;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...c, contactos_cliente: [...(c.contactos_cliente || [])] });
+    } else {
+      const seen = new Set(
+        (existing.contactos_cliente || []).map(ct => `${ct.contacto || ""}|${ct.email || ""}|${ct.telefono || ""}`)
+      );
+      for (const ct of c.contactos_cliente || []) {
+        const k = `${ct.contacto || ""}|${ct.email || ""}|${ct.telefono || ""}`;
+        if (!seen.has(k)) {
+          existing.contactos_cliente!.push(ct);
+          seen.add(k);
+        }
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+
 export interface ContactoRow {
   nombre: string;
   contacto: string;
