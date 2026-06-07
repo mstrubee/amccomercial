@@ -34,7 +34,7 @@ interface Props {
 export default function ClienteDetailDialog({ open, onOpenChange, cliente, categorias, canEdit, canDelete }: Props) {
   const updateCliente = useUpdateCliente();
   const navigate = useNavigate();
-  const { data: proyectos } = useProyectos();
+  const { data: proyectos, isLoading: loadingProyectos } = useProyectos();
   const { syncClienteToLinkedProyectos } = useSyncClienteProyecto();
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre] = useState("");
@@ -307,7 +307,9 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                   </Label>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2">
-                  {linkedProyectos.length === 0 ? (
+                  {loadingProyectos ? (
+                    <p className="text-sm text-muted-foreground text-center py-4 animate-pulse">Cargando proyectos...</p>
+                  ) : linkedProyectos.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">Sin proyectos vinculados</p>
                   ) : (
                     <div className="space-y-2">

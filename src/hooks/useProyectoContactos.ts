@@ -6,7 +6,10 @@ export function useLinkProyectoCliente() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ proyecto_id, cliente_id }: { proyecto_id: string; cliente_id: string }) => {
-      const { error } = await supabase.from("proyecto_clientes" as any).insert({ proyecto_id, cliente_id });
+      // upsert ignores duplicate (proyecto_id, cliente_id) silently
+      const { error } = await supabase
+        .from("proyecto_clientes" as any)
+        .upsert({ proyecto_id, cliente_id }, { onConflict: "proyecto_id,cliente_id", ignoreDuplicates: true });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["proyectos"] }); },
@@ -30,7 +33,9 @@ export function useLinkProyectoCaptador() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ proyecto_id, captador_id }: { proyecto_id: string; captador_id: string }) => {
-      const { error } = await supabase.from("proyecto_captadores" as any).insert({ proyecto_id, captador_id });
+      const { error } = await supabase
+        .from("proyecto_captadores" as any)
+        .upsert({ proyecto_id, captador_id }, { onConflict: "proyecto_id,captador_id", ignoreDuplicates: true });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["proyectos"] }); },
