@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown, ChevronRight, Settings2, Mail, Phone, User } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown, ChevronRight, Settings2, Mail, Phone, User, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,9 @@ import {
 import { useCaptadores, useCreateCaptador, useUpdateCaptador, useDeleteCaptador, CaptadorWithCategoria } from "@/hooks/useCaptadores";
 import { useAuth } from "@/hooks/useAuth";
 import ClienteDetailDialog from "@/components/clientes/ClienteDetailDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function Clientes() {
   const { data: categorias, isLoading: loadingCats } = useCategoriasCliente();
@@ -37,6 +40,99 @@ export default function Clientes() {
   const canDelete = isAdmin;
 
   const [activeTab, setActiveTab] = useState("clientes");
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState<{ clients: number; contacts: number } | null>(null);
+  const qc = useQueryClient();
+
+  const runBulkRecovery = async () => {
+    if (!clientes || !categorias) return;
+    setRecovering(true);
+    setRecoveryResult(null);
+
+    const ALL_PREFIXES = ["arq", "const", "ito", "duenos"];
+    const CAT_TO_PREFIX: Record<string, string> = {
+      Arquitectura: "arq", Constructora: "const", ITO: "ito", Dueños: "duenos",
+    };
+
+    try {
+      // 1. Fetch all project denormalized contact fields
+      const { data: proyectos } = await supabase
+        .from("proyectos")
+        .select("id, arq_nombre, arq_contacto, arq_mail, arq_telefono, const_nombre, const_contacto, const_mail, const_telefono, ito_nombre, ito_contacto, ito_mail, ito_telefono, duenos_nombre, duenos_contacto, duenos_mail, duenos_telefono");
+
+      if (!proyectos?.length) { setRecovering(false); return; }
+
+      // 2. Fetch all existing contactos to avoid duplicates
+      const { data: allContactos } = await supabase
+        .from("contactos_cliente")
+        .select("cliente_id, contacto");
+
+      const existingByClient = new Map<string, Set<string>>();
+      for (const c of allContactos || []) {
+        if (!existingByClient.has(c.cliente_id)) existingByClient.set(c.cliente_id, new Set());
+        existingByClient.get(c.cliente_id)!.add(c.contacto.trim().toLowerCase());
+      }
+
+      // 3. For each client, scan projects and collect missing contacts
+      const toInsert: { cliente_id: string; contacto: string; email: string; telefono: string; orden: number }[] = [];
+      let clientsAffected = 0;
+
+      for (const cliente of clientes) {
+        const catNombre = categorias.find(c => c.id === cliente.categoria_id)?.nombre || "";
+        const prefix = CAT_TO_PREFIX[catNombre];
+        if (!prefix) continue; // Only sync categories with a denormalized prefix
+
+        const nombreLower = cliente.nombre.trim().toLowerCase();
+        const existing = existingByClient.get(cliente.id) || new Set<string>();
+        const seen = new Set<string>(existing);
+        const recovered: { contacto: string; email: string; telefono: string }[] = [];
+
+        for (const p of proyectos) {
+          const campo = (p as any)[`${prefix}_nombre`] as string | null;
+          if (!campo) continue;
+          const nombres = campo.split("/").map((n: string) => n.trim());
+          const idx = nombres.findIndex(n => n.toLowerCase() === nombreLower);
+          if (idx === -1) continue;
+
+          const contacto = ((p as any)[`${prefix}_contacto`] as string || "").split("/")[idx]?.trim() || "";
+          const email = ((p as any)[`${prefix}_mail`] as string || "").split("/")[idx]?.trim() || "";
+          const telefono = ((p as any)[`${prefix}_telefono`] as string || "").split("/")[idx]?.trim() || "";
+
+          if (!contacto && !email && !telefono) continue;
+          const key = contacto.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          recovered.push({ contacto, email, telefono });
+        }
+
+        if (recovered.length > 0) {
+          clientsAffected++;
+          const baseOrden = (existingByClient.get(cliente.id)?.size || 0);
+          recovered.forEach((c, i) => {
+            toInsert.push({ cliente_id: cliente.id, contacto: c.contacto, email: c.email, telefono: c.telefono, orden: baseOrden + i });
+          });
+        }
+      }
+
+      // 4. Bulk insert all recovered contacts
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("contactos_cliente").insert(toInsert);
+        if (error) throw error;
+        qc.invalidateQueries({ queryKey: ["clientes"] });
+      }
+
+      setRecoveryResult({ clients: clientsAffected, contacts: toInsert.length });
+      if (toInsert.length === 0) {
+        toast.info("No se encontraron contactos faltantes");
+      } else {
+        toast.success(`Recuperados ${toInsert.length} contacto(s) en ${clientsAffected} cliente(s)`);
+      }
+    } catch (e: any) {
+      toast.error("Error durante la recuperación: " + e.message);
+    } finally {
+      setRecovering(false);
+    }
+  };
 
   if (loadingCats || loadingClientes || loadingCaptadores) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
@@ -49,6 +145,28 @@ export default function Clientes() {
           <h1 className="text-3xl font-bold text-foreground">Clientes y Captadores</h1>
           <p className="text-muted-foreground mt-1">Base de datos de contactos por categoría</p>
         </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            {recoveryResult && (
+              <span className="text-xs text-muted-foreground">
+                ✓ {recoveryResult.contacts} contacto(s) en {recoveryResult.clients} cliente(s)
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              disabled={recovering}
+              onClick={runBulkRecovery}
+              title="Escanea todos los proyectos y restaura contactos faltantes en todos los clientes"
+            >
+              {recovering
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <RefreshCw className="w-3.5 h-3.5" />}
+              {recovering ? "Recuperando..." : "Recuperar contactos"}
+            </Button>
+          </div>
+        )}
       </motion.div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
