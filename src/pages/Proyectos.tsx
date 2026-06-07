@@ -86,7 +86,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
-  const { isAdmin, isUsuarioTipo1 } = useAuth();
+  const { isAdmin, isUsuarioTipo1, isCaptador, permissions } = useAuth();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
@@ -427,6 +427,11 @@ export default function Proyectos() {
   }, [proyectos]);
 
   // Group projects by name
+  // For captadores: only show project groups where at least one empresa is assigned to them
+  const captadorEmpresaIds = isCaptador && permissions?.empresas_visibles
+    ? new Set(permissions.empresas_visibles)
+    : null;
+
   const groupedRows = useMemo(() => {
     const groups: Record<string, ProyectoWithEmpresas[]> = {};
     filtered.forEach((p) => {
@@ -434,18 +439,25 @@ export default function Proyectos() {
       if (!groups[key]) groups[key] = [];
       groups[key].push(p);
     });
-    // Build ordered list: iterate filtered to maintain order, emit group once
     const seen = new Set<string>();
     const result: { key: string; items: ProyectoWithEmpresas[] }[] = [];
     filtered.forEach((p) => {
       const key = p.nombre.trim().toLowerCase();
       if (!seen.has(key)) {
         seen.add(key);
-        result.push({ key, items: groups[key] });
+        const items = groups[key];
+        // Captadores only see groups where at least one empresa is in their list
+        if (captadorEmpresaIds) {
+          const hasVisibleEmpresa = items.some(row =>
+            (row.proyecto_empresas || []).some(pe => captadorEmpresaIds.has(pe.empresa_id))
+          );
+          if (!hasVisibleEmpresa) return;
+        }
+        result.push({ key, items });
       }
     });
     return result;
-  }, [filtered]);
+  }, [filtered, captadorEmpresaIds]);
 
   // Gran Total per proyecto_empresa — fuente única alineada al formulario:
   //   ganado_presupuesto (monto adjudicado vigente) + Σ ventas_proyecto_empresa (adicionales)
@@ -707,10 +719,12 @@ export default function Proyectos() {
           <h1 className="text-3xl font-bold text-foreground">Proyectos</h1>
           <p className="text-muted-foreground mt-1">Base de datos de proyectos</p>
         </div>
-        <Button className="gap-2" onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4" />
-          Nuevo Proyecto
-        </Button>
+        {!isCaptador && (
+          <Button className="gap-2" onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" />
+            Nuevo Proyecto
+          </Button>
+        )}
       </motion.div>
 
       {/* Filters */}
@@ -983,6 +997,10 @@ export default function Proyectos() {
 
                 if (!isGroup) {
                   const p = items[0];
+                  // Captadores can't edit/delete rows
+                  if (isCaptador) {
+                    return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={() => {}} onDelete={() => {}} onTemplate={() => {}} onOpenChat={openProjectChat} updateNotas={() => {}} filterBotones={filterBotones} filterEmpresas={Array.from(captadorEmpresaIds || [])} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={() => {}} />;
+                  }
                   return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
                 }
 
@@ -993,8 +1011,8 @@ export default function Proyectos() {
                   <Fragment key={key}>
                     <tr
                       id={`proyecto-row-${first.id}`}
-                      className={`hover:bg-secondary/30 transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
-                      onClick={() => toggleGroup(key)}
+                      className={`hover:bg-secondary/30 transition-colors ${isCaptador ? "" : "cursor-pointer"} border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
+                      onClick={() => !isCaptador && toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
                         <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} /> {parentNum}

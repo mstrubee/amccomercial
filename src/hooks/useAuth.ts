@@ -17,25 +17,25 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [permissions, setPermissions] = useState<UserPermissionsData | null>(null);
+  const [captadorId, setCaptadorId] = useState<string | null>(null);
   const fetchedUserId = useRef<string | null>(null);
 
   const fetchUserData = useCallback(async (userId: string) => {
-    // Avoid duplicate fetches for the same user
     if (fetchedUserId.current === userId) return;
     fetchedUserId.current = userId;
 
-    const [rolesRes, permsRes] = await Promise.all([
+    const [rolesRes, permsRes, captadorRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId),
       supabase.from("user_permissions")
         .select("empresas_visibles, secciones_visibles, dashboard_widgets, puede_editar")
         .eq("user_id", userId)
         .maybeSingle(),
+      supabase.from("captadores" as any).select("id").eq("user_id", userId).maybeSingle(),
     ]);
 
-    if (rolesRes.data) {
-      setRoles(rolesRes.data.map((r) => r.role as AppRole));
-    }
+    if (rolesRes.data) setRoles(rolesRes.data.map((r) => r.role as AppRole));
     setPermissions(permsRes.data as UserPermissionsData | null);
+    setCaptadorId((captadorRes.data as any)?.id ?? null);
   }, []);
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export function useAuth() {
           fetchedUserId.current = null;
           setRoles([]);
           setPermissions(null);
+          setCaptadorId(null);
         }
       }
     );
@@ -67,6 +68,7 @@ export function useAuth() {
 
   const isAdmin = roles.includes("admin");
   const isUsuarioTipo1 = roles.includes("usuario_tipo_1");
+  const isCaptador = captadorId !== null;
 
   const canAccessSection = (sectionKey: string): boolean => {
     if (isAdmin) return true;
@@ -98,8 +100,8 @@ export function useAuth() {
   };
 
   return {
-    user, session, loading, roles, isAdmin, isUsuarioTipo1, permissions,
-    canAccessSection, canSeeDashboardWidget, canEdit, canSeeEmpresa,
+    user, session, loading, roles, isAdmin, isUsuarioTipo1, isCaptador, captadorId,
+    permissions, canAccessSection, canSeeDashboardWidget, canEdit, canSeeEmpresa,
     signIn, signOut,
   };
 }

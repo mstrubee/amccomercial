@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,13 @@ const ROLE_LABELS: Record<string, string> = {
   usuario_tipo_2: "Usuario Tipo 2",
 };
 
+// Captador record with optional user link
+interface CaptadorRecord {
+  id: string;
+  nombre: string;
+  user_id: string | null;
+}
+
 export default function Usuarios() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,9 +52,16 @@ export default function Usuarios() {
   const [permissionsUser, setPermissionsUser] = useState<UserRecord | null>(null);
   const [delegacionesUser, setDelegacionesUser] = useState<UserRecord | null>(null);
   const [thresholdsUser, setThresholdsUser] = useState<UserRecord | null>(null);
+  const [linkCaptadorUser, setLinkCaptadorUser] = useState<UserRecord | null>(null);
   const [profiles, setProfiles] = useState<ProfilePresence[]>([]);
+  const [captadores, setCaptadores] = useState<CaptadorRecord[]>([]);
   const { data: thresholds } = useActivityThresholds();
   const qc = useQueryClient();
+
+  const fetchCaptadores = async () => {
+    const { data } = await supabase.from("captadores" as any).select("id, nombre, user_id");
+    setCaptadores((data as CaptadorRecord[]) || []);
+  };
 
   // Fetch profiles for activity column
   useEffect(() => {
@@ -82,7 +96,7 @@ export default function Usuarios() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(); fetchCaptadores(); }, []);
 
   const handleDelete = async () => {
     if (!deleteUser) return;
@@ -131,10 +145,19 @@ export default function Usuarios() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {users.map((u) => (
+            {users.map((u) => {
+              const linkedCaptador = captadores.find(c => c.user_id === u.id);
+              return (
               <tr key={u.id} className="hover:bg-secondary/20 transition-colors">
                 <td className="px-5 py-3 text-card-foreground">{u.email}</td>
-                <td className="px-5 py-3 text-muted-foreground">{u.display_name}</td>
+                <td className="px-5 py-3">
+                  <p className="font-medium text-card-foreground">{u.display_name || <span className="text-muted-foreground italic text-xs">Sin nombre</span>}</p>
+                  {linkedCaptador && (
+                    <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">
+                      <Link2 className="w-2.5 h-2.5" /> Captador: {linkedCaptador.nombre}
+                    </span>
+                  )}
+                </td>
                 <td className="px-5 py-3">
                   {u.roles.map((r) => (
                     <span key={r} className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary mr-1">
@@ -168,6 +191,15 @@ export default function Usuarios() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Permisos" onClick={() => setPermissionsUser(u)}>
                       <Shield className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-7 w-7"
+                      title={linkedCaptador ? "Desvincular captador" : "Vincular captador"}
+                      onClick={() => setLinkCaptadorUser(u)}
+                    >
+                      {linkedCaptador
+                        ? <Link2Off className="w-3.5 h-3.5 text-emerald-600" />
+                        : <Link2 className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditUser(u); setShowForm(true); }}>
                       <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
@@ -177,7 +209,8 @@ export default function Usuarios() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {users.length === 0 && (
@@ -211,6 +244,15 @@ export default function Usuarios() {
         userName={thresholdsUser?.display_name || thresholdsUser?.email || ""}
         current={thresholds?.find((t) => t.user_id === thresholdsUser?.id)}
       />
+
+      {linkCaptadorUser && (
+        <CaptadorLinkDialog
+          user={linkCaptadorUser}
+          captadores={captadores}
+          onClose={() => setLinkCaptadorUser(null)}
+          onSaved={() => { setLinkCaptadorUser(null); fetchCaptadores(); }}
+        />
+      )}
 
       <AlertDialog open={!!deleteUser} onOpenChange={(v) => !v && setDeleteUser(null)}>
         <AlertDialogContent>
@@ -536,3 +578,107 @@ function UserFormDialog({ open, onOpenChange, editUser, onSuccess }: {
     </Dialog>
   );
 }
+
+/* ── CaptadorLinkDialog ── */
+function CaptadorLinkDialog({
+  user,
+  captadores,
+  onClose,
+  onSaved,
+}: {
+  user: UserRecord;
+  captadores: CaptadorRecord[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const linked = captadores.find(c => c.user_id === user.id);
+  const [selectedId, setSelectedId] = useState(linked?.id || "");
+  const [saving, setSaving] = useState(false);
+
+  // Captadores available to link: unlinked ones + the currently linked one
+  const available = captadores.filter(c => !c.user_id || c.user_id === user.id);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Unlink previous if any
+      if (linked) {
+        await supabase.from("captadores" as any).update({ user_id: null }).eq("id", linked.id);
+      }
+      // Link new if selected
+      if (selectedId && selectedId !== linked?.id) {
+        const { error } = await supabase
+          .from("captadores" as any)
+          .update({ user_id: user.id })
+          .eq("id", selectedId);
+        if (error) throw error;
+      }
+      toast.success("Captador actualizado");
+      onSaved();
+    } catch {
+      toast.error("Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnlink = async () => {
+    if (!linked) return;
+    setSaving(true);
+    try {
+      await supabase.from("captadores" as any).update({ user_id: null }).eq("id", linked.id);
+      toast.success("Captador desvinculado");
+      onSaved();
+    } catch {
+      toast.error("Error al desvincular");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Vincular captador</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">
+            Asocia un captador a <strong>{user.display_name || user.email}</strong>. El usuario verá solo los proyectos donde tenga empresas asignadas.
+          </p>
+          {linked && (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm">
+              <span className="text-emerald-800 font-medium flex items-center gap-1.5">
+                <Link2 className="w-4 h-4" /> {linked.nombre}
+              </span>
+              <button onClick={handleUnlink} disabled={saving} className="text-xs text-red-500 hover:text-red-700">
+                Desvincular
+              </button>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>{linked ? "Cambiar a otro captador" : "Seleccionar captador"}</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+            >
+              <option value="">— Sin captador —</option>
+              {available.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving || (!selectedId && !linked)}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Guardar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
