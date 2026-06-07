@@ -49,33 +49,27 @@ export async function syncClienteToProyectos(
 
   if (!proyectos || proyectos.length === 0) return 0;
 
-  const contactoStr = contactos.map((c) => c.contacto).filter(Boolean).join(" / ");
-  const emailStr = contactos.map((c) => c.email).filter(Boolean).join(" / ");
-  const telefonoStr = contactos.map((c) => c.telefono).filter(Boolean).join(" / ");
-
   let updatedCount = 0;
 
+  // Only propagate the NAME change to projects.
+  // Contact/email/telefono fields are project-specific (each project can have
+  // a different contact person from the same firm) and must NOT be overwritten
+  // by client-level updates — doing so mixes contacts across projects.
   for (const p of proyectos) {
     const nombres = ((p as any)[`${prefix}_nombre`] as string || "").split(" / ");
-    const contactosArr = ((p as any)[`${prefix}_contacto`] as string || "").split(" / ");
-    const mails = ((p as any)[`${prefix}_mail`] as string || "").split(" / ");
-    const telefonos = ((p as any)[`${prefix}_telefono`] as string || "").split(" / ");
 
     const idx = nombres.findIndex(
       (n) => n.trim().toLowerCase() === oldNombre.trim().toLowerCase()
     );
     if (idx === -1) continue;
 
+    // Only update if the name actually changed
+    if (nombres[idx].trim() === newNombre.trim()) continue;
+
     nombres[idx] = newNombre;
-    contactosArr[idx] = contactoStr;
-    mails[idx] = emailStr;
-    telefonos[idx] = telefonoStr;
 
     const updates: Record<string, string> = {
       [`${prefix}_nombre`]: nombres.join(" / "),
-      [`${prefix}_contacto`]: contactosArr.join(" / "),
-      [`${prefix}_mail`]: mails.join(" / "),
-      [`${prefix}_telefono`]: telefonos.join(" / "),
     };
 
     const { error } = await supabase
