@@ -155,7 +155,8 @@ export function useUpdateCliente() {
       if (error) throw error;
 
       // Delete old contactos and re-insert
-      await supabase.from("contactos_cliente").delete().eq("cliente_id", id);
+      const { error: delErr } = await supabase.from("contactos_cliente").delete().eq("cliente_id", id);
+      if (delErr) throw delErr;
       if (contactos.length > 0) {
         const rows = contactos.map((c, i) => ({
           cliente_id: id,

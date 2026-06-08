@@ -45,6 +45,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const hasComplemented = useRef<string | null>(null);
+  const editingRef = useRef(false);
 
   useEffect(() => {
     if (cliente) {
@@ -67,15 +68,15 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
     }));
 
     complementClienteFromProyectos(cliente.id, cliente.nombre, catNombre, currentContactos).then(merged => {
-      if (merged) {
+      // Only apply if the user hasn't started editing yet.
+      // If editing is already active, don't overwrite their changes.
+      if (merged && !editingRef.current) {
         setContactos(merged.map((c, i) => ({
           id: (cliente.contactos_cliente || [])[i]?.id,
           contacto: c.contacto,
           email: c.email,
           telefono: c.telefono,
         })));
-        // Do NOT mark as dirty — the auto-fill is transparent to the user.
-        // hasChanges only becomes true when the user explicitly edits a field.
       }
     });
   }, [open, cliente, categorias]);
@@ -94,6 +95,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
     );
     setHasChanges(false);
     setEditing(false);
+    editingRef.current = false;
   };
 
   const updateContacto = (idx: number, field: string, value: string) => {
@@ -204,7 +206,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
             <DialogTitle className="flex items-center justify-between pr-6">
               <span>{editing ? "Editar Cliente" : "Detalle de Cliente"}</span>
               {canEdit && !editing && (
-                <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => setEditing(true)}>
+                <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => { setEditing(true); editingRef.current = true; }}>
                   Editar
                 </Button>
               )}
