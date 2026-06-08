@@ -1,29 +1,69 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+const untypedTable = (tableName: string) => tableName as never;
+
+function decodeJwtPayload(token: string): { sub?: string; role?: string } | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+async function getAuthenticatedAccessToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const claims = token ? decodeJwtPayload(token) : null;
+  if (!token || !claims?.sub || claims.role === "anon") return null;
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
+  return token;
+}
+
+async function invokeGoogleAuthCallback<T>(body: Record<string, unknown>) {
+  const accessToken = await getAuthenticatedAccessToken();
+  if (!accessToken) return { data: null, unauthorized: true } as const;
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth-callback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (response.status === 401) return { data: null, unauthorized: true } as const;
+  if (!response.ok) throw new Error(result?.error || `Error ${response.status}`);
+  return { data: result as T, unauthorized: false } as const;
+}
+
 export function useDriveAuthStatus() {
   return useQuery({
     queryKey: ["drive_auth_status"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return { connected: false };
-      const { data, error } = await supabase.functions.invoke("google-auth-callback", {
-        body: { action: "check_status" },
-      });
-      if (error) throw error;
-      return data as { connected: boolean };
+      const result = await invokeGoogleAuthCallback<{ connected: boolean }>({ action: "check_status" });
+      if (result.unauthorized || !result.data) return { connected: false };
+      return result.data;
     },
+    retry: false,
   });
 }
 
 export function useGetDriveAuthUrl() {
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("google-auth-callback", {
-        body: { action: "get_auth_url" },
-      });
-      if (error) throw error;
-      return data as { auth_url: string };
+      const result = await invokeGoogleAuthCallback<{ auth_url: string }>({ action: "get_auth_url" });
+      if (result.unauthorized || !result.data) throw new Error("Sesión no autenticada. Vuelve a iniciar sesión.");
+      return result.data;
     },
   });
 }
@@ -145,7 +185,7 @@ export function useDriveFiles(projectFolderId: string | null) {
     enabled: !!projectFolderId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("drive_files" as any)
+        .from(untypedTable("drive_files"))
         .select("*")
         .eq("project_folder_id", projectFolderId!)
         .order("file_name", { ascending: true });
@@ -200,7 +240,7 @@ export function usePendingFilesForFolder(projectFolderId: string | null) {
     refetchInterval: 10000,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("pending_sync" as any)
+        .from(untypedTable("pending_sync"))
         .select("*")
         .eq("project_folder_id", projectFolderId!)
         .in("status", ["pending", "failed", "uploading"])
@@ -225,16 +265,16 @@ export function usePendingSyncCount(projectId: string | null) {
     queryFn: async () => {
       // Get all project_folder ids for this project
       const { data: folders } = await supabase
-        .from("project_folders" as any)
+        .from(untypedTable("project_folders"))
         .select("id")
         .eq("project_id", projectId!);
       
       if (!folders || folders.length === 0) return 0;
       
-      const folderIds = (folders as any[]).map((f: any) => f.id);
+      const folderIds = (folders as Array<{ id: string }>).map((f) => f.id);
       
       const { count, error } = await supabase
-        .from("pending_sync" as any)
+        .from(untypedTable("pending_sync"))
         .select("*", { count: "exact", head: true })
         .in("project_folder_id", folderIds)
         .in("status", ["pending", "failed", "uploading"]);
