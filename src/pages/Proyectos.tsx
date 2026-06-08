@@ -86,7 +86,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
-  const { isAdmin, isUsuarioTipo1, isCaptador, permissions, user } = useAuth();
+  const { isAdmin, isUsuarioTipo1, isCaptador, permissions, user, isSectionRestrictedToAssigned } = useAuth();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
@@ -428,9 +428,11 @@ export default function Proyectos() {
 
   // Group projects by name
   // For captadores: only show project groups where at least one empresa is assigned to them
-  const captadorEmpresaIds = isCaptador && permissions?.empresas_visibles
+  const restrictByEmpresas = (isCaptador || isSectionRestrictedToAssigned("proyectos"))
+    && permissions?.empresas_visibles
     ? new Set(permissions.empresas_visibles)
     : null;
+  const captadorEmpresaIds = restrictByEmpresas;
 
   const groupedRows = useMemo(() => {
     const groups: Record<string, ProyectoWithEmpresas[]> = {};
