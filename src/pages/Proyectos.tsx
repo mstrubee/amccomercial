@@ -87,6 +87,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
   const { isAdmin, isUsuarioTipo1, isCaptador, permissions, user, isSectionRestrictedToAssigned } = useAuth();
+  const { data: captadoresConUsuarios } = useCaptadoresConUsuarios();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
@@ -407,11 +408,20 @@ export default function Proyectos() {
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
       return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
-    const matchCaptador =
-      filterCaptadores.length === 0 ||
-      (p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id));
+    const matchCaptador = (() => {
+      if (filterCaptadores.length === 0) return true;
+      // System 1: proyecto_captadores (legacy direct link)
+      if ((p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id))) return true;
+      // System 2: captador has one of the project's empresas in their empresas_visibles
+      const projectEmpresaIds = (p.proyecto_empresas || []).map(pe => pe.empresa_id);
+      for (const cid of filterCaptadores) {
+        const cap = captadoresConUsuarios?.find(c => c.captadorId === cid);
+        if (cap?.empresasVisibles && projectEmpresaIds.some(eid => cap.empresasVisibles!.includes(eid))) return true;
+      }
+      return false;
+    })();
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, buttonLabelsByLink, statusByPe]);
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, captadoresConUsuarios, buttonLabelsByLink, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
