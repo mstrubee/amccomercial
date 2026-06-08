@@ -5,6 +5,8 @@ export function useDriveAuthStatus() {
   return useQuery({
     queryKey: ["drive_auth_status"],
     queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return { connected: false };
       const { data, error } = await supabase.functions.invoke("google-auth-callback", {
         body: { action: "check_status" },
       });
