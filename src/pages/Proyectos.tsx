@@ -997,7 +997,8 @@ export default function Proyectos() {
                   const p = items[0];
                   // Captadores can't edit/delete rows
                   if (isCaptador) {
-                    return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={() => {}} onDelete={() => {}} onTemplate={() => {}} onOpenChat={openProjectChat} updateNotas={() => {}} filterBotones={filterBotones} filterEmpresas={Array.from(captadorEmpresaIds || [])} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={() => {}} />;
+                    // Captadores see all empresas of the project row (no empresa filter)
+                    return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={() => {}} onDelete={() => {}} onTemplate={() => {}} onOpenChat={openProjectChat} updateNotas={() => {}} filterBotones={filterBotones} filterEmpresas={[]} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={() => {}} />;
                   }
                   return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
                 }
@@ -1136,8 +1137,9 @@ export default function Proyectos() {
                             if (!seenEmpresas.has(pe.empresa_id)) {
                               seenEmpresas.add(pe.empresa_id);
                               // Captadores: only show empresas in their visible list
-                              if (captadorEmpresaIds && !captadorEmpresaIds.has(pe.empresa_id)) continue;
-                              // Regular empresa filter
+                              // Captadores see ALL empresas of their visible projects
+                              // (project visibility is already scoped at group level)
+                              // Only apply the regular filter for non-captadores
                               if (!captadorEmpresaIds && filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
                               childRows.push({ p, pe });
                             }
@@ -1168,7 +1170,9 @@ export default function Proyectos() {
                                 </td>
                                 <td className="px-5 py-2 align-top">
                                   <EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} statusByPe={statusByPe} />
-                                  <CaptadorEmpresaCell empresaId={empresaId} isAdmin={isAdmin} />
+                                  {(isAdmin || isUsuarioTipo1) && (
+                                    <CaptadorEmpresaCell empresaId={empresaId} canAssign={isAdmin} />
+                                  )}
                                 </td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {/* Estado AMC per empresa */}
@@ -2227,13 +2231,11 @@ function useCaptadoresConUsuarios() {
 }
 
 /* ── CaptadorEmpresaCell: assign/unassign captador to an empresa ── */
-function CaptadorEmpresaCell({ empresaId, isAdmin }: { empresaId: string; isAdmin: boolean }) {
+function CaptadorEmpresaCell({ empresaId, canAssign }: { empresaId: string; canAssign: boolean }) {
   const { data: captadores, refetch } = useCaptadoresConUsuarios();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
-
-  if (!isAdmin) return null;
 
   // Captadores assigned to this empresa (empresa in their empresas_visibles)
   const asignados = (captadores || []).filter(c =>
@@ -2261,6 +2263,17 @@ function CaptadorEmpresaCell({ empresaId, isAdmin }: { empresaId: string; isAdmi
       setSaving(false);
     }
   };
+
+  // If only viewing (not assigning), just show a static chip
+  if (!canAssign) {
+    if (asignados.length === 0) return null;
+    return (
+      <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded px-1.5 py-0.5 mt-0.5">
+        <UserCircle2 className="w-3 h-3" />
+        {asignados.map(c => c.nombre).join(", ")}
+      </div>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

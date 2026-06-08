@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { Building2, FolderKanban, TrendingUp, DollarSign, Bell, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import KpiCard from "@/components/dashboard/KpiCard";
@@ -18,9 +19,23 @@ import {
 import { Loader2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { data: proyectos, isLoading: loadingP } = useProyectos();
+  const { isCaptador, permissions } = useAuth();
+  const { data: allProyectos, isLoading: loadingP } = useProyectos();
   const { data: empresas, isLoading: loadingE } = useEmpresas();
   const { data: alertas, isLoading: loadingA } = useAlertas();
+
+  // Captadores see stats scoped to their visible projects only
+  const captadorEmpresaIds = isCaptador && permissions?.empresas_visibles
+    ? new Set(permissions.empresas_visibles)
+    : null;
+
+  const proyectos = useMemo(() => {
+    if (!allProyectos) return allProyectos;
+    if (!captadorEmpresaIds) return allProyectos;
+    return allProyectos.filter(p =>
+      (p.proyecto_empresas || []).some(pe => captadorEmpresaIds.has(pe.empresa_id))
+    );
+  }, [allProyectos, captadorEmpresaIds]);
 
   const { data: condiciones } = useQuery({
     queryKey: ["condiciones_comerciales_all"],
