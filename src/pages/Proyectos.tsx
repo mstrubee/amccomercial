@@ -2239,6 +2239,36 @@ function useCaptadoresConUsuarios() {
   });
 }
 
+function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; onToggle: (id: string) => void; onClear: () => void }) {
+  const { data: captadores } = useCaptadoresConUsuarios();
+  const sorted = (captadores || []).slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+          Captador {value.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{value.length}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="max-h-[400px] overflow-y-auto space-y-1">
+          {sorted.length === 0 && (
+            <p className="text-xs text-muted-foreground px-2 py-1.5">Sin captadores con usuario vinculado.</p>
+          )}
+          {sorted.map((c) => (
+            <label key={c.captadorId} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+              <Checkbox checked={value.includes(c.captadorId)} onCheckedChange={() => onToggle(c.captadorId)} />
+              {c.nombre}
+            </label>
+          ))}
+        </div>
+        {value.length > 0 && (
+          <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={onClear}>Limpiar</Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /* ── CaptadorEmpresaCell: assign/unassign captador to an empresa ── */
 function CaptadorEmpresaCell({ empresaId, canAssign }: { empresaId: string; canAssign: boolean }) {
   const { data: captadores, refetch } = useCaptadoresConUsuarios();
