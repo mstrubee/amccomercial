@@ -86,8 +86,12 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
+<<<<<<< HEAD
   const { isAdmin, isUsuarioTipo1, isCaptador, permissions, user, isSectionRestrictedToAssigned } = useAuth();
   const { data: captadoresConUsuarios } = useCaptadoresConUsuarios();
+=======
+  const { isAdmin, isUsuarioTipo1, isCaptador, captadorId, permissions, user, isSectionRestrictedToAssigned } = useAuth();
+>>>>>>> 906ef13f262192f9998c028835fa9e83a5688701
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
