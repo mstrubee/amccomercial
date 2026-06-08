@@ -86,7 +86,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
-  const { isAdmin, isUsuarioTipo1, isCaptador, permissions } = useAuth();
+  const { isAdmin, isUsuarioTipo1, isCaptador, permissions, user } = useAuth();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
@@ -719,12 +719,10 @@ export default function Proyectos() {
           <h1 className="text-3xl font-bold text-foreground">Proyectos</h1>
           <p className="text-muted-foreground mt-1">Base de datos de proyectos</p>
         </div>
-        {!isCaptador && (
-          <Button className="gap-2" onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4" />
-            Nuevo Proyecto
-          </Button>
-        )}
+        <Button className="gap-2" onClick={() => setShowCreate(true)}>
+          <Plus className="w-4 h-4" />
+          Nuevo Proyecto
+        </Button>
       </motion.div>
 
       {/* Filters */}
@@ -1108,9 +1106,11 @@ export default function Proyectos() {
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
                             <Folder className="w-3.5 h-3.5 text-amber-500" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(actionItems); }}>
-                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
+                          {!isCaptador && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(actionItems); }}>
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
                           {isAdmin && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" title="Eliminar grupo" onClick={(e) => { e.stopPropagation(); setDeleteGroupTarget(actionItems); }}>
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1284,8 +1284,27 @@ export default function Proyectos() {
         mode="create"
         isLoading={createProyecto.isPending}
         isAdmin={isAdmin}
-        onSubmit={(data) => {
-          createProyecto.mutate(data, { onSuccess: () => setShowCreate(false) });
+        onSubmit={async (data) => {
+          createProyecto.mutate(data, {
+            onSuccess: async () => {
+              setShowCreate(false);
+              // Auto-assign new project's empresas to the captador creator
+              if (isCaptador && user?.id && data.empresa_links.length > 0) {
+                const newEmpresaIds = data.empresa_links.map(l => l.empresa_id);
+                const { data: perms } = await supabase
+                  .from("user_permissions")
+                  .select("empresas_visibles")
+                  .eq("user_id", user.id)
+                  .maybeSingle();
+                const current: string[] = (perms as any)?.empresas_visibles || [];
+                const merged = Array.from(new Set([...current, ...newEmpresaIds]));
+                await supabase.from("user_permissions").upsert(
+                  { user_id: user.id, empresas_visibles: merged },
+                  { onConflict: "user_id" }
+                );
+              }
+            },
+          });
         }}
       />
 
