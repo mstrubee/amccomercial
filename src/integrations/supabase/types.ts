@@ -1874,6 +1874,7 @@ export type Database = {
           empresas_visibles: string[] | null
           id: string
           puede_editar: boolean
+          secciones_solo_asignados: string[] | null
           secciones_visibles: string[] | null
           updated_at: string
           user_id: string
@@ -1884,6 +1885,7 @@ export type Database = {
           empresas_visibles?: string[] | null
           id?: string
           puede_editar?: boolean
+          secciones_solo_asignados?: string[] | null
           secciones_visibles?: string[] | null
           updated_at?: string
           user_id: string
@@ -1894,6 +1896,7 @@ export type Database = {
           empresas_visibles?: string[] | null
           id?: string
           puede_editar?: boolean
+          secciones_solo_asignados?: string[] | null
           secciones_visibles?: string[] | null
           updated_at?: string
           user_id?: string

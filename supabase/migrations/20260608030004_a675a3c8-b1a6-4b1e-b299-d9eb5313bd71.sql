@@ -1,0 +1,1 @@
+ALTER TABLE public.user_permissions ADD COLUMN IF NOT EXISTS secciones_solo_asignados text[] DEFAULT ARRAY['empresas','proyectos']::text[];
