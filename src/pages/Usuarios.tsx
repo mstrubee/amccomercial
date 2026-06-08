@@ -468,15 +468,40 @@ function PermissionsDialog({ open, onOpenChange, user }: {
               </div>
               {!allSections && (
                 <div className="space-y-2 border rounded-md p-3">
-                  {ALL_SECTIONS.map(s => (
-                    <label key={s.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={(seccionesVisibles || []).includes(s.key)}
-                        onCheckedChange={() => toggleSection(s.key)}
-                      />
-                      {s.label}
-                    </label>
-                  ))}
+                  {ALL_SECTIONS.map(s => {
+                    const enabled = (seccionesVisibles || []).includes(s.key);
+                    const supportsAsignados = s.key === "empresas" || s.key === "proyectos";
+                    const soloAsignados = seccionesSoloAsignados.includes(s.key);
+                    return (
+                      <div key={s.key} className="space-y-1">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={enabled}
+                            onCheckedChange={() => toggleSection(s.key)}
+                          />
+                          {s.label}
+                        </label>
+                        {supportsAsignados && (
+                          <label className={cn(
+                            "flex items-center gap-2 text-xs cursor-pointer ml-6 text-muted-foreground",
+                            !enabled && "opacity-50 pointer-events-none"
+                          )}>
+                            <Checkbox
+                              checked={soloAsignados}
+                              onCheckedChange={(v) => {
+                                setSeccionesSoloAsignados(prev =>
+                                  v ? Array.from(new Set([...prev, s.key])) : prev.filter(k => k !== s.key)
+                                );
+                              }}
+                            />
+                            {s.key === "empresas"
+                              ? "Solo empresas asignadas"
+                              : "Solo proyectos de empresas asignadas"}
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
