@@ -118,6 +118,7 @@ export default function Proyectos() {
   const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
   const [filterClasificaciones, setFilterClasificaciones] = useState<string[]>([]);
   const [filterBotones, setFilterBotones] = useState<string[]>([]);
+  const [filterCaptadores, setFilterCaptadores] = useState<string[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
