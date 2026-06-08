@@ -86,7 +86,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
-  const { isAdmin, isUsuarioTipo1, isCaptador, permissions, user, isSectionRestrictedToAssigned } = useAuth();
+  const { isAdmin, isUsuarioTipo1, isCaptador, captadorId, permissions, user, isSectionRestrictedToAssigned } = useAuth();
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
