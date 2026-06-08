@@ -25,17 +25,16 @@ export default function Dashboard() {
   const { data: alertas, isLoading: loadingA } = useAlertas();
 
   // Captadores see stats scoped to their visible projects only
-  const captadorEmpresaIds = isCaptador && permissions?.empresas_visibles
-    ? new Set(permissions.empresas_visibles)
-    : null;
-
   const proyectos = useMemo(() => {
     if (!allProyectos) return allProyectos;
-    if (!captadorEmpresaIds) return allProyectos;
+    if (!isCaptador) return allProyectos; // admin/asistente see all
+    if (!permissions) return []; // no permissions record yet → show empty
+    if (permissions.empresas_visibles === null) return allProyectos; // "Ver todas" mode
+    const ids = new Set(permissions.empresas_visibles);
     return allProyectos.filter(p =>
-      (p.proyecto_empresas || []).some(pe => captadorEmpresaIds.has(pe.empresa_id))
+      (p.proyecto_empresas || []).some(pe => ids.has(pe.empresa_id))
     );
-  }, [allProyectos, captadorEmpresaIds]);
+  }, [allProyectos, isCaptador, permissions]);
 
   const { data: condiciones } = useQuery({
     queryKey: ["condiciones_comerciales_all"],

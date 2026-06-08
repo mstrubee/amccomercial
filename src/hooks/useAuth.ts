@@ -21,6 +21,15 @@ export function useAuth() {
   const [captadorId, setCaptadorId] = useState<string | null>(null);
   const fetchedUserId = useRef<string | null>(null);
 
+  const fetchPermissions = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from("user_permissions")
+      .select("empresas_visibles, secciones_visibles, dashboard_widgets, puede_editar, secciones_solo_asignados")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setPermissions(data as UserPermissionsData | null);
+  }, []);
+
   const fetchUserData = useCallback(async (userId: string) => {
     if (fetchedUserId.current === userId) return;
     fetchedUserId.current = userId;
@@ -66,6 +75,27 @@ export function useAuth() {
 
     return () => subscription.unsubscribe();
   }, [fetchUserData]);
+
+  // Realtime: re-fetch permissions whenever user_permissions changes for this user.
+  // This ensures captadores see their assigned projects immediately after an admin
+  // assigns or removes empresas, without needing to log out and back in.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`user_permissions:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_permissions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => fetchPermissions(user.id)
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchPermissions]);
 
   const isAdmin = roles.includes("admin");
   const isUsuarioTipo1 = roles.includes("usuario_tipo_1");

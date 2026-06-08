@@ -430,13 +430,17 @@ export default function Proyectos() {
     return groups;
   }, [proyectos]);
 
-  // Group projects by name
-  // For captadores: only show project groups where at least one empresa is assigned to them
-  const restrictByEmpresas = (isCaptador || isSectionRestrictedToAssigned("proyectos"))
-    && permissions?.empresas_visibles
-    ? new Set(permissions.empresas_visibles)
-    : null;
-  const captadorEmpresaIds = restrictByEmpresas;
+  // For captadores / restricted users: filter projects to only those with assigned empresas.
+  // - empresas_visibles === null  → "Ver todas" mode → no filter (see all)
+  // - empresas_visibles === [...]  → "Solo asignadas" mode → filter to those empresa IDs
+  // - permissions === null (no record yet) AND isCaptador → show nothing until admin assigns
+  const captadorEmpresaIds: Set<string> | null | "none" = useMemo(() => {
+    const restricted = isCaptador || isSectionRestrictedToAssigned("proyectos");
+    if (!restricted) return null; // not a restricted user → no filter
+    if (!permissions) return "none"; // captador with no permissions record → hide all
+    if (permissions.empresas_visibles === null) return null; // "Ver todas" → no filter
+    return new Set(permissions.empresas_visibles); // filter to assigned empresas
+  }, [isCaptador, isSectionRestrictedToAssigned, permissions]);
 
   const groupedRows = useMemo(() => {
     const groups: Record<string, ProyectoWithEmpresas[]> = {};
@@ -452,10 +456,11 @@ export default function Proyectos() {
       if (!seen.has(key)) {
         seen.add(key);
         const items = groups[key];
-        // Captadores only see groups where at least one empresa is in their list
-        if (captadorEmpresaIds) {
+        // Apply empresa filter for captadores / restricted users
+        if (captadorEmpresaIds === "none") return; // no permissions record → hide all
+        if (captadorEmpresaIds instanceof Set) {
           const hasVisibleEmpresa = items.some(row =>
-            (row.proyecto_empresas || []).some(pe => captadorEmpresaIds.has(pe.empresa_id))
+            (row.proyecto_empresas || []).some(pe => (captadorEmpresaIds as Set<string>).has(pe.empresa_id))
           );
           if (!hasVisibleEmpresa) return;
         }
