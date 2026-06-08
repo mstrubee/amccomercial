@@ -1,31 +1,38 @@
-## Problema
+## Objetivo
 
-En el popover de `ClientePicker` (dentro de la sección **Contactos** del editor de proyecto) se ven clientes repetidos: el mismo nombre aparece varias veces porque existen filas duplicadas en `clientes` (mismo `nombre`, distinto `id`), cada una con su propio contacto.
+En el diálogo de permisos de usuario (pestaña **Secciones**), agregar un segundo checkbox como sub-fila debajo de **Empresas** y **Proyectos** que permita al administrador elegir entre:
+- **Ver todos** los registros de la sección, o
+- **Solo asignados** (filtrado por `empresas_visibles`).
 
-Verificado en BD: hay clientes con 2–5 filas duplicadas por nombre (`ANF arquitectos` x5, `Estudio Valdes` x4, `GVAA` x3, etc.).
+Default: **Solo asignados**.
 
-## Solución (solo UI)
+## Cambios
 
-Deduplicar la lista del dropdown y la lógica de selección de cliente, agrupando por nombre normalizado y **fusionando** sus `contactos_cliente`. Sin tocar la base de datos.
+### 1. Base de datos
+Nueva columna en `user_permissions`:
+- `secciones_solo_asignados text[]` — lista de keys de secciones donde el usuario ve solo lo asignado (por defecto `['empresas','proyectos']` cuando la sección está habilitada y no se marca "Ver todos").
 
-### Cambios en `src/components/proyectos/ProyectoFormDialog.tsx`
+Migración: `ALTER TABLE public.user_permissions ADD COLUMN secciones_solo_asignados text[] DEFAULT ARRAY['empresas','proyectos']::text[];`
 
-1. **`ClientePicker`**
-   - Antes de filtrar, construir `dedupedClientes` a partir de `clientes`:
-     - Clave = `nombre.trim().toLowerCase()`.
-     - Para cada grupo, conservar el primer registro como base y fusionar los `contactos_cliente` de todos los duplicados (eliminando contactos idénticos por `contacto + email + telefono`).
-   - Usar `dedupedClientes` en `filtered` y en el `.map()` del listado.
-   - El `onSelect` sigue pasando el cliente fusionado (mantiene `id` del primero, lo cual es suficiente para `categoria_id` y para la búsqueda por `nombre`).
+### 2. UI — `src/pages/Usuarios.tsx`
+En el bloque `ALL_SECTIONS.map(...)` (Tabs > Secciones), cuando la sección sea `empresas` o `proyectos`, renderizar debajo del label una sub-fila indentada con un Checkbox:
+- Label: "Solo empresas asignadas" / "Solo proyectos de empresas asignadas"
+- Estado: `secciones_solo_asignados.includes(key)`
+- Toggle agrega/quita la key.
+- Deshabilitado si la sección no está marcada.
 
-2. **`ContactosSection` → `getClientesForCategory` / `applyCliente` / `handleContactoChange`**
-   - Aplicar la misma deduplicación a la lista que se pasa como `availableClientes` al `ClientePicker` y a los lookups por `nombre`, para que los contactos disponibles del cliente seleccionado incluyan los de **todas** las filas duplicadas (no solo los de la primera fila encontrada).
-   - Implementarlo con un helper local `dedupeClientesByNombre(clientes)` reutilizable.
+Agregar `secciones_solo_asignados` al estado local, carga inicial y al payload de `useSavePermissions`.
 
-### No se cambia
+### 3. Hooks y tipos
+- `src/hooks/usePermissions.ts`: agregar campo `secciones_solo_asignados: string[] | null` a `UserPermissions` e incluirlo en `useSavePermissions`.
+- `src/hooks/useAuth.ts`: exponer `secciones_solo_asignados` en `UserPermissionsData` y agregar helper `sectionRestrictedToAssigned(key)`.
 
-- Esquema, RLS, mutaciones ni hook `useClientes`.
-- La limpieza de duplicados en BD queda como tarea aparte (lo pueden hacer desde **Clientes y Captadores**).
+### 4. Aplicar el filtro
+En las páginas `Empresas.tsx` y `Proyectos.tsx`: cuando `sectionRestrictedToAssigned('empresas'|'proyectos')` sea true y el usuario tenga `empresas_visibles` con valor, filtrar el listado por esas empresas. Si es admin o el usuario tiene "Ver todos", no aplicar restricción adicional.
 
-### Archivos
+Regla de admin existente (memoria): `vcabrera@am-c.cl` sigue con `empresas_visibles = null` y por tanto ve todo siempre.
 
-- `src/components/proyectos/ProyectoFormDialog.tsx` (único archivo).
+## Fuera de alcance
+
+- No se cambia la lógica de Finanzas, Alertas, Reuniones (ya filtran por `empresas_visibles` cuando está definido).
+- No se modifica `ClientePicker` ni dedupe de clientes.

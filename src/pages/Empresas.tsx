@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, ChevronDown, ChevronRight, Calendar, Pencil, Trash2, PlusCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import { useAuth } from "@/hooks/useAuth";
 import {
   useEmpresas,
   useCreateEmpresa,
@@ -29,7 +30,14 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function Empresas() {
-  const { data: empresas, isLoading } = useEmpresas();
+  const { data: empresasRaw, isLoading } = useEmpresas();
+  const { permissions, isSectionRestrictedToAssigned } = useAuth();
+  const empresas = (() => {
+    if (!empresasRaw) return empresasRaw;
+    if (!isSectionRestrictedToAssigned("empresas")) return empresasRaw;
+    const allowed = new Set(permissions?.empresas_visibles || []);
+    return empresasRaw.filter(e => allowed.has(e.id));
+  })();
   const createEmpresa = useCreateEmpresa();
   const updateEmpresa = useUpdateEmpresa();
   const deleteEmpresa = useDeleteEmpresa();

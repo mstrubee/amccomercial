@@ -9,6 +9,7 @@ export interface UserPermissions {
   secciones_visibles: string[] | null;
   dashboard_widgets: string[] | null;
   puede_editar: boolean;
+  secciones_solo_asignados: string[] | null;
 }
 
 // All available sections
@@ -75,6 +76,7 @@ export function useSavePermissions() {
       secciones_visibles: string[] | null;
       dashboard_widgets: string[] | null;
       puede_editar: boolean;
+      secciones_solo_asignados?: string[] | null;
     }) => {
       // Upsert: try update first, then insert
       const { data: existing } = await supabase
@@ -91,6 +93,7 @@ export function useSavePermissions() {
             secciones_visibles: input.secciones_visibles,
             dashboard_widgets: input.dashboard_widgets,
             puede_editar: input.puede_editar,
+            secciones_solo_asignados: input.secciones_solo_asignados ?? ["empresas", "proyectos"],
           } as any)
           .eq("user_id", input.user_id);
         if (error) throw error;
