@@ -327,6 +327,7 @@ function PermissionsDialog({ open, onOpenChange, user }: {
   const [allEmpresas, setAllEmpresas] = useState(true);
   const [allSections, setAllSections] = useState(true);
   const [allWidgets, setAllWidgets] = useState(true);
+  const [seccionesSoloAsignados, setSeccionesSoloAsignados] = useState<string[]>(["empresas", "proyectos"]);
 
   useEffect(() => {
     if (open && permissions !== undefined) {
@@ -338,6 +339,7 @@ function PermissionsDialog({ open, onOpenChange, user }: {
         setAllEmpresas(permissions.empresas_visibles === null);
         setAllSections(permissions.secciones_visibles === null);
         setAllWidgets(permissions.dashboard_widgets === null);
+        setSeccionesSoloAsignados(permissions.secciones_solo_asignados ?? ["empresas", "proyectos"]);
       } else {
         setEmpresasVisibles(null);
         setSeccionesVisibles(null);
@@ -346,6 +348,7 @@ function PermissionsDialog({ open, onOpenChange, user }: {
         setAllEmpresas(true);
         setAllSections(true);
         setAllWidgets(true);
+        setSeccionesSoloAsignados(["empresas", "proyectos"]);
       }
     }
   }, [open, permissions]);
@@ -385,6 +388,7 @@ function PermissionsDialog({ open, onOpenChange, user }: {
       secciones_visibles: allSections ? null : (seccionesVisibles || []),
       dashboard_widgets: allWidgets ? null : (dashboardWidgets || []),
       puede_editar: puedeEditar,
+      secciones_solo_asignados: seccionesSoloAsignados,
     }, {
       onSuccess: () => onOpenChange(false),
     });
