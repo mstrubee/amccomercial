@@ -9,6 +9,7 @@ export interface UserPermissionsData {
   secciones_visibles: string[] | null;
   dashboard_widgets: string[] | null;
   puede_editar: boolean;
+  secciones_solo_asignados: string[] | null;
 }
 
 export function useAuth() {
@@ -27,7 +28,7 @@ export function useAuth() {
     const [rolesRes, permsRes, captadorRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId),
       supabase.from("user_permissions")
-        .select("empresas_visibles, secciones_visibles, dashboard_widgets, puede_editar")
+        .select("empresas_visibles, secciones_visibles, dashboard_widgets, puede_editar, secciones_solo_asignados")
         .eq("user_id", userId)
         .maybeSingle(),
       supabase.from("captadores" as any).select("id").eq("user_id", userId).maybeSingle(),
@@ -90,6 +91,15 @@ export function useAuth() {
     return permissions.empresas_visibles.includes(empresaId);
   };
 
+  const isSectionRestrictedToAssigned = (sectionKey: string): boolean => {
+    if (isAdmin) return false;
+    if (!permissions || permissions.empresas_visibles === null) return false;
+    const arr = permissions.secciones_solo_asignados;
+    // Default behavior: empresas/proyectos restricted when permissions exist
+    if (arr === null || arr === undefined) return sectionKey === "empresas" || sectionKey === "proyectos";
+    return arr.includes(sectionKey);
+  };
+
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
@@ -102,6 +112,7 @@ export function useAuth() {
   return {
     user, session, loading, roles, isAdmin, isUsuarioTipo1, isCaptador, captadorId,
     permissions, canAccessSection, canSeeDashboardWidget, canEdit, canSeeEmpresa,
+    isSectionRestrictedToAssigned,
     signIn, signOut,
   };
 }
