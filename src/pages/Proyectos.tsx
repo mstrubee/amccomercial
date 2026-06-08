@@ -118,6 +118,7 @@ export default function Proyectos() {
   const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
   const [filterClasificaciones, setFilterClasificaciones] = useState<string[]>([]);
   const [filterBotones, setFilterBotones] = useState<string[]>([]);
+  const [filterCaptadores, setFilterCaptadores] = useState<string[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -404,8 +405,11 @@ export default function Proyectos() {
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
       return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink, statusByPe]);
+    const matchCaptador =
+      filterCaptadores.length === 0 ||
+      (p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id));
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, buttonLabelsByLink, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -822,6 +826,9 @@ export default function Proyectos() {
               )}
             </PopoverContent>
           </Popover>
+
+          {/* 4b. Captador (solo Admin y Asistente) */}
+          {(isAdmin || isUsuarioTipo1) && <CaptadorFilterPopover value={filterCaptadores} onToggle={(id) => toggleFilter(setFilterCaptadores, id)} onClear={() => setFilterCaptadores([])} />}
 
           {/* 5. Estado AMC (x Empresa) */}
           {estadosAmc && estadosAmc.length > 0 && (
@@ -2230,6 +2237,36 @@ function useCaptadoresConUsuarios() {
       }));
     },
   });
+}
+
+function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; onToggle: (id: string) => void; onClear: () => void }) {
+  const { data: captadores } = useCaptadoresConUsuarios();
+  const sorted = (captadores || []).slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+          Captador {value.length > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">{value.length}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="max-h-[400px] overflow-y-auto space-y-1">
+          {sorted.length === 0 && (
+            <p className="text-xs text-muted-foreground px-2 py-1.5">Sin captadores con usuario vinculado.</p>
+          )}
+          {sorted.map((c) => (
+            <label key={c.captadorId} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+              <Checkbox checked={value.includes(c.captadorId)} onCheckedChange={() => onToggle(c.captadorId)} />
+              {c.nombre}
+            </label>
+          ))}
+        </div>
+        {value.length > 0 && (
+          <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={onClear}>Limpiar</Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /* ── CaptadorEmpresaCell: assign/unassign captador to an empresa ── */
