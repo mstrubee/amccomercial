@@ -827,6 +827,9 @@ export default function Proyectos() {
             </PopoverContent>
           </Popover>
 
+          {/* 4b. Captador (solo Admin y Asistente) */}
+          {(isAdmin || isUsuarioTipo1) && <CaptadorFilterPopover value={filterCaptadores} onToggle={(id) => toggleFilter(setFilterCaptadores, id)} onClear={() => setFilterCaptadores([])} />}
+
           {/* 5. Estado AMC (x Empresa) */}
           {estadosAmc && estadosAmc.length > 0 && (
             <Popover>
