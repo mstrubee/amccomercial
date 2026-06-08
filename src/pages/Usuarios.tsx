@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2, Copy, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +55,7 @@ export default function Usuarios() {
   const [delegacionesUser, setDelegacionesUser] = useState<UserRecord | null>(null);
   const [thresholdsUser, setThresholdsUser] = useState<UserRecord | null>(null);
   const [linkCaptadorUser, setLinkCaptadorUser] = useState<UserRecord | null>(null);
+  const [cloneSource, setCloneSource] = useState<UserRecord | null>(null);
   const [profiles, setProfiles] = useState<ProfilePresence[]>([]);
   const [captadores, setCaptadores] = useState<CaptadorRecord[]>([]);
   const { data: thresholds } = useActivityThresholds();
@@ -210,8 +211,14 @@ export default function Usuarios() {
                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Delegaciones" onClick={() => setDelegacionesUser(u)}>
                       <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Permisos" onClick={() => setPermissionsUser(u)}>
-                      <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Button
+                      variant="ghost" size="icon" className="h-7 w-7"
+                      title={linkedCaptador ? "Asignar empresas al captador" : "Permisos"}
+                      onClick={() => setPermissionsUser(u)}
+                    >
+                      {linkedCaptador
+                        ? <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                        : <Shield className="w-3.5 h-3.5 text-muted-foreground" />}
                     </Button>
                     <Button
                       variant="ghost" size="icon" className="h-7 w-7"
@@ -222,7 +229,10 @@ export default function Usuarios() {
                         ? <Link2Off className="w-3.5 h-3.5 text-emerald-600" />
                         : <Link2 className="w-3.5 h-3.5 text-muted-foreground" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditUser(u); setShowForm(true); }}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Clonar usuario" onClick={() => { setCloneSource(u); setEditUser(null); setShowForm(true); }}>
+                      <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditUser(u); setCloneSource(null); setShowForm(true); }}>
                       <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteUser(u)}>
@@ -242,10 +252,11 @@ export default function Usuarios() {
 
       <UserFormDialog
         open={showForm}
-        onOpenChange={setShowForm}
+        onOpenChange={(v) => { setShowForm(v); if (!v) setCloneSource(null); }}
         editUser={editUser}
+        cloneSource={cloneSource}
         roleLabels={roleLabels}
-        onSuccess={() => { setShowForm(false); fetchUsers(); }}
+        onSuccess={() => { setShowForm(false); setCloneSource(null); fetchUsers(); }}
       />
 
       <PermissionsDialog
@@ -506,10 +517,11 @@ function PermissionsDialog({ open, onOpenChange, user }: {
   );
 }
 
-function UserFormDialog({ open, onOpenChange, editUser, onSuccess, roleLabels }: {
+function UserFormDialog({ open, onOpenChange, editUser, cloneSource, onSuccess, roleLabels }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editUser: UserRecord | null;
+  cloneSource?: UserRecord | null;
   onSuccess: () => void;
   roleLabels?: Record<string, string>;
 }) {
@@ -526,11 +538,15 @@ function UserFormDialog({ open, onOpenChange, editUser, onSuccess, roleLabels }:
         setDisplayName(editUser.display_name);
         setRole(editUser.roles[0] || "");
         setPassword("");
+      } else if (cloneSource) {
+        // Clone mode: pre-fill role from source, empty personal data
+        setEmail(""); setPassword(""); setDisplayName("");
+        setRole(cloneSource.roles[0] || "");
       } else {
         setEmail(""); setPassword(""); setDisplayName(""); setRole("");
       }
     }
-  }, [open, editUser]);
+  }, [open, editUser, cloneSource]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -561,7 +577,27 @@ function UserFormDialog({ open, onOpenChange, editUser, onSuccess, roleLabels }:
       if (res.error || res.data?.error) {
         toast.error(res.data?.error || "Error al crear usuario");
       } else {
-        toast.success("Usuario creado");
+        const newUserId = res.data?.user?.id;
+        // If cloning, copy permissions from source user to the new user
+        if (cloneSource && newUserId) {
+          const { data: srcPerms } = await supabase
+            .from("user_permissions")
+            .select("*")
+            .eq("user_id", cloneSource.id)
+            .maybeSingle();
+          if (srcPerms) {
+            await supabase.from("user_permissions").upsert({
+              user_id: newUserId,
+              empresas_visibles: srcPerms.empresas_visibles,
+              secciones_visibles: srcPerms.secciones_visibles,
+              dashboard_widgets: srcPerms.dashboard_widgets,
+              puede_editar: srcPerms.puede_editar,
+            }, { onConflict: "user_id" });
+          }
+          toast.success("Usuario clonado con permisos copiados");
+        } else {
+          toast.success("Usuario creado");
+        }
         onSuccess();
       }
     }
@@ -572,7 +608,14 @@ function UserFormDialog({ open, onOpenChange, editUser, onSuccess, roleLabels }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{editUser ? "Editar Usuario" : "Nuevo Usuario"}</DialogTitle>
+          <DialogTitle>
+            {editUser ? "Editar Usuario" : cloneSource ? `Clonar usuario — ${cloneSource.display_name || cloneSource.email}` : "Nuevo Usuario"}
+          </DialogTitle>
+          {cloneSource && (
+            <p className="text-xs text-muted-foreground pt-1">
+              Se copiarán el rol y los permisos de <strong>{cloneSource.display_name || cloneSource.email}</strong>. Ingresa los datos personales del nuevo usuario.
+            </p>
+          )}
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
