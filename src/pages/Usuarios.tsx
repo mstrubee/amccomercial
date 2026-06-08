@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2, Copy, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2, Copy, Building2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -413,27 +413,40 @@ function PermissionsDialog({ open, onOpenChange, user }: {
 
             {/* Empresas visibles */}
             <TabsContent value="empresas" className="space-y-3">
-              <p className="text-xs text-muted-foreground">Selecciona qué empresas puede ver este usuario.</p>
               <div className="flex items-center gap-2">
                 <Switch checked={allEmpresas} onCheckedChange={(v) => {
                   setAllEmpresas(v);
                   if (v) setEmpresasVisibles(null);
-                  else setEmpresasVisibles([]);
                 }} />
-                <Label className="text-sm">Todas las empresas</Label>
+                <Label className="text-sm">Ver todas las empresas</Label>
               </div>
-              {!allEmpresas && (
-                <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
-                  {empresas?.map(e => (
-                    <label key={e.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={(empresasVisibles || []).includes(e.id)}
-                        onCheckedChange={() => toggleEmpresa(e.id)}
-                      />
-                      {e.nombre}
-                      <span className="text-[10px] text-muted-foreground ml-auto">{e.estado}</span>
-                    </label>
-                  ))}
+              {allEmpresas ? (
+                <p className="text-xs text-muted-foreground">
+                  El usuario puede ver proyectos de todas las empresas.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    El usuario ve solo las empresas que le fueron asignadas desde el listado de proyectos.
+                  </p>
+                  {(empresasVisibles || []).length === 0 ? (
+                    <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
+                      Sin empresas asignadas — el usuario no verá ningún proyecto. Asigna empresas desde el listado de proyectos expandiendo cada proyecto.
+                    </p>
+                  ) : (
+                    <div className="space-y-1 border rounded-md p-3 max-h-48 overflow-y-auto">
+                      {(empresasVisibles || []).map(eid => {
+                        const e = empresas?.find(x => x.id === eid);
+                        return e ? (
+                          <div key={eid} className="flex items-center gap-2 text-sm py-0.5">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>{e.nombre}</span>
+                            <span className="text-[10px] text-muted-foreground ml-auto">{e.estado}</span>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>

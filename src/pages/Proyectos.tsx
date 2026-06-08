@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback, memo, useDeferredValue } from "react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1166,7 +1166,10 @@ export default function Proyectos() {
                                 <td colSpan={2} className="px-5 py-2 align-top">
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                                 </td>
-                                <td className="px-5 py-2 align-top"><EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} statusByPe={statusByPe} /></td>
+                                <td className="px-5 py-2 align-top">
+                                  <EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} statusByPe={statusByPe} />
+                                  <CaptadorEmpresaCell empresaId={empresaId} isAdmin={isAdmin} />
+                                </td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {/* Estado AMC per empresa */}
                                   <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -2175,5 +2178,116 @@ function HitosEjecucionDialog({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/* ── Hook: captadores with their linked user permissions ── */
+function useCaptadoresConUsuarios() {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["captadores_con_usuarios"],
+    queryFn: async () => {
+      const { data: caps } = await supabase
+        .from("captadores" as any)
+        .select("id, nombre, user_id")
+        .not("user_id", "is", null);
+      if (!caps?.length) return [];
+      const userIds = (caps as any[]).map((c: any) => c.user_id);
+      const { data: perms } = await supabase
+        .from("user_permissions")
+        .select("user_id, empresas_visibles")
+        .in("user_id", userIds);
+      return (caps as any[]).map((c: any) => ({
+        captadorId: c.id as string,
+        nombre: c.nombre as string,
+        userId: c.user_id as string,
+        empresasVisibles: (perms?.find((p: any) => p.user_id === c.user_id) as any)?.empresas_visibles as string[] | null,
+      }));
+    },
+  });
+}
+
+/* ── CaptadorEmpresaCell: assign/unassign captador to an empresa ── */
+function CaptadorEmpresaCell({ empresaId, isAdmin }: { empresaId: string; isAdmin: boolean }) {
+  const { data: captadores, refetch } = useCaptadoresConUsuarios();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
+
+  if (!isAdmin) return null;
+
+  // Captadores assigned to this empresa (empresa in their empresas_visibles)
+  const asignados = (captadores || []).filter(c =>
+    c.empresasVisibles !== null && c.empresasVisibles.includes(empresaId)
+  );
+
+  const handleToggle = async (cap: { captadorId: string; userId: string; empresasVisibles: string[] | null }) => {
+    setSaving(true);
+    try {
+      const current = cap.empresasVisibles || [];
+      const isAssigned = current.includes(empresaId);
+      const updated = isAssigned
+        ? current.filter(id => id !== empresaId)
+        : [...current, empresaId];
+      await supabase.from("user_permissions").upsert(
+        { user_id: cap.userId, empresas_visibles: updated },
+        { onConflict: "user_id" }
+      );
+      await refetch();
+      qc.invalidateQueries({ queryKey: ["captadores_con_usuarios"] });
+      toast.success(isAssigned ? "Empresa removida del captador" : "Empresa asignada al captador");
+    } catch {
+      toast.error("Error al actualizar asignación");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className={`flex items-center gap-1 text-[11px] font-medium transition-colors rounded px-1.5 py-0.5 ${
+            asignados.length > 0
+              ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
+          title="Asignar captador a esta empresa"
+        >
+          <UserCircle2 className="w-3 h-3" />
+          {asignados.length > 0 ? asignados.map(c => c.nombre).join(", ") : "Captador"}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start" onClick={(e) => e.stopPropagation()}>
+        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Asignar captador</p>
+        {!captadores?.length ? (
+          <p className="text-xs text-muted-foreground">No hay captadores con cuenta de usuario</p>
+        ) : (
+          <div className="space-y-1">
+            {captadores.map(cap => {
+              const isAssigned = (cap.empresasVisibles || []).includes(empresaId);
+              return (
+                <button
+                  key={cap.captadorId}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => handleToggle(cap)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left ${
+                    isAssigned
+                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "hover:bg-muted text-foreground"
+                  }`}
+                >
+                  <Check className={`w-3 h-3 shrink-0 ${isAssigned ? "opacity-100" : "opacity-0"}`} />
+                  {cap.nombre}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
