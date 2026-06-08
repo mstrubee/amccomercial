@@ -405,8 +405,11 @@ export default function Proyectos() {
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
       return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, buttonLabelsByLink, statusByPe]);
+    const matchCaptador =
+      filterCaptadores.length === 0 ||
+      (p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id));
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, buttonLabelsByLink, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
