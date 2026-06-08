@@ -63,7 +63,7 @@ export default function Usuarios() {
 
   const fetchCaptadores = async () => {
     const { data } = await supabase.from("captadores" as any).select("id, nombre, user_id");
-    setCaptadores((data as CaptadorRecord[]) || []);
+    setCaptadores(((data as unknown) as CaptadorRecord[]) || []);
   };
 
   // Fetch profiles for activity column
