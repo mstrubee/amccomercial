@@ -30,11 +30,12 @@ export default function Clientes() {
   const deleteCliente = useDeleteCliente();
   const createCaptador = useCreateCaptador();
   const deleteCaptador = useDeleteCaptador();
-  const { isAdmin, roles } = useAuth();
+  const { isAdmin, roles, isCaptador } = useAuth();
 
   const isUsuarioTipo1 = roles.includes("usuario_tipo_1");
-  const canEdit = isAdmin || isUsuarioTipo1;
-  const canDelete = isAdmin;
+  // Captadores cannot edit, delete, or see client/captador lists
+  const canEdit = (isAdmin || isUsuarioTipo1) && !isCaptador;
+  const canDelete = isAdmin && !isCaptador;
 
   const [activeTab, setActiveTab] = useState("clientes");
 

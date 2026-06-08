@@ -60,7 +60,7 @@ function getQueryClient() {
 }
 
 function AppRoutes() {
-  const { user, loading, isAdmin, isUsuarioTipo1, signIn, signOut, canAccessSection } = useAuth();
+  const { user, loading, isAdmin, isUsuarioTipo1, isCaptador, signIn, signOut, canAccessSection } = useAuth();
   usePresenceHeartbeat(user?.id);
 
   if (loading) {
@@ -77,7 +77,7 @@ function AppRoutes() {
 
   return (
     <NotasModoProvider>
-    <AppLayout isAdmin={isAdmin} isUsuarioTipo1={isUsuarioTipo1} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
+    <AppLayout isAdmin={isAdmin} isUsuarioTipo1={isUsuarioTipo1} isCaptador={isCaptador} onSignOut={signOut} userEmail={user.email || ""} canAccessSection={canAccessSection}>
       <NotasModoOverlay />
       <Suspense fallback={<PageFallback />}>
         <Routes>
@@ -95,7 +95,7 @@ function AppRoutes() {
           {isAdmin && <Route path="/drive" element={<DrivePage />} />}
           {isAdmin && <Route path="/hitos-ejecucion" element={<HitosEjecucionPage />} />}
           {isAdmin && <Route path="/notas" element={<AdminNotas />} />}
-          {(isAdmin || isUsuarioTipo1) && <Route path="/clientes" element={<Clientes />} />}
+          {(isAdmin || isUsuarioTipo1) && !isCaptador && <Route path="/clientes" element={<Clientes />} />}
           {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
           <Route path="/calendario" element={<Calendario />} />
           {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}

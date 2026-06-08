@@ -38,12 +38,13 @@ interface Props {
   children: React.ReactNode;
   isAdmin: boolean;
   isUsuarioTipo1?: boolean;
+  isCaptador?: boolean;
   onSignOut: () => void;
   userEmail: string;
   canAccessSection?: (key: string) => boolean;
 }
 
-export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut, userEmail, canAccessSection }: Props) {
+export default function AppLayout({ children, isAdmin, isUsuarioTipo1, isCaptador, onSignOut, userEmail, canAccessSection }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [personalizacionOpen, setPersonalizacionOpen] = useState(false);
@@ -88,7 +89,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, onSignOut
   const adminSubItems = isAdmin
     ? allAdminSubItems
     : isUsuarioTipo1
-      ? allAdminSubItems.filter(i => i.allowTipo1)
+      ? allAdminSubItems.filter(i => i.allowTipo1 && !(isCaptador && i.path === "/clientes"))
       : [];
 
   const showAdminSection = adminSubItems.length > 0;
