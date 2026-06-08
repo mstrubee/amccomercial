@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+const untypedTable = (tableName: string) => tableName as never;
+
 function decodeJwtPayload(token: string): { sub?: string; role?: string } | null {
   try {
     const payload = token.split(".")[1];
@@ -183,7 +185,7 @@ export function useDriveFiles(projectFolderId: string | null) {
     enabled: !!projectFolderId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("drive_files" as any)
+        .from(untypedTable("drive_files"))
         .select("*")
         .eq("project_folder_id", projectFolderId!)
         .order("file_name", { ascending: true });
@@ -238,7 +240,7 @@ export function usePendingFilesForFolder(projectFolderId: string | null) {
     refetchInterval: 10000,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("pending_sync" as any)
+        .from(untypedTable("pending_sync"))
         .select("*")
         .eq("project_folder_id", projectFolderId!)
         .in("status", ["pending", "failed", "uploading"])
@@ -263,16 +265,16 @@ export function usePendingSyncCount(projectId: string | null) {
     queryFn: async () => {
       // Get all project_folder ids for this project
       const { data: folders } = await supabase
-        .from("project_folders" as any)
+        .from(untypedTable("project_folders"))
         .select("id")
         .eq("project_id", projectId!);
       
       if (!folders || folders.length === 0) return 0;
       
-      const folderIds = (folders as any[]).map((f: any) => f.id);
+      const folderIds = (folders as Array<{ id: string }>).map((f) => f.id);
       
       const { count, error } = await supabase
-        .from("pending_sync" as any)
+        .from(untypedTable("pending_sync"))
         .select("*", { count: "exact", head: true })
         .in("project_folder_id", folderIds)
         .in("status", ["pending", "failed", "uploading"]);
