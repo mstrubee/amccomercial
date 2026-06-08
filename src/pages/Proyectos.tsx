@@ -389,6 +389,29 @@ export default function Proyectos() {
     return map;
   }, [proyectos, categorias, latestHistorialByPe]);
 
+  // Pre-compute visible project names for captador filter.
+  // A project is visible if ANY of its rows passes the captador check.
+  // Then ALL rows of that project are included (not just the matching one).
+  const visibleProyectoNamesByCaptador = useMemo(() => {
+    if (filterCaptadores.length === 0) return null; // no filter active
+    const visible = new Set<string>();
+    for (const p of (proyectos || [])) {
+      // System 1: proyecto_captadores (legacy)
+      const hasLegacy = (p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id));
+      if (hasLegacy) { visible.add(p.nombre.trim().toLowerCase()); continue; }
+      // System 2: captador has empresa of this project in empresas_visibles
+      const empresaIds = (p.proyecto_empresas || []).map(pe => pe.empresa_id);
+      for (const cid of filterCaptadores) {
+        const cap = captadoresConUsuarios?.find(c => c.captadorId === cid);
+        if (cap?.empresasVisibles && empresaIds.some(eid => cap.empresasVisibles!.includes(eid))) {
+          visible.add(p.nombre.trim().toLowerCase());
+          break;
+        }
+      }
+    }
+    return visible;
+  }, [proyectos, filterCaptadores, captadoresConUsuarios]);
+
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = deferredSearch.trim().toLowerCase();
     const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
@@ -410,20 +433,11 @@ export default function Proyectos() {
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
       return filterBotones.includes((pe as any).estado_amc || "Vigente");
     });
-    const matchCaptador = (() => {
-      if (filterCaptadores.length === 0) return true;
-      // System 1: proyecto_captadores (legacy direct link)
-      if ((p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id))) return true;
-      // System 2: captador has one of the project's empresas in their empresas_visibles
-      const projectEmpresaIds = (p.proyecto_empresas || []).map(pe => pe.empresa_id);
-      for (const cid of filterCaptadores) {
-        const cap = captadoresConUsuarios?.find(c => c.captadorId === cid);
-        if (cap?.empresasVisibles && projectEmpresaIds.some(eid => cap.empresasVisibles!.includes(eid))) return true;
-      }
-      return false;
-    })();
+    // matchCaptador: uses pre-computed set — all rows of a visible project pass together
+    const matchCaptador = filterCaptadores.length === 0 ||
+      (visibleProyectoNamesByCaptador?.has(p.nombre.trim().toLowerCase()) ?? false);
     return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, captadoresConUsuarios, buttonLabelsByLink, statusByPe]);
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
