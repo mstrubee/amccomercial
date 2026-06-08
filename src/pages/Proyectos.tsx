@@ -118,7 +118,9 @@ export default function Proyectos() {
   const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
   const [filterClasificaciones, setFilterClasificaciones] = useState<string[]>([]);
   const [filterBotones, setFilterBotones] = useState<string[]>([]);
-  const [filterCaptadores, setFilterCaptadores] = useState<string[]>([]);
+  const [filterCaptadores, setFilterCaptadores] = useState<string[]>(
+    () => captadorId ? [captadorId] : []
+  );
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -430,17 +432,9 @@ export default function Proyectos() {
     return groups;
   }, [proyectos]);
 
-  // For captadores / restricted users: filter projects to only those with assigned empresas.
-  // - empresas_visibles === null  → "Ver todas" mode → no filter (see all)
-  // - empresas_visibles === [...]  → "Solo asignadas" mode → filter to those empresa IDs
-  // - permissions === null (no record yet) AND isCaptador → show nothing until admin assigns
-  const captadorEmpresaIds: Set<string> | null | "none" = useMemo(() => {
-    const restricted = isCaptador || isSectionRestrictedToAssigned("proyectos");
-    if (!restricted) return null; // not a restricted user → no filter
-    if (!permissions) return "none"; // captador with no permissions record → hide all
-    if (permissions.empresas_visibles === null) return null; // "Ver todas" → no filter
-    return new Set(permissions.empresas_visibles); // filter to assigned empresas
-  }, [isCaptador, isSectionRestrictedToAssigned, permissions]);
+  // captadorEmpresaIds kept as null (no longer used for project filtering)
+  // Captador visibility is now handled via filterCaptadores pre-set to their own captadorId
+  const captadorEmpresaIds = null;
 
   const groupedRows = useMemo(() => {
     const groups: Record<string, ProyectoWithEmpresas[]> = {};
@@ -832,8 +826,13 @@ export default function Proyectos() {
             </PopoverContent>
           </Popover>
 
-          {/* 4b. Captador (solo Admin y Asistente) */}
-          {(isAdmin || isUsuarioTipo1) && <CaptadorFilterPopover value={filterCaptadores} onToggle={(id) => toggleFilter(setFilterCaptadores, id)} onClear={() => setFilterCaptadores([])} />}
+          {/* 4b. Captador — interactivo para admin/asistente, badge bloqueado para captador */}
+          {(isAdmin || isUsuarioTipo1) && (
+            <CaptadorFilterPopover value={filterCaptadores} onToggle={(id) => toggleFilter(setFilterCaptadores, id)} onClear={() => setFilterCaptadores([])} />
+          )}
+          {isCaptador && captadorId && (
+            <CaptadorFilterBadge captadorId={captadorId} />
+          )}
 
           {/* 5. Estado AMC (x Empresa) */}
           {estadosAmc && estadosAmc.length > 0 && (
@@ -905,6 +904,8 @@ export default function Proyectos() {
                 setFilterEstadosObra([]);
                 setFilterClasificaciones([]);
                 setFilterBotones([]);
+                // Don't clear captador filter for captadores (it's locked to their own id)
+                if (!isCaptador) setFilterCaptadores([]);
               }}
             >
               <X className="w-3 h-3" />
@@ -2242,6 +2243,18 @@ function useCaptadoresConUsuarios() {
       }));
     },
   });
+}
+
+/* Badge read-only mostrado al captador indicando que ve sus proyectos */
+function CaptadorFilterBadge({ captadorId }: { captadorId: string }) {
+  const { data: captadores } = useCaptadoresConUsuarios();
+  const nombre = captadores?.find(c => c.captadorId === captadorId)?.nombre || "Mis proyectos";
+  return (
+    <Button variant="outline" size="sm" className="h-8 text-xs gap-1 cursor-default opacity-80" disabled>
+      <UserCircle2 className="w-3 h-3" />
+      {nombre}
+    </Button>
+  );
 }
 
 function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; onToggle: (id: string) => void; onClear: () => void }) {
