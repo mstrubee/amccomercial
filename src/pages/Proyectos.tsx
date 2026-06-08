@@ -119,9 +119,11 @@ export default function Proyectos() {
   const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
   const [filterClasificaciones, setFilterClasificaciones] = useState<string[]>([]);
   const [filterBotones, setFilterBotones] = useState<string[]>([]);
-  const [filterCaptadores, setFilterCaptadores] = useState<string[]>(
-    () => captadorId ? [captadorId] : []
-  );
+  const [filterCaptadores, setFilterCaptadores] = useState<string[]>([]);
+  // Apply captador's own filter once their ID loads (auth is async)
+  useEffect(() => {
+    if (captadorId) setFilterCaptadores([captadorId]);
+  }, [captadorId]);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
