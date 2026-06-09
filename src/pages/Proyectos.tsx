@@ -2251,10 +2251,11 @@ function HitosEjecucionDialog({
 }
 
 /* ── Hook: captadores with their linked user permissions ── */
-function useCaptadoresConUsuarios() {
+function useCaptadoresConUsuarios(enabled: boolean = true) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: ["captadores_con_usuarios"],
+    enabled,
     queryFn: async () => {
       const { data: caps } = await supabase
         .from("captadores" as any)
