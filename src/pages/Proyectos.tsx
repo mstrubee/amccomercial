@@ -2335,18 +2335,10 @@ function CaptadorProjectCell({
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
 
-<<<<<<< HEAD
   // All empresa IDs in this project group — used only for legacy cleanup on unassign
   const allEmpresaIds = useMemo(
     () => Array.from(new Set(items.flatMap(p => (p.proyecto_empresas || []).map(pe => pe.empresa_id)))),
     [items]
-=======
-  // A captador is "assigned" to this project if they have ALL empresa IDs in their empresas_visibles
-  // (or at least one, to be lenient with existing data)
-  const asignados = captadoresConUsuarios.filter(c =>
-    Array.isArray(c.empresasVisibles) &&
-    allEmpresaIds.some(eid => c.empresasVisibles!.includes(eid))
->>>>>>> a5ba51a2c3715de3a89c1e7acc73cf01cf53ba0f
   );
 
   // Determine if a captador is assigned via NEW system (proyecto_captadores) or LEGACY (empresas_visibles)
