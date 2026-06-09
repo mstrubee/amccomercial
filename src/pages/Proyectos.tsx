@@ -2267,12 +2267,16 @@ function useCaptadoresConUsuarios(enabled: boolean = true) {
         .from("user_permissions")
         .select("user_id, empresas_visibles")
         .in("user_id", userIds);
-      return (caps as any[]).map((c: any) => ({
-        captadorId: c.id as string,
-        nombre: c.nombre as string,
-        userId: c.user_id as string,
-        empresasVisibles: (perms?.find((p: any) => p.user_id === c.user_id) as any)?.empresas_visibles as string[] | null,
-      }));
+      return (caps as any[]).map((c: any) => {
+        const perm = perms?.find((p: any) => p.user_id === c.user_id) as any;
+        const ev = perm?.empresas_visibles;
+        return {
+          captadorId: c.id as string,
+          nombre: c.nombre as string,
+          userId: c.user_id as string,
+          empresasVisibles: Array.isArray(ev) ? (ev as string[]) : null,
+        };
+      });
     },
   });
 }
@@ -2331,10 +2335,18 @@ function CaptadorProjectCell({
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
 
+<<<<<<< HEAD
   // All empresa IDs in this project group — used only for legacy cleanup on unassign
   const allEmpresaIds = useMemo(
     () => Array.from(new Set(items.flatMap(p => (p.proyecto_empresas || []).map(pe => pe.empresa_id)))),
     [items]
+=======
+  // A captador is "assigned" to this project if they have ALL empresa IDs in their empresas_visibles
+  // (or at least one, to be lenient with existing data)
+  const asignados = captadoresConUsuarios.filter(c =>
+    Array.isArray(c.empresasVisibles) &&
+    allEmpresaIds.some(eid => c.empresasVisibles!.includes(eid))
+>>>>>>> a5ba51a2c3715de3a89c1e7acc73cf01cf53ba0f
   );
 
   // Determine if a captador is assigned via NEW system (proyecto_captadores) or LEGACY (empresas_visibles)
@@ -2445,7 +2457,7 @@ function CaptadorEmpresaCell({ empresaId, canAssign }: { empresaId: string; canA
 
   // Captadores assigned to this empresa (empresa in their empresas_visibles)
   const asignados = (captadores || []).filter(c =>
-    c.empresasVisibles !== null && c.empresasVisibles.includes(empresaId)
+    Array.isArray(c.empresasVisibles) && c.empresasVisibles.includes(empresaId)
   );
 
   const handleToggle = async (cap: { captadorId: string; userId: string; empresasVisibles: string[] | null }) => {
