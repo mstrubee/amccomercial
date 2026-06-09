@@ -2423,7 +2423,7 @@ function CaptadorEmpresaCell({ empresaId, canAssign }: { empresaId: string; canA
 
   // Captadores assigned to this empresa (empresa in their empresas_visibles)
   const asignados = (captadores || []).filter(c =>
-    c.empresasVisibles !== null && c.empresasVisibles.includes(empresaId)
+    Array.isArray(c.empresasVisibles) && c.empresasVisibles.includes(empresaId)
   );
 
   const handleToggle = async (cap: { captadorId: string; userId: string; empresasVisibles: string[] | null }) => {
