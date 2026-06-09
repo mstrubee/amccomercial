@@ -87,7 +87,7 @@ const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Const
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
   const { isAdmin, isUsuarioTipo1, isCaptador, captadorId, permissions, user, isSectionRestrictedToAssigned } = useAuth();
-  const { data: captadoresConUsuarios } = useCaptadoresConUsuarios();
+  const { data: captadoresConUsuarios } = useCaptadoresConUsuarios(isAdmin || isUsuarioTipo1 || isCaptador);
   const { data: empresas } = useEmpresas();
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
@@ -122,8 +122,8 @@ export default function Proyectos() {
   const [filterCaptadores, setFilterCaptadores] = useState<string[]>([]);
   // Apply captador's own filter once their ID loads (auth is async)
   useEffect(() => {
-    if (captadorId) setFilterCaptadores([captadorId]);
-  }, [captadorId]);
+    if (captadorId && !isAdmin && !isUsuarioTipo1) setFilterCaptadores([captadorId]);
+  }, [captadorId, isAdmin, isUsuarioTipo1]);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -2251,10 +2251,11 @@ function HitosEjecucionDialog({
 }
 
 /* ── Hook: captadores with their linked user permissions ── */
-function useCaptadoresConUsuarios() {
+function useCaptadoresConUsuarios(enabled: boolean = true) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: ["captadores_con_usuarios"],
+    enabled,
     queryFn: async () => {
       const { data: caps } = await supabase
         .from("captadores" as any)
