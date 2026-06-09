@@ -1185,11 +1185,14 @@ export default function Proyectos() {
                           for (const pe of (p.proyecto_empresas || [])) {
                             if (!seenEmpresas.has(pe.empresa_id)) {
                               seenEmpresas.add(pe.empresa_id);
-                              // Captadores: only show empresas in their visible list
-                              // Captadores see ALL empresas of their visible projects
-                              // (project visibility is already scoped at group level)
-                              // Only apply the regular filter for non-captadores
-                              if (!captadorEmpresaIds && filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
+                              // Captadores: only show the specific empresas assigned to them
+                              if (isCaptador && captadorId) {
+                                const inNew = (p.proyecto_captadores || []).some((pc: any) => pc.captador_id === captadorId);
+                                const inLegacy = Array.isArray(permissions?.empresas_visibles) && (permissions!.empresas_visibles as string[]).includes(pe.empresa_id);
+                                if (!inNew && !inLegacy) continue;
+                              }
+                              // Non-captadores: apply empresa filter if active
+                              if (!isCaptador && filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) continue;
                               childRows.push({ p, pe });
                             }
                           }
@@ -2323,7 +2326,7 @@ function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; 
   );
 }
 
-/* ── CaptadorProjectCell: assign/unassign captador to an entire project ── */
+/* ── CaptadorProjectCell: assign captadores to specific empresas of a project ── */
 function CaptadorProjectCell({
   items,
   captadoresConUsuarios,
@@ -2335,54 +2338,78 @@ function CaptadorProjectCell({
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
 
-  // All empresa IDs in this project group — used only for legacy cleanup on unassign
-  const allEmpresaIds = useMemo(
-    () => Array.from(new Set(items.flatMap(p => (p.proyecto_empresas || []).map(pe => pe.empresa_id)))),
-    [items]
-  );
+  // One entry per unique empresa in this project group
+  const empresaItems = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { proyectoId: string; empresaId: string; empresaNombre: string }[] = [];
+    for (const p of items) {
+      const pe = p.proyecto_empresas?.[0];
+      if (pe && !seen.has(pe.empresa_id)) {
+        seen.add(pe.empresa_id);
+        result.push({ proyectoId: p.id, empresaId: pe.empresa_id, empresaNombre: pe.empresas?.nombre || "Empresa" });
+      }
+    }
+    return result;
+  }, [items]);
 
-  // Determine if a captador is assigned via NEW system (proyecto_captadores) or LEGACY (empresas_visibles)
-  const isAssignedNew = (cap: typeof captadoresConUsuarios[0]) =>
-    items.some(p => (p.proyecto_captadores || []).some((pc: any) => pc.captador_id === cap.captadorId));
+  // Is a captador assigned to a specific proyecto_id? Checks new system + legacy empresas_visibles
+  const checkAssigned = useCallback((captadorId: string, proyectoId: string, empresasVisibles: string[] | null): boolean => {
+    const p = items.find(i => i.id === proyectoId);
+    if (!p) return false;
+    if ((p.proyecto_captadores || []).some((pc: any) => pc.captador_id === captadorId)) return true;
+    const empresaId = p.proyecto_empresas?.[0]?.empresa_id;
+    return !!(empresaId && Array.isArray(empresasVisibles) && empresasVisibles.includes(empresaId));
+  }, [items]);
 
-  const isAssignedLegacy = (cap: typeof captadoresConUsuarios[0]) =>
-    allEmpresaIds.some(eid => (cap.empresasVisibles || []).includes(eid));
+  // Count of assigned empresas per captador (for badge on button)
+  const assignedCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const cap of captadoresConUsuarios) {
+      map.set(cap.captadorId, empresaItems.filter(e => checkAssigned(cap.captadorId, e.proyectoId, cap.empresasVisibles)).length);
+    }
+    return map;
+  }, [captadoresConUsuarios, empresaItems, checkAssigned]);
 
-  const asignados = captadoresConUsuarios.filter(c => isAssignedNew(c) || isAssignedLegacy(c));
+  // Captadores with at least one empresa assigned (for trigger button label)
+  const asignados = captadoresConUsuarios.filter(c => (assignedCounts.get(c.captadorId) || 0) > 0);
 
-  const handleToggle = async (cap: typeof captadoresConUsuarios[0]) => {
+  const handleToggleEmpresa = async (
+    cap: typeof captadoresConUsuarios[0],
+    proyectoId: string,
+    empresaId: string,
+  ) => {
     setSaving(true);
     try {
-      const inNew = isAssignedNew(cap);
-      const inLegacy = isAssignedLegacy(cap);
+      const p = items.find(i => i.id === proyectoId);
+      const inNew = p ? (p.proyecto_captadores || []).some((pc: any) => pc.captador_id === cap.captadorId) : false;
+      const inLegacy = Array.isArray(cap.empresasVisibles) && cap.empresasVisibles.includes(empresaId);
       const assigned = inNew || inLegacy;
 
       if (assigned) {
-        // Remove from proyecto_captadores (new system)
+        // Remove from this specific proyecto row
         if (inNew) {
           const { error } = await supabase
             .from("proyecto_captadores")
             .delete()
-            .in("proyecto_id", items.map(p => p.id))
+            .eq("proyecto_id", proyectoId)
             .eq("captador_id", cap.captadorId);
           if (error) throw error;
         }
-        // Also clean up legacy empresas_visibles for this project's empresas
+        // Clean up legacy empresas_visibles for this empresa
         if (inLegacy && cap.userId) {
-          const cleaned = (cap.empresasVisibles || []).filter(id => !allEmpresaIds.includes(id));
+          const cleaned = (cap.empresasVisibles || []).filter(id => id !== empresaId);
           const { error } = await supabase.from("user_permissions").upsert(
             { user_id: cap.userId, empresas_visibles: cleaned },
             { onConflict: "user_id" }
           );
           if (error) throw error;
         }
-        toast.success("Proyecto removido del captador");
       } else {
-        // Assign via proyecto_captadores — project-specific, no empresa contamination
-        const rows = items.map(p => ({ proyecto_id: p.id, captador_id: cap.captadorId }));
-        const { error } = await supabase.from("proyecto_captadores").insert(rows);
+        // Assign to this specific proyecto row (empresa-level, no cross-project leakage)
+        const { error } = await supabase
+          .from("proyecto_captadores")
+          .insert({ proyecto_id: proyectoId, captador_id: cap.captadorId });
         if (error) throw error;
-        toast.success("Proyecto asignado al captador");
       }
 
       qc.invalidateQueries({ queryKey: ["proyectos"] });
@@ -2399,38 +2426,55 @@ function CaptadorProjectCell({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`flex items-center gap-1 text-[11px] font-medium rounded px-1.5 py-0.5 transition-colors ${
+          className={cn(
+            "flex items-center gap-1 text-[11px] font-medium rounded px-1.5 py-0.5 transition-colors",
             asignados.length > 0
               ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-          title="Asignar captador a este proyecto"
+          )}
+          title="Asignar captadores a este proyecto"
         >
           <UserCircle2 className="w-3 h-3" />
           {asignados.length > 0 ? asignados.map(c => c.nombre).join(", ") : "Captador"}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-2" align="start">
-        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Asignar al proyecto</p>
+      <PopoverContent className="w-64 p-3" align="start">
+        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Asignar captador por empresa</p>
         {captadoresConUsuarios.length === 0 ? (
           <p className="text-xs text-muted-foreground">Sin captadores con cuenta de usuario.</p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-4">
             {captadoresConUsuarios.map(cap => {
-              const assigned = isAssignedNew(cap) || isAssignedLegacy(cap);
+              const count = assignedCounts.get(cap.captadorId) || 0;
               return (
-                <button
-                  key={cap.captadorId}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => handleToggle(cap)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left ${
-                    assigned ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "hover:bg-muted text-foreground"
-                  }`}
-                >
-                  <Check className={`w-3 h-3 shrink-0 ${assigned ? "opacity-100" : "opacity-0"}`} />
-                  {cap.nombre}
-                </button>
+                <div key={cap.captadorId}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-foreground">{cap.nombre}</span>
+                    {count > 0 && (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 rounded px-1.5 py-0.5 font-medium">
+                        {count} emp.
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 border-l-2 border-muted pl-2">
+                    {empresaItems.map(({ proyectoId, empresaId, empresaNombre }) => {
+                      const assigned = checkAssigned(cap.captadorId, proyectoId, cap.empresasVisibles);
+                      return (
+                        <label
+                          key={`${cap.captadorId}-${proyectoId}`}
+                          className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={assigned}
+                            disabled={saving}
+                            onCheckedChange={() => handleToggleEmpresa(cap, proyectoId, empresaId)}
+                          />
+                          <span className="text-xs text-muted-foreground">{empresaNombre}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>
