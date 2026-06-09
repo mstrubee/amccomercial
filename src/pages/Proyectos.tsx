@@ -1151,7 +1151,7 @@ export default function Proyectos() {
                           {isAdmin && (
                             <span onClick={(e) => e.stopPropagation()}>
                               <CaptadorProjectCell
-                                allEmpresaIds={Array.from(new Set(items.flatMap(p => (p.proyecto_empresas || []).map(pe => pe.empresa_id))))}
+                                items={items}
                                 captadoresConUsuarios={captadoresConUsuarios || []}
                               />
                             </span>
@@ -2321,44 +2321,70 @@ function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; 
 
 /* ── CaptadorProjectCell: assign/unassign captador to an entire project ── */
 function CaptadorProjectCell({
-  allEmpresaIds,
+  items,
   captadoresConUsuarios,
 }: {
-  allEmpresaIds: string[];
+  items: ProyectoWithEmpresas[];
   captadoresConUsuarios: { captadorId: string; nombre: string; userId: string; empresasVisibles: string[] | null }[];
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
 
-  // A captador is "assigned" to this project if they have ALL empresa IDs in their empresas_visibles
-  // (or at least one, to be lenient with existing data)
-  const asignados = captadoresConUsuarios.filter(c =>
-    c.empresasVisibles !== null &&
-    allEmpresaIds.some(eid => c.empresasVisibles!.includes(eid))
+  // All empresa IDs in this project group — used only for legacy cleanup on unassign
+  const allEmpresaIds = useMemo(
+    () => Array.from(new Set(items.flatMap(p => (p.proyecto_empresas || []).map(pe => pe.empresa_id)))),
+    [items]
   );
+
+  // Determine if a captador is assigned via NEW system (proyecto_captadores) or LEGACY (empresas_visibles)
+  const isAssignedNew = (cap: typeof captadoresConUsuarios[0]) =>
+    items.some(p => (p.proyecto_captadores || []).some((pc: any) => pc.captador_id === cap.captadorId));
+
+  const isAssignedLegacy = (cap: typeof captadoresConUsuarios[0]) =>
+    allEmpresaIds.some(eid => (cap.empresasVisibles || []).includes(eid));
+
+  const asignados = captadoresConUsuarios.filter(c => isAssignedNew(c) || isAssignedLegacy(c));
 
   const handleToggle = async (cap: typeof captadoresConUsuarios[0]) => {
     setSaving(true);
     try {
-      const current = cap.empresasVisibles || [];
-      const isAssigned = allEmpresaIds.some(eid => current.includes(eid));
-      let updated: string[];
-      if (isAssigned) {
-        // Remove all empresas of this project from captador
-        updated = current.filter(id => !allEmpresaIds.includes(id));
+      const inNew = isAssignedNew(cap);
+      const inLegacy = isAssignedLegacy(cap);
+      const assigned = inNew || inLegacy;
+
+      if (assigned) {
+        // Remove from proyecto_captadores (new system)
+        if (inNew) {
+          const { error } = await supabase
+            .from("proyecto_captadores")
+            .delete()
+            .in("proyecto_id", items.map(p => p.id))
+            .eq("captador_id", cap.captadorId);
+          if (error) throw error;
+        }
+        // Also clean up legacy empresas_visibles for this project's empresas
+        if (inLegacy && cap.userId) {
+          const cleaned = (cap.empresasVisibles || []).filter(id => !allEmpresaIds.includes(id));
+          const { error } = await supabase.from("user_permissions").upsert(
+            { user_id: cap.userId, empresas_visibles: cleaned },
+            { onConflict: "user_id" }
+          );
+          if (error) throw error;
+        }
+        toast.success("Proyecto removido del captador");
       } else {
-        // Add all empresas of this project to captador
-        updated = Array.from(new Set([...current, ...allEmpresaIds]));
+        // Assign via proyecto_captadores — project-specific, no empresa contamination
+        const rows = items.map(p => ({ proyecto_id: p.id, captador_id: cap.captadorId }));
+        const { error } = await supabase.from("proyecto_captadores").insert(rows);
+        if (error) throw error;
+        toast.success("Proyecto asignado al captador");
       }
-      await supabase.from("user_permissions").upsert(
-        { user_id: cap.userId, empresas_visibles: updated },
-        { onConflict: "user_id" }
-      );
+
+      qc.invalidateQueries({ queryKey: ["proyectos"] });
       qc.invalidateQueries({ queryKey: ["captadores_con_usuarios"] });
-      toast.success(isAssigned ? "Proyecto removido del captador" : "Proyecto asignado al captador");
-    } catch {
-      toast.error("Error al actualizar asignación");
+    } catch (e: any) {
+      toast.error("Error al actualizar asignación: " + (e?.message || ""));
     } finally {
       setSaving(false);
     }
@@ -2387,7 +2413,7 @@ function CaptadorProjectCell({
         ) : (
           <div className="space-y-1">
             {captadoresConUsuarios.map(cap => {
-              const isAssigned = allEmpresaIds.some(eid => (cap.empresasVisibles || []).includes(eid));
+              const assigned = isAssignedNew(cap) || isAssignedLegacy(cap);
               return (
                 <button
                   key={cap.captadorId}
@@ -2395,10 +2421,10 @@ function CaptadorProjectCell({
                   disabled={saving}
                   onClick={() => handleToggle(cap)}
                   className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left ${
-                    isAssigned ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "hover:bg-muted text-foreground"
+                    assigned ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "hover:bg-muted text-foreground"
                   }`}
                 >
-                  <Check className={`w-3 h-3 shrink-0 ${isAssigned ? "opacity-100" : "opacity-0"}`} />
+                  <Check className={`w-3 h-3 shrink-0 ${assigned ? "opacity-100" : "opacity-0"}`} />
                   {cap.nombre}
                 </button>
               );
