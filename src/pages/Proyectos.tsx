@@ -2326,7 +2326,7 @@ function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; 
   );
 }
 
-/* ── CaptadorProjectCell: assign captadores to specific empresas of a project ── */
+/* ── CaptadorProjectCell: assign one captador per empresa within a project ── */
 function CaptadorProjectCell({
   items,
   captadoresConUsuarios,
@@ -2335,8 +2335,12 @@ function CaptadorProjectCell({
   captadoresConUsuarios: { captadorId: string; nombre: string; userId: string; empresasVisibles: string[] | null }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // Optimistic overrides: proyectoId → captadorId (null = unassigned)
+  const [overrides, setOverrides] = useState<Map<string, string | null>>(new Map());
   const qc = useQueryClient();
+
+  // Reset overrides when external data updates (after invalidation resolves)
+  useEffect(() => { setOverrides(new Map()); }, [items]);
 
   // One entry per unique empresa in this project group
   const empresaItems = useMemo(() => {
@@ -2352,72 +2356,69 @@ function CaptadorProjectCell({
     return result;
   }, [items]);
 
-  // Is a captador assigned to a specific proyecto_id? Checks new system + legacy empresas_visibles
-  const checkAssigned = useCallback((captadorId: string, proyectoId: string, empresasVisibles: string[] | null): boolean => {
+  // Current captador for a proyecto_id — local override first, then DB, then legacy
+  const getAssigned = useCallback((proyectoId: string): string | null => {
+    if (overrides.has(proyectoId)) return overrides.get(proyectoId) ?? null;
     const p = items.find(i => i.id === proyectoId);
-    if (!p) return false;
-    if ((p.proyecto_captadores || []).some((pc: any) => pc.captador_id === captadorId)) return true;
+    if (!p) return null;
+    const pc = (p.proyecto_captadores || [])[0] as any;
+    if (pc) return pc.captador_id as string;
+    // Legacy: check empresas_visibles
     const empresaId = p.proyecto_empresas?.[0]?.empresa_id;
-    return !!(empresaId && Array.isArray(empresasVisibles) && empresasVisibles.includes(empresaId));
-  }, [items]);
-
-  // Count of assigned empresas per captador (for badge on button)
-  const assignedCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const cap of captadoresConUsuarios) {
-      map.set(cap.captadorId, empresaItems.filter(e => checkAssigned(cap.captadorId, e.proyectoId, cap.empresasVisibles)).length);
+    if (empresaId) {
+      for (const cap of captadoresConUsuarios) {
+        if (Array.isArray(cap.empresasVisibles) && cap.empresasVisibles.includes(empresaId)) return cap.captadorId;
+      }
     }
-    return map;
-  }, [captadoresConUsuarios, empresaItems, checkAssigned]);
+    return null;
+  }, [items, captadoresConUsuarios, overrides]);
 
-  // Captadores with at least one empresa assigned (for trigger button label)
-  const asignados = captadoresConUsuarios.filter(c => (assignedCounts.get(c.captadorId) || 0) > 0);
+  // Unique captadores assigned to at least one empresa (for trigger button)
+  const asignados = useMemo(() => {
+    const ids = new Set(empresaItems.map(e => getAssigned(e.proyectoId)).filter(Boolean) as string[]);
+    return captadoresConUsuarios.filter(c => ids.has(c.captadorId));
+  }, [empresaItems, getAssigned, captadoresConUsuarios]);
 
-  const handleToggleEmpresa = async (
-    cap: typeof captadoresConUsuarios[0],
-    proyectoId: string,
-    empresaId: string,
-  ) => {
-    setSaving(true);
+  const handleSelect = async (proyectoId: string, empresaId: string, newCaptadorId: string | null) => {
+    const oldCaptadorId = getAssigned(proyectoId);
+    if (oldCaptadorId === newCaptadorId) return; // clicking active → unassign
+
+    // ── Optimistic update (instant) ──
+    setOverrides(prev => new Map(prev).set(proyectoId, newCaptadorId));
+
     try {
-      const p = items.find(i => i.id === proyectoId);
-      const inNew = p ? (p.proyecto_captadores || []).some((pc: any) => pc.captador_id === cap.captadorId) : false;
-      const inLegacy = Array.isArray(cap.empresasVisibles) && cap.empresasVisibles.includes(empresaId);
-      const assigned = inNew || inLegacy;
-
-      if (assigned) {
-        // Remove from this specific proyecto row
-        if (inNew) {
-          const { error } = await supabase
-            .from("proyecto_captadores")
-            .delete()
-            .eq("proyecto_id", proyectoId)
-            .eq("captador_id", cap.captadorId);
-          if (error) throw error;
-        }
-        // Clean up legacy empresas_visibles for this empresa
-        if (inLegacy && cap.userId) {
-          const cleaned = (cap.empresasVisibles || []).filter(id => id !== empresaId);
-          const { error } = await supabase.from("user_permissions").upsert(
-            { user_id: cap.userId, empresas_visibles: cleaned },
-            { onConflict: "user_id" }
-          );
-          if (error) throw error;
-        }
-      } else {
-        // Assign to this specific proyecto row (empresa-level, no cross-project leakage)
+      // 1. Remove old assignment from proyecto_captadores
+      if (oldCaptadorId) {
         const { error } = await supabase
           .from("proyecto_captadores")
-          .insert({ proyecto_id: proyectoId, captador_id: cap.captadorId });
+          .delete()
+          .eq("proyecto_id", proyectoId)
+          .eq("captador_id", oldCaptadorId);
+        if (error) throw error;
+      }
+      // 2. Clean up old captador's legacy empresas_visibles for this empresa
+      const oldCap = captadoresConUsuarios.find(c => c.captadorId === oldCaptadorId);
+      if (oldCap?.userId && Array.isArray(oldCap.empresasVisibles) && oldCap.empresasVisibles.includes(empresaId)) {
+        await supabase.from("user_permissions").upsert(
+          { user_id: oldCap.userId, empresas_visibles: oldCap.empresasVisibles.filter(id => id !== empresaId) },
+          { onConflict: "user_id" }
+        );
+      }
+      // 3. Add new assignment
+      if (newCaptadorId) {
+        const { error } = await supabase
+          .from("proyecto_captadores")
+          .insert({ proyecto_id: proyectoId, captador_id: newCaptadorId });
         if (error) throw error;
       }
 
+      // Revalidate in background — overrides stay until items prop updates
       qc.invalidateQueries({ queryKey: ["proyectos"] });
       qc.invalidateQueries({ queryKey: ["captadores_con_usuarios"] });
     } catch (e: any) {
-      toast.error("Error al actualizar asignación: " + (e?.message || ""));
-    } finally {
-      setSaving(false);
+      // Revert optimistic update on failure
+      setOverrides(prev => { const m = new Map(prev); m.delete(proyectoId); return m; });
+      toast.error("Error al actualizar: " + (e?.message || ""));
     }
   };
 
@@ -2439,38 +2440,33 @@ function CaptadorProjectCell({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="start">
-        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Asignar captador por empresa</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Captador por empresa</p>
         {captadoresConUsuarios.length === 0 ? (
           <p className="text-xs text-muted-foreground">Sin captadores con cuenta de usuario.</p>
         ) : (
-          <div className="space-y-4">
-            {captadoresConUsuarios.map(cap => {
-              const count = assignedCounts.get(cap.captadorId) || 0;
+          <div className="space-y-3">
+            {empresaItems.map(({ proyectoId, empresaId, empresaNombre }) => {
+              const currentId = getAssigned(proyectoId);
               return (
-                <div key={cap.captadorId}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-foreground">{cap.nombre}</span>
-                    {count > 0 && (
-                      <span className="text-[10px] bg-emerald-50 text-emerald-700 rounded px-1.5 py-0.5 font-medium">
-                        {count} emp.
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-0.5 border-l-2 border-muted pl-2">
-                    {empresaItems.map(({ proyectoId, empresaId, empresaNombre }) => {
-                      const assigned = checkAssigned(cap.captadorId, proyectoId, cap.empresasVisibles);
+                <div key={proyectoId}>
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1 truncate">{empresaNombre}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {captadoresConUsuarios.map(cap => {
+                      const isActive = currentId === cap.captadorId;
                       return (
-                        <label
-                          key={`${cap.captadorId}-${proyectoId}`}
-                          className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer"
+                        <button
+                          key={cap.captadorId}
+                          type="button"
+                          onClick={() => handleSelect(proyectoId, empresaId, isActive ? null : cap.captadorId)}
+                          className={cn(
+                            "text-[11px] px-2 py-0.5 rounded-full border transition-all",
+                            isActive
+                              ? "bg-emerald-600 text-white border-emerald-600 font-medium"
+                              : "border-border text-muted-foreground hover:border-emerald-400 hover:text-emerald-700"
+                          )}
                         >
-                          <Checkbox
-                            checked={assigned}
-                            disabled={saving}
-                            onCheckedChange={() => handleToggleEmpresa(cap, proyectoId, empresaId)}
-                          />
-                          <span className="text-xs text-muted-foreground">{empresaNombre}</span>
-                        </label>
+                          {cap.nombre}
+                        </button>
                       );
                     })}
                   </div>
