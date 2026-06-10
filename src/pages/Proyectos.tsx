@@ -1337,23 +1337,31 @@ export default function Proyectos() {
         isAdmin={isAdmin}
         onSubmit={async (data) => {
           createProyecto.mutate(data, {
-            onSuccess: async () => {
-              setShowCreate(false);
-              // Auto-assign new project's empresas to the captador creator
-              if (isCaptador && user?.id && data.empresa_links.length > 0) {
+            onSuccess: async (created: any) => {
+              // Auto-link captador creator to every newly created project row,
+              // and merge empresas into their empresas_visibles permission.
+              if (isCaptador && captadorId && user?.id && data.empresa_links.length > 0) {
+                const createdProjects = Array.isArray(created) ? created : (created ? [created] : []);
+                if (createdProjects.length > 0) {
+                  await supabase.from("proyecto_captadores").insert(
+                    createdProjects.map((p: any) => ({ proyecto_id: p.id, captador_id: captadorId }))
+                  );
+                }
                 const newEmpresaIds = data.empresa_links.map(l => l.empresa_id);
                 const { data: perms } = await supabase
                   .from("user_permissions")
                   .select("empresas_visibles")
                   .eq("user_id", user.id)
                   .maybeSingle();
-                const current: string[] = (perms as any)?.empresas_visibles || [];
+                const current: string[] = Array.isArray((perms as any)?.empresas_visibles) ? (perms as any).empresas_visibles : [];
                 const merged = Array.from(new Set([...current, ...newEmpresaIds]));
                 await supabase.from("user_permissions").upsert(
                   { user_id: user.id, empresas_visibles: merged },
                   { onConflict: "user_id" }
                 );
               }
+              await qcMain.invalidateQueries({ queryKey: ["proyectos"] });
+              setShowCreate(false);
             },
           });
         }}
