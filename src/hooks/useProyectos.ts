@@ -100,7 +100,7 @@ export function useCreateProyecto() {
           .select()
           .single();
         if (error) throw error;
-        return proyecto;
+        return [proyecto];
       }
 
       const projects = empresa_links.map((el) => ({
@@ -134,7 +134,7 @@ export function useCreateProyecto() {
         .insert(links);
       if (linkError) throw linkError;
 
-      return createdProjects![0];
+      return createdProjects!;
     },
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["proyectos"] });
