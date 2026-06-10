@@ -11,6 +11,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { ClienteWithCategoria, CategoriaCliente, useUpdateCliente } from "@/hooks/useClientes";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useSyncClienteProyecto, complementClienteFromProyectos } from "@/hooks/useSyncClienteProyecto";
@@ -33,6 +35,7 @@ interface Props {
 
 export default function ClienteDetailDialog({ open, onOpenChange, cliente, categorias, canEdit, canDelete }: Props) {
   const updateCliente = useUpdateCliente();
+  const qc = useQueryClient();
   const navigate = useNavigate();
   const { data: proyectos, isLoading: loadingProyectos } = useProyectos();
   const { syncClienteToLinkedProyectos } = useSyncClienteProyecto();
@@ -48,7 +51,10 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
   const editingRef = useRef(false);
 
   useEffect(() => {
-    if (cliente) {
+    // Don't reset form while the user is actively editing — the query
+    // refetch after any invalidation creates a new object reference for
+    // `cliente`, which would otherwise wipe in-progress changes.
+    if (cliente && !editingRef.current) {
       resetForm();
     }
   }, [cliente]);
@@ -67,16 +73,52 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
       telefono: c.telefono,
     }));
 
-    complementClienteFromProyectos(cliente.id, cliente.nombre, catNombre, currentContactos).then(merged => {
+    complementClienteFromProyectos(cliente.id, cliente.nombre, catNombre, currentContactos).then(async merged => {
       // Only apply if the user hasn't started editing yet.
       // If editing is already active, don't overwrite their changes.
-      if (merged && !editingRef.current) {
-        setContactos(merged.map((c, i) => ({
-          id: (cliente.contactos_cliente || [])[i]?.id,
-          contacto: c.contacto,
-          email: c.email,
-          telefono: c.telefono,
-        })));
+      if (!merged || editingRef.current) return;
+
+      // 1. Update form state immediately so the user sees the data.
+      setContactos(merged.map((c, i) => ({
+        id: (cliente.contactos_cliente || [])[i]?.id,
+        contacto: c.contacto,
+        email: c.email,
+        telefono: c.telefono,
+      })));
+
+      // 2. Persist to DB — fill empty fields in existing rows and insert new
+      //    contacts. We only write fields that were genuinely empty in the DB;
+      //    this function is safe to call silently (no overwrite of real data).
+      let dbChanged = false;
+      for (let i = 0; i < merged.length; i++) {
+        const c = merged[i];
+        const existing = (cliente.contactos_cliente || [])[i];
+        if (existing) {
+          // Update only the fields that were empty in DB but got filled by complement
+          const patches: Record<string, string> = {};
+          if (!existing.contacto && c.contacto) patches.contacto = c.contacto;
+          if (!existing.email && c.email) patches.email = c.email;
+          if (!existing.telefono && c.telefono) patches.telefono = c.telefono;
+          if (Object.keys(patches).length > 0) {
+            await supabase.from("contactos_cliente").update(patches).eq("id", existing.id);
+            dbChanged = true;
+          }
+        } else if (c.contacto || c.email || c.telefono) {
+          // New contact derived entirely from project data (client had none before)
+          await supabase.from("contactos_cliente").insert({
+            cliente_id: cliente.id,
+            contacto: c.contacto || "",
+            email: c.email || "",
+            telefono: c.telefono || "",
+            orden: i,
+          });
+          dbChanged = true;
+        }
+      }
+      if (dbChanged) {
+        // Refresh the clientes query so the persisted data is reflected in the
+        // cache; `editingRef.current` is false here so resetForm() won't fire.
+        qc.invalidateQueries({ queryKey: ["clientes"] });
       }
     });
   }, [open, cliente, categorias]);
