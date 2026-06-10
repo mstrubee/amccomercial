@@ -1156,11 +1156,9 @@ export default function Proyectos() {
                               />
                             </span>
                           )}
-                          {!isCaptador && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(actionItems); }}>
-                              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                            </Button>
-                          )}
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar línea madre" onClick={(e) => { e.stopPropagation(); setEditParentGroup(actionItems); }}>
+                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
                           {isAdmin && (
                             <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" title="Eliminar grupo" onClick={(e) => { e.stopPropagation(); setDeleteGroupTarget(actionItems); }}>
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1293,7 +1291,7 @@ export default function Proyectos() {
                                     >
                                       <MessageCircle className="w-3.5 h-3.5 text-chart-potential fill-chart-potential" />
                                     </Button>
-                                    {!isCaptador && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(p)}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                                     {!isCaptador && <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                                   </div>
                                 </td>
@@ -1339,23 +1337,31 @@ export default function Proyectos() {
         isAdmin={isAdmin}
         onSubmit={async (data) => {
           createProyecto.mutate(data, {
-            onSuccess: async () => {
-              setShowCreate(false);
-              // Auto-assign new project's empresas to the captador creator
-              if (isCaptador && user?.id && data.empresa_links.length > 0) {
+            onSuccess: async (created: any) => {
+              // Auto-link captador creator to every newly created project row,
+              // and merge empresas into their empresas_visibles permission.
+              if (isCaptador && captadorId && user?.id && data.empresa_links.length > 0) {
+                const createdProjects = Array.isArray(created) ? created : (created ? [created] : []);
+                if (createdProjects.length > 0) {
+                  await supabase.from("proyecto_captadores").insert(
+                    createdProjects.map((p: any) => ({ proyecto_id: p.id, captador_id: captadorId }))
+                  );
+                }
                 const newEmpresaIds = data.empresa_links.map(l => l.empresa_id);
                 const { data: perms } = await supabase
                   .from("user_permissions")
                   .select("empresas_visibles")
                   .eq("user_id", user.id)
                   .maybeSingle();
-                const current: string[] = (perms as any)?.empresas_visibles || [];
+                const current: string[] = Array.isArray((perms as any)?.empresas_visibles) ? (perms as any).empresas_visibles : [];
                 const merged = Array.from(new Set([...current, ...newEmpresaIds]));
                 await supabase.from("user_permissions").upsert(
                   { user_id: user.id, empresas_visibles: merged },
                   { onConflict: "user_id" }
                 );
               }
+              await qcMain.invalidateQueries({ queryKey: ["proyectos"] });
+              setShowCreate(false);
             },
           });
         }}
