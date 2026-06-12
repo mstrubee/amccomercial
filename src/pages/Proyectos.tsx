@@ -1285,7 +1285,8 @@ export default function Proyectos() {
                 const expanded = expandedGroups[key] ?? false;
                 const parentNum = groupIdx + 1;
                 const isEven = groupIdx % 2 === 1;
-                const evenBg = isEven ? "bg-yellow-100/65" : "";
+                const evenBg  = isEven ? "bg-yellow-100/65" : "";
+                const hoverBg = isEven ? "hover:bg-yellow-200/75" : "hover:bg-gray-100/50";
 
                 if (!isGroup) {
                   const p = items[0];
@@ -1304,7 +1305,7 @@ export default function Proyectos() {
                   <Fragment key={key}>
                     <tr
                       id={`proyecto-row-${first.id}`}
-                      className={`hover:bg-secondary/30 transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
+                      className={`${hoverBg} transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
                       onClick={() => toggleGroup(key)}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
@@ -1449,7 +1450,8 @@ export default function Proyectos() {
                           }
                         }
                         const groupChildIds = new Set(items.map(i => i.id));
-                        const childBg = isEven ? "bg-yellow-100/55" : "bg-secondary/20";
+                        const childBg   = isEven ? "bg-yellow-100/55" : "bg-secondary/20";
+                        const childHover = isEven ? "hover:bg-yellow-200/65" : "hover:bg-secondary/35";
 
                         return childRows.map(({ p, pe }, childIdx) => {
                           const empresaId = pe.empresa_id;
@@ -1462,7 +1464,7 @@ export default function Proyectos() {
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}
-                                className={`hover:bg-secondary/30 transition-colors border-t-2 border-foreground/20 ${childBg} ${highlightProyectoId === p.id ? "ring-2 ring-primary ring-inset" : ""}`}
+                                className={`${childHover} transition-colors border-t-2 border-foreground/20 ${childBg} ${highlightProyectoId === p.id ? "ring-2 ring-primary ring-inset" : ""}`}
                               >
                                 <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
                                 <td colSpan={3} className="px-5 py-2 align-top">
@@ -1981,12 +1983,13 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   estadosAmc?: { id: string; nombre: string; color: string }[];
   onUpdateEstadoAmcPE: (peId: string, estado: string) => void;
 }) {
-  const evenBg = isEven ? "bg-yellow-100/65" : "";
+  const evenBg  = isEven ? "bg-yellow-100/65" : "";
+  const hoverBg = isEven ? "hover:bg-yellow-200/75" : "hover:bg-gray-100/50";
   // For single-project rows: show Estatus summary in col 7, Estado AMC per empresa in col 8
   const pe0 = p.proyecto_empresas?.[0];
   return (
     <>
-      <tr className={`hover:bg-secondary/30 transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`}>
+      <tr className={`${hoverBg} transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`}>
         <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
         <td className="px-5 py-3"><ContactosColumn proyecto={p} /></td>
