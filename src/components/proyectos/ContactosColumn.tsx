@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { X as XIcon, Plus, UserPlus } from "lucide-react";
+import { X as XIcon, UserPlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProyectoWithEmpresas } from "@/hooks/useProyectos";
-import { useClientes, useCreateCliente, ClienteWithCategoria, useCategoriasCliente } from "@/hooks/useClientes";
-import { useCaptadores, useCreateCaptador, CaptadorWithCategoria } from "@/hooks/useCaptadores";
+import { useClientes, useCreateCliente, useCategoriasCliente } from "@/hooks/useClientes";
+import { useCaptadores, useCreateCaptador } from "@/hooks/useCaptadores";
 import { useLinkProyectoCliente, useUnlinkProyectoCliente, useLinkProyectoCaptador, useUnlinkProyectoCaptador } from "@/hooks/useProyectoContactos";
 
 interface Props {
@@ -63,6 +63,8 @@ export default function ContactosColumn({ proyecto, groupItems }: Props) {
   );
 }
 
+// ── Popover shell ────────────────────────────────────────────────────────────
+
 function ContactoPopover({ type, proyectoIds, linkedItems, hasItems }: {
   type: "cliente" | "captador";
   proyectoIds: string[];
@@ -81,12 +83,28 @@ function ContactoPopover({ type, proyectoIds, linkedItems, hasItems }: {
           {label}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start" onClick={(e) => e.stopPropagation()}>
-        <ContactoPopoverContent type={type} proyectoIds={proyectoIds} linkedItems={linkedItems} onClose={() => setOpen(false)} />
+      {/* stopPropagation prevents row-click from firing while interacting inside */}
+      <PopoverContent
+        className="w-72 p-0"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+        onOpenAutoFocus={(e) => e.preventDefault()} // ← prevents erratic focus behavior
+      >
+        <ContactoPopoverContent
+          key={open ? "open" : "closed"} // reset internal state when popover reopens
+          type={type}
+          proyectoIds={proyectoIds}
+          linkedItems={linkedItems}
+          onClose={() => setOpen(false)}
+        />
       </PopoverContent>
     </Popover>
   );
 }
+
+// ── Popover body ─────────────────────────────────────────────────────────────
+
+type Mode = "view" | "add";
 
 function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
   type: "cliente" | "captador";
@@ -97,88 +115,105 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
   const { data: clientes } = useClientes();
   const { data: captadores } = useCaptadores();
   const { data: categoriasCliente } = useCategoriasCliente();
-  const createCliente = useCreateCliente();
+  const createCliente  = useCreateCliente();
   const createCaptador = useCreateCaptador();
-  const linkCliente = useLinkProyectoCliente();
-  const unlinkCliente = useUnlinkProyectoCliente();
-  const linkCaptador = useLinkProyectoCaptador();
+  const linkCliente    = useLinkProyectoCliente();
+  const unlinkCliente  = useUnlinkProyectoCliente();
+  const linkCaptador   = useLinkProyectoCaptador();
   const unlinkCaptador = useUnlinkProyectoCaptador();
 
+  // Default: "view" — only shows linked list + button.
+  // "add" — shows search + scrollable list (activated by pressing the button).
+  const [mode, setMode] = useState<Mode>("view");
   const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [newNombre, setNewNombre] = useState("");
 
-  const label = type === "cliente" ? "Cliente" : "Captador";
-  const allItems = type === "cliente" ? (clientes || []) : (captadores || []) as any[];
+  const label    = type === "cliente" ? "Cliente" : "Captador";
+  const allItems = (type === "cliente" ? (clientes || []) : (captadores || [])) as any[];
 
-  // Build a set of already-linked names to prevent the same person appearing in
-  // both "vinculados" and "disponibles" when there are duplicate DB records.
-  const linkedNames = new Set(Array.from(linkedItems.values()).map(v => v.toLowerCase().split(" (")[0].trim()));
+  // Set of already-linked display-names (lowercased) so duplicates are hidden
+  const linkedNames = new Set(
+    Array.from(linkedItems.values()).map(v => v.toLowerCase().split(" (")[0].trim())
+  );
+
+  const searchLower = search.trim().toLowerCase();
 
   const available = allItems.filter((c: any) => {
     if (linkedItems.has(c.id)) return false;
     if (linkedNames.has(c.nombre.toLowerCase().trim())) return false;
-    return c.nombre.toLowerCase().includes(search.toLowerCase());
+    if (searchLower && !c.nombre.toLowerCase().includes(searchLower)) return false;
+    return true;
   });
 
-  // Link to the first (canonical) project row only — avoids duplicate records
-  // across N empresa rows that share the same logical project.
+  // Show "Crear" button only when typed name doesn't match any available item exactly
+  const showCreateBtn =
+    searchLower.length > 0 &&
+    !available.some((c: any) => c.nombre.toLowerCase().trim() === searchLower);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+
   const handleLink = (id: string) => {
     const pid = proyectoIds[0];
     if (!pid) return;
     if (type === "cliente") linkCliente.mutate({ proyecto_id: pid, cliente_id: id });
-    else linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
+    else                    linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
+    // Return to view after linking
+    setMode("view");
+    setSearch("");
   };
 
-  // Unlink from ALL rows so the client disappears from every empresa view.
   const handleUnlink = (id: string) => {
     proyectoIds.forEach((pid) => {
       if (type === "cliente") unlinkCliente.mutate({ proyecto_id: pid, cliente_id: id });
-      else unlinkCaptador.mutate({ proyecto_id: pid, captador_id: id });
+      else                    unlinkCaptador.mutate({ proyecto_id: pid, captador_id: id });
     });
   };
 
   const handleCreate = () => {
-    if (!newNombre.trim()) return;
+    const name = search.trim();
+    if (!name) return;
 
-    // If a client/captador with this name already exists, link to the existing one
+    // If already exists by name, just link it
     const existing = allItems.find(
-      (c: any) => c.nombre.trim().toLowerCase() === newNombre.trim().toLowerCase()
+      (c: any) => c.nombre.trim().toLowerCase() === name.toLowerCase()
     );
-    if (existing) {
-      handleLink(existing.id);
-      setNewNombre("");
-      setShowCreate(false);
-      return;
-    }
+    if (existing) { handleLink(existing.id); return; }
 
     const catId = categoriasCliente?.[0]?.id || "";
     if (!catId) return;
+
     const mutate = type === "cliente" ? createCliente : createCaptador;
     mutate.mutate(
-      { categoria_id: catId, nombre: newNombre.trim(), contactos: [] } as any,
+      { categoria_id: catId, nombre: name, contactos: [] } as any,
       {
         onSuccess: (data: any) => {
           handleLink(data.id);
-          setNewNombre("");
-          setShowCreate(false);
         },
       }
     );
   };
 
+  const linked = Array.from(linkedItems.entries());
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   return (
     <div>
+      {/* ── Linked clients — always visible ───────────────────────────────── */}
       <div className="p-2 border-b border-border">
         <p className="text-xs font-semibold text-foreground mb-1">{label}s vinculados</p>
-        {linkedItems.size === 0 ? (
+        {linked.length === 0 ? (
           <p className="text-xs text-muted-foreground">Ninguno</p>
         ) : (
           <div className="space-y-1">
-            {Array.from(linkedItems.entries()).map(([id, nombre]) => (
+            {linked.map(([id, nombre]) => (
               <div key={id} className="flex items-center justify-between text-xs">
                 <span className="text-card-foreground">{nombre}</span>
-                <Button variant="ghost" size="icon" className="h-5 w-5 hover:text-destructive" onClick={() => handleUnlink(id)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 hover:text-destructive"
+                  onClick={() => handleUnlink(id)}
+                >
                   <XIcon className="w-3 h-3" />
                 </Button>
               </div>
@@ -187,36 +222,80 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
         )}
       </div>
 
-      {!showCreate ? (
+      {/* ── VIEW mode: just the "Crear nuevo" button ──────────────────────── */}
+      {mode === "view" && (
+        <div className="p-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full h-7 text-xs gap-1"
+            onClick={() => setMode("add")}
+          >
+            <UserPlus className="w-3 h-3" />
+            Crear nuevo {label.toLowerCase()}
+          </Button>
+        </div>
+      )}
+
+      {/* ── ADD mode: search + scrollable list + optional create ──────────── */}
+      {mode === "add" && (
         <>
-          <div className="p-2">
-            <Input placeholder={`Buscar ${label.toLowerCase()}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="h-7 text-xs" autoFocus />
+          {/* Search input */}
+          <div className="p-2 border-b border-border">
+            <Input
+              placeholder={`Buscar ${label.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 text-xs"
+            />
           </div>
-          <div className="max-h-[150px] overflow-y-auto">
+
+          {/* Scrollable list of available clients */}
+          <div className="max-h-[160px] overflow-y-auto">
             {available.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                {searchLower ? "Sin resultados" : "Escribe para buscar…"}
+              </div>
             ) : (
               available.map((c: any) => (
-                <button key={c.id} type="button" className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors" onClick={() => handleLink(c.id)}>
+                <button
+                  key={c.id}
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+                  onClick={() => handleLink(c.id)}
+                >
                   <div className="font-medium text-popover-foreground">{c.nombre}</div>
                 </button>
               ))
             )}
           </div>
-          <div className="border-t p-2">
-            <Button type="button" variant="ghost" size="sm" className="w-full h-7 text-xs gap-1" onClick={() => setShowCreate(true)}>
-              <UserPlus className="w-3 h-3" /> Crear nuevo {label.toLowerCase()}
+
+          {/* Footer: Cancel + optional Create */}
+          <div className="border-t border-border p-2 flex gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => { setMode("view"); setSearch(""); }}
+            >
+              Cancelar
             </Button>
+            {showCreateBtn && (
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-xs flex-1 gap-1"
+                onClick={handleCreate}
+                disabled={createCliente.isPending || createCaptador.isPending}
+              >
+                <Plus className="w-3 h-3" />
+                Crear "{search.trim()}"
+              </Button>
+            )}
           </div>
         </>
-      ) : (
-        <div className="p-2 space-y-2">
-          <Input placeholder="Nombre *" value={newNombre} onChange={(e) => setNewNombre(e.target.value)} className="h-7 text-xs" autoFocus />
-          <div className="flex gap-1">
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs flex-1" onClick={() => setShowCreate(false)}>Cancelar</Button>
-            <Button type="button" size="sm" className="h-7 text-xs flex-1" onClick={handleCreate} disabled={!newNombre.trim()}>Crear</Button>
-          </div>
-        </div>
       )}
     </div>
   );
