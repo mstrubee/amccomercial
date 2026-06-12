@@ -192,7 +192,20 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
     );
   };
 
-  const linked = Array.from(linkedItems.entries());
+  // ── Deduplicate linked items by display name ────────────────────────────────
+  // Multiple DB records with the same name can be linked (legacy duplicates).
+  // We show each unique display-name once and unlink ALL matching IDs on remove.
+  const linkedByName = new Map<string, string[]>(); // displayName → [id, ...]
+  for (const [id, nombre] of linkedItems.entries()) {
+    const ids = linkedByName.get(nombre) ?? [];
+    ids.push(id);
+    linkedByName.set(nombre, ids);
+  }
+  const uniqueLinked = Array.from(linkedByName.entries()); // [[nombre, ids[]], ...]
+
+  const handleUnlinkByName = (ids: string[]) => {
+    ids.forEach((id) => handleUnlink(id));
+  };
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -201,18 +214,18 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
       {/* ── Linked clients — always visible ───────────────────────────────── */}
       <div className="p-2 border-b border-border">
         <p className="text-xs font-semibold text-foreground mb-1">{label}s vinculados</p>
-        {linked.length === 0 ? (
+        {uniqueLinked.length === 0 ? (
           <p className="text-xs text-muted-foreground">Ninguno</p>
         ) : (
           <div className="space-y-1">
-            {linked.map(([id, nombre]) => (
-              <div key={id} className="flex items-center justify-between text-xs">
+            {uniqueLinked.map(([nombre, ids]) => (
+              <div key={nombre} className="flex items-center justify-between text-xs">
                 <span className="text-card-foreground">{nombre}</span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-5 w-5 hover:text-destructive"
-                  onClick={() => handleUnlink(id)}
+                  onClick={() => handleUnlinkByName(ids)}
                 >
                   <XIcon className="w-3 h-3" />
                 </Button>
