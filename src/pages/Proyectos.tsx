@@ -139,7 +139,6 @@ function loadSearchFieldKeys(): string[] {
  * combinaciones válidas según lo que el usuario ya eligió.
  * ────────────────────────────────────────────────────────────────────────── */
 interface CascadeCtx {
-  filterVigentes: boolean;
   searchLower: string;
   searchIndex: Map<string, string>;
   filterEstados: string[];
@@ -156,16 +155,12 @@ interface CascadeCtx {
 /** Evalúa si `p` pasa TODOS los filtros activos excepto el indicado en `skip`. */
 function matchAllExcept(p: ProyectoWithEmpresas, skip: string, ctx: CascadeCtx): boolean {
   const {
-    filterVigentes, searchLower, searchIndex,
+    searchLower, searchIndex,
     filterEstados, filterEstadosObra, filterEmpresas, filterCategorias,
     filterClasificaciones, filterBotones, filterCaptadores,
     visibleNames, statusByPe,
   } = ctx;
 
-  if (skip !== "vigentes" && filterVigentes) {
-    const pes = p.proyecto_empresas || [];
-    if (pes.length > 0 && !pes.some((pe: any) => !pe.estado_amc || pe.estado_amc === "Vigente")) return false;
-  }
   if (skip !== "search" && searchLower) {
     if (!(searchIndex.get(p.id)?.includes(searchLower) ?? false)) return false;
   }
@@ -221,7 +216,8 @@ export default function Proyectos() {
 
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [filterEstados, setFilterEstados] = useState<string[]>([]);
+  // "Vigente" activo por defecto — la card KPI lo gestiona
+  const [filterEstados, setFilterEstados] = useState<string[]>(["Vigente"]);
   const [filterEmpresas, setFilterEmpresas] = useState<string[]>([]);
   const [filterCategorias, setFilterCategorias] = useState<string[]>([]);
   const [filterEstadosObra, setFilterEstadosObra] = useState<string[]>([]);
@@ -232,9 +228,6 @@ export default function Proyectos() {
   useEffect(() => {
     if (captadorId && !isAdmin && !isUsuarioTipo1) setFilterCaptadores([captadorId]);
   }, [captadorId, isAdmin, isUsuarioTipo1]);
-
-  // Quick filter "Vigentes" — ON por defecto al cargar la vista
-  const [filterVigentes, setFilterVigentes] = useState(true);
 
   // Campos habilitados en la búsqueda de texto libre (admin-configurable, persiste en localStorage)
   const [searchFieldKeys, setSearchFieldKeys] = useState<string[]>(loadSearchFieldKeys);
@@ -530,11 +523,6 @@ export default function Proyectos() {
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = deferredSearch.trim().toLowerCase();
     const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
-    // Vigentes: proyecto vigente si alguna empresa tiene estado_amc null/"Vigente"
-    // (proyectos sin empresas se consideran vigentes para no ocultarlos)
-    const pes = p.proyecto_empresas || [];
-    const matchVigentes = !filterVigentes || pes.length === 0 ||
-      pes.some((pe: any) => !pe.estado_amc || pe.estado_amc === "Vigente");
     const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
     const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
     const matchEmpresa =
@@ -556,16 +544,16 @@ export default function Proyectos() {
     // matchCaptador: uses pre-computed set — all rows of a visible project pass together
     const matchCaptador = filterCaptadores.length === 0 ||
       (visibleProyectoNamesByCaptador?.has(p.nombre.trim().toLowerCase()) ?? false);
-    return matchVigentes && matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
-  }), [proyectos, filterVigentes, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
 
   // ── Contexto para filtros en cascada ──────────────────────────────────────
   const cascadeCtx = useMemo((): CascadeCtx => ({
-    filterVigentes, searchLower: deferredSearch.trim().toLowerCase(),
+    searchLower: deferredSearch.trim().toLowerCase(),
     searchIndex: projectSearchIndex, filterEstados, filterEstadosObra,
     filterEmpresas, filterCategorias, filterClasificaciones, filterBotones,
     filterCaptadores, visibleNames: visibleProyectoNamesByCaptador, statusByPe,
-  }), [filterVigentes, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra,
+  }), [deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra,
       filterEmpresas, filterCategorias, filterClasificaciones, filterBotones,
       filterCaptadores, visibleProyectoNamesByCaptador, statusByPe]);
 
@@ -705,11 +693,14 @@ export default function Proyectos() {
     });
     const totalProyectos = Object.keys(groupsAll).length;
     let adjudicados = 0;
+    let vigentes = 0;
     let ganados = 0;
     let obrasEjecucion = 0;
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
+      // Vigentes: estado_amc a nivel proyecto = "Vigente"
+      if (g.some(p => p.estado_amc === "Vigente")) vigentes++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         const eff = statusByPe.get(pe.id);
         return (eff?.subcategoria?.id || pe.subcategoria_id) === GANADO_SUBCATEGORIA_ID;
@@ -719,10 +710,9 @@ export default function Proyectos() {
       }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
-    // filterVigentes=false es estado no-defecto, se considera "filtro activo" para mostrar "Limpiar"
-    const hasActiveFilters = !!(search || !filterVigentes || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
-    return { totalProyectos, adjudicados, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
-  }, [proyectos, categorias, groupedRows, search, filterVigentes, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
+    const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
+    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
+  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -994,21 +984,6 @@ export default function Proyectos() {
           )}
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Filtro rápido "Vigentes" — activo por defecto */}
-          <button
-            type="button"
-            onClick={() => setFilterVigentes(v => !v)}
-            className={cn(
-              "inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border transition-all select-none",
-              filterVigentes
-                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm hover:bg-emerald-700"
-                : "bg-background text-muted-foreground border-border hover:border-emerald-400 hover:text-emerald-700"
-            )}
-            title={filterVigentes ? "Mostrando solo proyectos vigentes · Click para ver todos" : "Mostrando todos los proyectos · Click para ver solo vigentes"}
-          >
-            {filterVigentes && <Check className="w-3 h-3" />}
-            Vigentes
-          </button>
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
           <Popover>
             <PopoverTrigger asChild>
@@ -1176,7 +1151,6 @@ export default function Proyectos() {
               className="h-8 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
               onClick={() => {
                 setSearch("");
-                setFilterVigentes(true); // restaurar al estado predeterminado
                 setFilterEstados([]);
                 setFilterEmpresas([]);
                 setFilterCategorias([]);
@@ -1203,6 +1177,32 @@ export default function Proyectos() {
           icon={FolderKanban}
           variant="info"
           delay={0.08}
+        />
+        {/* Card Vigentes — actúa como filtro rápido via Estado (x Proyecto) */}
+        <KpiCard
+          title="Vigentes"
+          value={String(kpiStats.vigentes)}
+          subtitle="Estado: Vigente"
+          icon={Check}
+          variant="success"
+          delay={0.10}
+          active={filterEstados.includes("Vigente")}
+          onClick={() => {
+            const isActive = filterEstados.includes("Vigente");
+            if (isActive) {
+              // Desactivar: quitar "Vigente" del filtro
+              setFilterEstados(prev => prev.filter(e => e !== "Vigente"));
+            } else {
+              // Activar: establecer solo "Vigente" y limpiar otros filtros para coherencia
+              setFilterEstados(["Vigente"]);
+              setFilterEmpresas([]);
+              setFilterCategorias([]);
+              setFilterEstadosObra([]);
+              setFilterClasificaciones([]);
+              setFilterBotones([]);
+              setSearch("");
+            }
+          }}
         />
         <KpiCard
           title="Ganados"
