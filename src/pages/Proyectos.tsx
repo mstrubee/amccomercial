@@ -1285,7 +1285,7 @@ export default function Proyectos() {
                 const expanded = expandedGroups[key] ?? false;
                 const parentNum = groupIdx + 1;
                 const isEven = groupIdx % 2 === 1;
-                const evenBg = isEven ? "bg-muted/65" : "";
+                const evenBg = isEven ? "bg-yellow-100/65" : "";
 
                 if (!isGroup) {
                   const p = items[0];
@@ -1449,7 +1449,7 @@ export default function Proyectos() {
                           }
                         }
                         const groupChildIds = new Set(items.map(i => i.id));
-                        const childBg = isEven ? "bg-muted/55" : "bg-secondary/20";
+                        const childBg = isEven ? "bg-yellow-100/55" : "bg-secondary/20";
 
                         return childRows.map(({ p, pe }, childIdx) => {
                           const empresaId = pe.empresa_id;
@@ -1981,7 +1981,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   estadosAmc?: { id: string; nombre: string; color: string }[];
   onUpdateEstadoAmcPE: (peId: string, estado: string) => void;
 }) {
-  const evenBg = isEven ? "bg-muted/65" : "";
+  const evenBg = isEven ? "bg-yellow-100/65" : "";
   // For single-project rows: show Estatus summary in col 7, Estado AMC per empresa in col 8
   const pe0 = p.proyecto_empresas?.[0];
   return (
