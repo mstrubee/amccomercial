@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2 } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -84,6 +84,114 @@ const DebouncedInput = memo(function DebouncedInput({
 // ESTADOS_AMC now loaded dynamically via useEstadosProyecto
 const ESTADOS_OBRA = ["Todos", "Anteproyecto", "Proyecto", "Licitación", "Constructora Adjudicada", "Obra/Ejecución", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones", "Detenida", "Sin Información"];
 
+/* ── Búsqueda multi-campo configurable ──────────────────────────────────────
+ * Cada entrada define un campo buscable. Admin puede activar/desactivar.
+ * Se persiste en localStorage (LS_SEARCH_FIELDS_KEY).
+ * Para agregar un nuevo campo basta con añadir una entrada aquí.
+ * ────────────────────────────────────────────────────────────────────────── */
+const LS_SEARCH_FIELDS_KEY = "amc_proyecto_search_fields";
+
+interface SearchFieldDef {
+  key: string;
+  label: string;
+  group: string;
+  defaultOn: boolean;
+  getValue: (p: ProyectoWithEmpresas) => string;
+}
+
+const SEARCH_FIELD_DEFS: SearchFieldDef[] = [
+  // Datos básicos
+  { key: "nombre",          label: "Nombre del proyecto",   group: "Proyecto",    defaultOn: true,  getValue: p => p.nombre || "" },
+  { key: "direccion",       label: "Dirección",              group: "Proyecto",    defaultOn: true,  getValue: p => (p as any).direccion || "" },
+  { key: "comuna",          label: "Comuna",                 group: "Proyecto",    defaultOn: true,  getValue: p => p.comuna || "" },
+  { key: "region",          label: "Región",                 group: "Proyecto",    defaultOn: false, getValue: p => p.region || "" },
+  // Clientes
+  { key: "clientes",        label: "Clientes (nombres)",     group: "Clientes",    defaultOn: true,  getValue: p => (p.proyecto_clientes || []).map((pc: any) => pc.clientes?.nombre || "").filter(Boolean).join(" ") },
+  // Contactos por categoría
+  { key: "arq_contacto",   label: "Contacto Arquitectura",  group: "Contactos",  defaultOn: true,  getValue: p => (p as any).arq_contacto || "" },
+  { key: "const_contacto", label: "Contacto Constructora",  group: "Contactos",  defaultOn: true,  getValue: p => (p as any).const_contacto || "" },
+  { key: "ito_contacto",   label: "Contacto ITO",           group: "Contactos",  defaultOn: true,  getValue: p => (p as any).ito_contacto || "" },
+  { key: "duenos_contacto",label: "Contacto Dueños",        group: "Contactos",  defaultOn: true,  getValue: p => (p as any).duenos_contacto || "" },
+  // Firmas (desactivadas por defecto — muchos registros, ruido en búsqueda general)
+  { key: "arq_nombre",     label: "Firma Arquitectura",     group: "Firmas",     defaultOn: false, getValue: p => (p as any).arq_nombre || "" },
+  { key: "const_nombre",   label: "Firma Constructora",     group: "Firmas",     defaultOn: false, getValue: p => (p as any).const_nombre || "" },
+  { key: "ito_nombre",     label: "Firma ITO",              group: "Firmas",     defaultOn: false, getValue: p => (p as any).ito_nombre || "" },
+  { key: "duenos_nombre",  label: "Firma Dueños",           group: "Firmas",     defaultOn: false, getValue: p => (p as any).duenos_nombre || "" },
+];
+
+const DEFAULT_SEARCH_FIELD_KEYS = SEARCH_FIELD_DEFS.filter(f => f.defaultOn).map(f => f.key);
+
+function loadSearchFieldKeys(): string[] {
+  try {
+    const raw = localStorage.getItem(LS_SEARCH_FIELDS_KEY);
+    if (!raw) return DEFAULT_SEARCH_FIELD_KEYS;
+    const parsed: string[] = JSON.parse(raw);
+    const valid = parsed.filter(k => SEARCH_FIELD_DEFS.some(f => f.key === k));
+    return valid.length > 0 ? valid : DEFAULT_SEARCH_FIELD_KEYS;
+  } catch {
+    return DEFAULT_SEARCH_FIELD_KEYS;
+  }
+}
+
+/* ── Filtros en cascada (dependent dropdowns) ───────────────────────────────
+ * Para cada filtro, calcula las opciones disponibles aplicando TODOS los
+ * demás filtros activos al dataset completo. Así los dropdowns solo muestran
+ * combinaciones válidas según lo que el usuario ya eligió.
+ * ────────────────────────────────────────────────────────────────────────── */
+interface CascadeCtx {
+  filterVigentes: boolean;
+  searchLower: string;
+  searchIndex: Map<string, string>;
+  filterEstados: string[];
+  filterEstadosObra: string[];
+  filterEmpresas: string[];
+  filterCategorias: string[];
+  filterClasificaciones: string[];
+  filterBotones: string[];
+  filterCaptadores: string[];
+  visibleNames: Set<string> | null | undefined;
+  statusByPe: Map<string, any>;
+}
+
+/** Evalúa si `p` pasa TODOS los filtros activos excepto el indicado en `skip`. */
+function matchAllExcept(p: ProyectoWithEmpresas, skip: string, ctx: CascadeCtx): boolean {
+  const {
+    filterVigentes, searchLower, searchIndex,
+    filterEstados, filterEstadosObra, filterEmpresas, filterCategorias,
+    filterClasificaciones, filterBotones, filterCaptadores,
+    visibleNames, statusByPe,
+  } = ctx;
+
+  if (skip !== "vigentes" && filterVigentes) {
+    const pes = p.proyecto_empresas || [];
+    if (pes.length > 0 && !pes.some((pe: any) => !pe.estado_amc || pe.estado_amc === "Vigente")) return false;
+  }
+  if (skip !== "search" && searchLower) {
+    if (!(searchIndex.get(p.id)?.includes(searchLower) ?? false)) return false;
+  }
+  if (skip !== "estados" && filterEstados.length > 0 && !filterEstados.includes(p.estado_amc)) return false;
+  if (skip !== "estadoObra" && filterEstadosObra.length > 0 && !filterEstadosObra.includes(p.estado_obra)) return false;
+  if (skip !== "empresa" && filterEmpresas.length > 0) {
+    if (!(p.proyecto_empresas || []).some((pe: any) => filterEmpresas.includes(pe.empresa_id))) return false;
+  }
+  if (skip !== "categoria" && filterCategorias.length > 0) {
+    if (!(p.proyecto_empresas || []).some((pe: any) => {
+      const eff = statusByPe.get(pe.id);
+      const catId = eff?.categoria?.id || pe.categoria_id || "";
+      const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
+      return filterCategorias.includes(catId) || filterCategorias.includes(subId);
+    })) return false;
+  }
+  if (skip !== "clasificacion" && filterClasificaciones.length > 0 && !filterClasificaciones.includes(p.clasificacion_id || "")) return false;
+  if (skip !== "boton" && filterBotones.length > 0) {
+    if (!(p.proyecto_empresas || []).some((pe: any) => filterBotones.includes(pe.estado_amc || "Vigente"))) return false;
+  }
+  if (skip !== "captador" && filterCaptadores.length > 0) {
+    if (!(visibleNames?.has(p.nombre.trim().toLowerCase()) ?? false)) return false;
+  }
+  return true;
+}
+
 export default function Proyectos() {
   const { data: proyectos, isLoading } = useProyectos();
   const { isAdmin, isUsuarioTipo1, isCaptador, captadorId, permissions, user, isSectionRestrictedToAssigned } = useAuth();
@@ -124,6 +232,16 @@ export default function Proyectos() {
   useEffect(() => {
     if (captadorId && !isAdmin && !isUsuarioTipo1) setFilterCaptadores([captadorId]);
   }, [captadorId, isAdmin, isUsuarioTipo1]);
+
+  // Quick filter "Vigentes" — ON por defecto al cargar la vista
+  const [filterVigentes, setFilterVigentes] = useState(true);
+
+  // Campos habilitados en la búsqueda de texto libre (admin-configurable, persiste en localStorage)
+  const [searchFieldKeys, setSearchFieldKeys] = useState<string[]>(loadSearchFieldKeys);
+  const updateSearchFields = useCallback((keys: string[]) => {
+    setSearchFieldKeys(keys);
+    try { localStorage.setItem(LS_SEARCH_FIELDS_KEY, JSON.stringify(keys)); } catch {}
+  }, []);
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProyectoWithEmpresas | null>(null);
@@ -289,16 +407,13 @@ export default function Proyectos() {
   }, []);
 
   const projectSearchIndex = useMemo(() => {
+    const activeDefs = SEARCH_FIELD_DEFS.filter(f => searchFieldKeys.includes(f.key));
     const index = new Map<string, string>();
     for (const p of proyectos || []) {
-      const clientNames = (p.proyecto_clientes || [])
-        .map((pc) => pc.clientes?.nombre || "")
-        .filter(Boolean)
-        .join(" ");
-      index.set(p.id, `${p.nombre} ${p.comuna} ${clientNames}`.toLowerCase());
+      index.set(p.id, activeDefs.map(f => f.getValue(p)).join(" ").toLowerCase());
     }
     return index;
-  }, [proyectos]);
+  }, [proyectos, searchFieldKeys]);
 
   const buttonLabelsByLink = useMemo(() => {
     const categoriaLabels = new Map<string, string>();
@@ -415,6 +530,11 @@ export default function Proyectos() {
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = deferredSearch.trim().toLowerCase();
     const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
+    // Vigentes: proyecto vigente si alguna empresa tiene estado_amc null/"Vigente"
+    // (proyectos sin empresas se consideran vigentes para no ocultarlos)
+    const pes = p.proyecto_empresas || [];
+    const matchVigentes = !filterVigentes || pes.length === 0 ||
+      pes.some((pe: any) => !pe.estado_amc || pe.estado_amc === "Vigente");
     const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
     const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
     const matchEmpresa =
@@ -436,8 +556,74 @@ export default function Proyectos() {
     // matchCaptador: uses pre-computed set — all rows of a visible project pass together
     const matchCaptador = filterCaptadores.length === 0 ||
       (visibleProyectoNamesByCaptador?.has(p.nombre.trim().toLowerCase()) ?? false);
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
+    return matchVigentes && matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
+  }), [proyectos, filterVigentes, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
+
+  // ── Contexto para filtros en cascada ──────────────────────────────────────
+  const cascadeCtx = useMemo((): CascadeCtx => ({
+    filterVigentes, searchLower: deferredSearch.trim().toLowerCase(),
+    searchIndex: projectSearchIndex, filterEstados, filterEstadosObra,
+    filterEmpresas, filterCategorias, filterClasificaciones, filterBotones,
+    filterCaptadores, visibleNames: visibleProyectoNamesByCaptador, statusByPe,
+  }), [filterVigentes, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra,
+      filterEmpresas, filterCategorias, filterClasificaciones, filterBotones,
+      filterCaptadores, visibleProyectoNamesByCaptador, statusByPe]);
+
+  // Opciones disponibles para cada filtro (solo las que existen dado el resto de filtros activos)
+  // Incluye siempre los valores ya seleccionados para que el usuario pueda deseleccionarlos.
+  const availableEstadosSet = useMemo(() => {
+    const set = new Set(filterEstados);
+    (proyectos || []).forEach(p => { if (matchAllExcept(p, "estados", cascadeCtx) && p.estado_amc) set.add(p.estado_amc); });
+    return set;
+  }, [proyectos, cascadeCtx, filterEstados]);
+
+  const availableEstadosObraSet = useMemo(() => {
+    const set = new Set(filterEstadosObra);
+    (proyectos || []).forEach(p => { if (matchAllExcept(p, "estadoObra", cascadeCtx) && p.estado_obra) set.add(p.estado_obra); });
+    return set;
+  }, [proyectos, cascadeCtx, filterEstadosObra]);
+
+  const availableEmpresasSet = useMemo(() => {
+    const set = new Set(filterEmpresas);
+    (proyectos || []).forEach(p => {
+      if (matchAllExcept(p, "empresa", cascadeCtx)) {
+        (p.proyecto_empresas || []).forEach((pe: any) => set.add(pe.empresa_id));
+      }
+    });
+    return set;
+  }, [proyectos, cascadeCtx, filterEmpresas]);
+
+  const availableClasificacionesSet = useMemo(() => {
+    const set = new Set(filterClasificaciones);
+    (proyectos || []).forEach(p => { if (matchAllExcept(p, "clasificacion", cascadeCtx) && p.clasificacion_id) set.add(p.clasificacion_id); });
+    return set;
+  }, [proyectos, cascadeCtx, filterClasificaciones]);
+
+  const availableBotonSet = useMemo(() => {
+    const set = new Set(filterBotones);
+    (proyectos || []).forEach(p => {
+      if (matchAllExcept(p, "boton", cascadeCtx)) {
+        (p.proyecto_empresas || []).forEach((pe: any) => set.add(pe.estado_amc || "Vigente"));
+      }
+    });
+    return set;
+  }, [proyectos, cascadeCtx, filterBotones]);
+
+  const availableCategoriasSet = useMemo(() => {
+    const set = new Set(filterCategorias);
+    (proyectos || []).forEach(p => {
+      if (matchAllExcept(p, "categoria", cascadeCtx)) {
+        (p.proyecto_empresas || []).forEach((pe: any) => {
+          const eff = statusByPe.get(pe.id);
+          const catId = eff?.categoria?.id || pe.categoria_id;
+          const subId = eff?.subcategoria?.id || pe.subcategoria_id;
+          if (catId) set.add(catId);
+          if (subId) set.add(subId);
+        });
+      }
+    });
+    return set;
+  }, [proyectos, cascadeCtx, filterCategorias, statusByPe]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -533,9 +719,10 @@ export default function Proyectos() {
       }))) obrasEjecucion++;
     });
     const filteredGroups = groupedRows.length;
-    const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
+    // filterVigentes=false es estado no-defecto, se considera "filtro activo" para mostrar "Limpiar"
+    const hasActiveFilters = !!(search || !filterVigentes || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
     return { totalProyectos, adjudicados, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
-  }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
+  }, [proyectos, categorias, groupedRows, search, filterVigentes, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -758,11 +945,70 @@ export default function Proyectos() {
 
       {/* Filters */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <DebouncedInput value={search} onChange={setSearch} placeholder="Buscar por nombre, comuna o cliente..." className="pl-9" />
+        {/* Búsqueda + config de campos */}
+        <div className="flex flex-1 max-w-sm gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <DebouncedInput value={search} onChange={setSearch} placeholder="Buscar..." className="pl-9" />
+          </div>
+          {/* Configuración de campos de búsqueda — solo para admins */}
+          {isAdmin && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline" size="icon" className="h-9 w-9 shrink-0"
+                  title={`Campos de búsqueda activos: ${searchFieldKeys.length} de ${SEARCH_FIELD_DEFS.length}`}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-3" align="end">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Campos de búsqueda</p>
+                <p className="text-[11px] text-muted-foreground mb-3">La búsqueda se ejecuta sobre todos los campos activos simultáneamente.</p>
+                {/* Agrupar por grupo */}
+                {Array.from(new Set(SEARCH_FIELD_DEFS.map(f => f.group))).map(group => (
+                  <div key={group} className="mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 px-2 mb-1">{group}</p>
+                    {SEARCH_FIELD_DEFS.filter(f => f.group === group).map(def => (
+                      <label key={def.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer text-sm">
+                        <Checkbox
+                          checked={searchFieldKeys.includes(def.key)}
+                          onCheckedChange={(checked) => {
+                            const next = checked
+                              ? [...searchFieldKeys, def.key]
+                              : searchFieldKeys.filter(k => k !== def.key);
+                            updateSearchFields(next.length > 0 ? next : [def.key]); // al menos 1 campo activo
+                          }}
+                        />
+                        {def.label}
+                        {def.defaultOn && <span className="ml-auto text-[10px] text-muted-foreground/60">predeterminado</span>}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => updateSearchFields(DEFAULT_SEARCH_FIELD_KEYS)}>
+                  Restaurar predeterminados
+                </Button>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap items-center">
+          {/* Filtro rápido "Vigentes" — activo por defecto */}
+          <button
+            type="button"
+            onClick={() => setFilterVigentes(v => !v)}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border transition-all select-none",
+              filterVigentes
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm hover:bg-emerald-700"
+                : "bg-background text-muted-foreground border-border hover:border-emerald-400 hover:text-emerald-700"
+            )}
+            title={filterVigentes ? "Mostrando solo proyectos vigentes · Click para ver todos" : "Mostrando todos los proyectos · Click para ver solo vigentes"}
+          >
+            {filterVigentes && <Check className="w-3 h-3" />}
+            Vigentes
+          </button>
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
           <Popover>
             <PopoverTrigger asChild>
@@ -772,13 +1018,12 @@ export default function Proyectos() {
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2" align="start">
               <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {(estadosProyecto || []).map((ep) => (
-                    <label key={ep.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                      <Checkbox checked={filterEstados.includes(ep.nombre)} onCheckedChange={() => toggleFilter(setFilterEstados, ep.nombre)} />
-                      {ep.nombre}
-                    </label>
-                  ))}
-
+                {(estadosProyecto || []).filter(ep => availableEstadosSet.has(ep.nombre)).map((ep) => (
+                  <label key={ep.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                    <Checkbox checked={filterEstados.includes(ep.nombre)} onCheckedChange={() => toggleFilter(setFilterEstados, ep.nombre)} />
+                    {ep.nombre}
+                  </label>
+                ))}
               </div>
               {filterEstados.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstados([])}>Limpiar</Button>
@@ -795,12 +1040,12 @@ export default function Proyectos() {
             </PopoverTrigger>
             <PopoverContent className="w-52 p-2" align="start">
               <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {clasificaciones?.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                      <Checkbox checked={filterClasificaciones.includes(c.id)} onCheckedChange={() => toggleFilter(setFilterClasificaciones, c.id)} />
-                      {c.nombre}
-                    </label>
-                  ))}
+                {clasificaciones?.filter(c => availableClasificacionesSet.has(c.id)).map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                    <Checkbox checked={filterClasificaciones.includes(c.id)} onCheckedChange={() => toggleFilter(setFilterClasificaciones, c.id)} />
+                    {c.nombre}
+                  </label>
+                ))}
               </div>
               {filterClasificaciones.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterClasificaciones([])}>Limpiar</Button>
@@ -817,12 +1062,12 @@ export default function Proyectos() {
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2" align="start">
               <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {ESTADOS_OBRA.filter(e => e !== "Todos").map((estado) => (
-                    <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                      <Checkbox checked={filterEstadosObra.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstadosObra, estado)} />
-                      {estado}
-                    </label>
-                  ))}
+                {ESTADOS_OBRA.filter(e => e !== "Todos" && availableEstadosObraSet.has(e)).map((estado) => (
+                  <label key={estado} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                    <Checkbox checked={filterEstadosObra.includes(estado)} onCheckedChange={() => toggleFilter(setFilterEstadosObra, estado)} />
+                    {estado}
+                  </label>
+                ))}
               </div>
               {filterEstadosObra.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEstadosObra([])}>Limpiar</Button>
@@ -839,12 +1084,12 @@ export default function Proyectos() {
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2" align="start">
               <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {empresas?.map((e) => (
-                    <label key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                      <Checkbox checked={filterEmpresas.includes(e.id)} onCheckedChange={() => toggleFilter(setFilterEmpresas, e.id)} />
-                      {e.nombre}
-                    </label>
-                  ))}
+                {empresas?.filter(e => availableEmpresasSet.has(e.id)).map((e) => (
+                  <label key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                    <Checkbox checked={filterEmpresas.includes(e.id)} onCheckedChange={() => toggleFilter(setFilterEmpresas, e.id)} />
+                    {e.nombre}
+                  </label>
+                ))}
               </div>
               {filterEmpresas.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterEmpresas([])}>Limpiar</Button>
@@ -871,7 +1116,7 @@ export default function Proyectos() {
               </PopoverTrigger>
               <PopoverContent className="w-52 p-2" align="start">
                 <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {estadosAmc.map((ea) => (
+                  {estadosAmc.filter(ea => availableBotonSet.has(ea.nombre)).map((ea) => (
                     <label key={ea.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
                       <Checkbox checked={filterBotones.includes(ea.nombre)} onCheckedChange={() => toggleFilter(setFilterBotones, ea.nombre)} />
                       <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: ea.color }} />
@@ -895,14 +1140,20 @@ export default function Proyectos() {
             </PopoverTrigger>
             <PopoverContent className="w-60 p-2" align="start">
               <div className="max-h-[400px] overflow-y-auto space-y-1">
-                  {categorias?.map((cat) => (
+                {categorias?.map((cat) => {
+                  const catAvail = availableCategoriasSet.has(cat.id);
+                  const subItems = (cat.subcategorias_proyecto || []).filter(sub => availableCategoriasSet.has(sub.id));
+                  if (!catAvail && subItems.length === 0) return null;
+                  return (
                     <Fragment key={cat.id}>
-                      <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
-                        <Checkbox checked={filterCategorias.includes(cat.id)} onCheckedChange={() => toggleFilter(setFilterCategorias, cat.id)} />
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                        {cat.nombre}
-                      </label>
-                      {cat.subcategorias_proyecto?.map((sub) => (
+                      {catAvail && (
+                        <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm">
+                          <Checkbox checked={filterCategorias.includes(cat.id)} onCheckedChange={() => toggleFilter(setFilterCategorias, cat.id)} />
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                          {cat.nombre}
+                        </label>
+                      )}
+                      {subItems.map((sub) => (
                         <label key={sub.id} className="flex items-center gap-2 px-2 py-1.5 pl-6 rounded hover:bg-accent cursor-pointer text-sm">
                           <Checkbox checked={filterCategorias.includes(sub.id)} onCheckedChange={() => toggleFilter(setFilterCategorias, sub.id)} />
                           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: sub.color }} />
@@ -910,7 +1161,8 @@ export default function Proyectos() {
                         </label>
                       ))}
                     </Fragment>
-                  ))}
+                  );
+                })}
               </div>
               {filterCategorias.length > 0 && (
                 <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setFilterCategorias([])}>Limpiar</Button>
@@ -924,6 +1176,7 @@ export default function Proyectos() {
               className="h-8 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
               onClick={() => {
                 setSearch("");
+                setFilterVigentes(true); // restaurar al estado predeterminado
                 setFilterEstados([]);
                 setFilterEmpresas([]);
                 setFilterCategorias([]);
