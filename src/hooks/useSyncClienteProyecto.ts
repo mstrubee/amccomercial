@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -284,6 +285,104 @@ export async function complementClienteFromProyectoData(
 }
 
 /**
+ * One-time bulk recovery: scan ALL clients, find empty contact fields, fill
+ * them from linked projects, and persist to DB.  Safe to run more than once —
+ * it never overwrites data that already exists.
+ *
+ * Returns { recovered, skipped, errors } where:
+ *   recovered = number of clients that got at least one field filled
+ *   skipped   = clients that already had complete data (nothing to do)
+ *   errors    = list of client names where something went wrong
+ */
+export async function recoverAllClienteContacts(): Promise<{
+  recovered: number;
+  skipped: number;
+  errors: string[];
+}> {
+  // Fetch all clients with their contacts and categories in one query
+  const { data: clientes, error: fetchErr } = await supabase
+    .from("clientes")
+    .select("id, nombre, categoria_id, categorias_cliente(nombre), contactos_cliente(id, contacto, email, telefono, orden)")
+    .order("nombre");
+
+  if (fetchErr || !clientes) {
+    return { recovered: 0, skipped: 0, errors: [fetchErr?.message || "Error al obtener clientes"] };
+  }
+
+  let recovered = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const raw of clientes as any[]) {
+    const catNombre: string = raw.categorias_cliente?.nombre || "";
+    if (!catNombre) { skipped++; continue; }
+
+    const currentContactos: { contacto: string; email: string; telefono: string }[] =
+      (raw.contactos_cliente || [])
+        .sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0))
+        .map((c: any) => ({
+          contacto: c.contacto || "",
+          email: c.email || "",
+          telefono: c.telefono || "",
+        }));
+
+    try {
+      const merged = await complementClienteFromProyectos(
+        raw.id,
+        raw.nombre,
+        catNombre,
+        currentContactos
+      );
+
+      if (!merged) { skipped++; continue; }  // Nothing to recover for this client
+
+      // Write changes to DB — same logic as ClienteDetailDialog complement persist
+      let dbChanged = false;
+      const existingRows: any[] = (raw.contactos_cliente || []).sort(
+        (a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0)
+      );
+
+      for (let i = 0; i < merged.length; i++) {
+        const c = merged[i];
+        const existing = existingRows[i];
+
+        if (existing) {
+          const patches: Record<string, string> = {};
+          if (!existing.contacto && c.contacto) patches.contacto = c.contacto;
+          if (!existing.email && c.email) patches.email = c.email;
+          if (!existing.telefono && c.telefono) patches.telefono = c.telefono;
+          if (Object.keys(patches).length > 0) {
+            const { error } = await supabase
+              .from("contactos_cliente")
+              .update(patches)
+              .eq("id", existing.id);
+            if (error) errors.push(`${raw.nombre}: ${error.message}`);
+            else dbChanged = true;
+          }
+        } else if (c.contacto || c.email || c.telefono) {
+          const { error } = await supabase.from("contactos_cliente").insert({
+            cliente_id: raw.id,
+            contacto: c.contacto || "",
+            email: c.email || "",
+            telefono: c.telefono || "",
+            orden: i,
+          });
+          if (error) errors.push(`${raw.nombre}: ${error.message}`);
+          else dbChanged = true;
+        }
+      }
+
+      if (dbChanged) recovered++;
+      else skipped++;
+    } catch (e: any) {
+      errors.push(`${raw.nombre}: ${e?.message || "Error desconocido"}`);
+    }
+  }
+
+  return { recovered, skipped, errors };
+}
+
+/**
  * Hook that provides sync functions with query invalidation.
  */
 export function useSyncClienteProyecto() {
@@ -357,10 +456,38 @@ export function useSyncClienteProyecto() {
     return changed;
   };
 
+  /**
+   * Bulk-recover all clients from project data (admin-only, one-time action).
+   * Shows toast on completion and invalidates the clientes cache.
+   */
+  const [recovering, setRecovering] = useState(false);
+  const runRecoverAllContacts = async () => {
+    if (recovering) return;
+    setRecovering(true);
+    try {
+      const { recovered, skipped, errors } = await recoverAllClienteContacts();
+      if (errors.length > 0) {
+        toast.error(`Recuperación parcial: ${recovered} recuperado(s), ${errors.length} error(es)`);
+        console.error("Errores en recuperación:", errors);
+      } else if (recovered === 0) {
+        toast.info("No se encontraron campos vacíos que recuperar.");
+      } else {
+        toast.success(`✅ ${recovered} cliente(s) recuperado(s) con datos de proyectos vinculados`);
+      }
+      if (recovered > 0) qc.invalidateQueries({ queryKey: ["clientes"] });
+    } catch (e: any) {
+      toast.error("Error en recuperación: " + (e?.message || ""));
+    } finally {
+      setRecovering(false);
+    }
+  };
+
   return {
     syncClienteToLinkedProyectos,
     syncProyectoToLinkedClientes,
     complementClienteFromLinkedProyectos,
     complementClienteFromProject,
+    runRecoverAllContacts,
+    recovering,
   };
 }

@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useClientes";
 import { useCaptadores, useCreateCaptador, useUpdateCaptador, useDeleteCaptador, CaptadorWithCategoria } from "@/hooks/useCaptadores";
 import { useAuth } from "@/hooks/useAuth";
+import { useSyncClienteProyecto } from "@/hooks/useSyncClienteProyecto";
 import ClienteDetailDialog from "@/components/clientes/ClienteDetailDialog";
 
 export default function Clientes() {
@@ -106,6 +107,7 @@ function ClientesTab({ categorias, clientes, canEdit, canDelete, isAdmin, onCrea
   const [detailTarget, setDetailTarget] = useState<ClienteWithCategoria | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const { runRecoverAllContacts, recovering } = useSyncClienteProyecto();
 
   // Auto-open the client dialog when returning from Proyectos via the back button
   useEffect(() => {
@@ -172,6 +174,19 @@ function ClientesTab({ categorias, clientes, canEdit, canDelete, isAdmin, onCrea
           </Select>
         </div>
         <div className="flex gap-2 ml-3">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              className="gap-2 text-amber-700 border-amber-300 hover:bg-amber-50"
+              onClick={runRecoverAllContacts}
+              disabled={recovering}
+              title="Recorre todos los clientes y rellena campos vacíos con datos de proyectos vinculados"
+            >
+              {recovering
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Recuperando...</>
+                : "↩ Recuperar contactos"}
+            </Button>
+          )}
           {isAdmin && (
             <Button variant="outline" className="gap-2" onClick={() => setShowCatManager(true)}>
               <Settings2 className="w-4 h-4" /> Categorías
