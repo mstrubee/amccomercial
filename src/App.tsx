@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,26 +14,56 @@ import { NotasModoProvider } from "@/contexts/NotasModoContext";
 import NotasModoPanel from "@/components/notas/NotasModoPanel";
 import NotasModoOverlay from "@/components/notas/NotasModoOverlay";
 
-// Lazy-loaded pages
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Empresas = lazy(() => import("@/pages/Empresas"));
-const Proyectos = lazy(() => import("@/pages/Proyectos"));
-const Finanzas = lazy(() => import("@/pages/Finanzas"));
-const Alertas = lazy(() => import("@/pages/Alertas"));
-const Usuarios = lazy(() => import("@/pages/Usuarios"));
-const CargaMasiva = lazy(() => import("@/pages/CargaMasiva"));
-const Clientes = lazy(() => import("@/pages/Clientes"));
-const CategoriasPage = lazy(() => import("@/pages/CategoriasPage"));
-const Reporteria = lazy(() => import("@/pages/Reporteria"));
-const EstadosProyectoPage = lazy(() => import("@/pages/EstadosProyectoPage"));
-const EstadosAmcPage = lazy(() => import("@/pages/EstadosAmcPage"));
-const RepositorioTipoPage = lazy(() => import("@/pages/RepositorioTipoPage"));
-const DrivePage = lazy(() => import("@/pages/DrivePage"));
-const Calendario = lazy(() => import("@/pages/Calendario"));
-const ReunionesPage = lazy(() => import("@/pages/AtencionEmpresas"));
-const HitosEjecucionPage = lazy(() => import("@/pages/HitosEjecucionPage"));
-const AdminNotas = lazy(() => import("@/pages/AdminNotas"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
+// Lazy-loaded pages with stale-chunk auto-recovery.
+// On dynamic-import failure (common after a redeploy when the cached
+// index-*.js references chunks that no longer exist) retry once, then
+// force a one-time hard reload to fetch the fresh bundle.
+const RELOAD_FLAG = "__lov_chunk_reload__";
+function lazyWithRetry<T extends ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      const isChunkErr =
+        msg.includes("Importing a module script failed") ||
+        msg.includes("Failed to fetch dynamically imported module") ||
+        msg.includes("error loading dynamically imported module") ||
+        msg.includes("Loading chunk") ||
+        msg.includes("ChunkLoadError");
+      if (isChunkErr && !sessionStorage.getItem(RELOAD_FLAG)) {
+        sessionStorage.setItem(RELOAD_FLAG, "1");
+        window.location.reload();
+        // Return a never-resolving promise so Suspense keeps the fallback
+        // until the reload completes.
+        return await new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    }
+  });
+}
+
+const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
+const Empresas = lazyWithRetry(() => import("@/pages/Empresas"));
+const Proyectos = lazyWithRetry(() => import("@/pages/Proyectos"));
+const Finanzas = lazyWithRetry(() => import("@/pages/Finanzas"));
+const Alertas = lazyWithRetry(() => import("@/pages/Alertas"));
+const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
+const CargaMasiva = lazyWithRetry(() => import("@/pages/CargaMasiva"));
+const Clientes = lazyWithRetry(() => import("@/pages/Clientes"));
+const CategoriasPage = lazyWithRetry(() => import("@/pages/CategoriasPage"));
+const Reporteria = lazyWithRetry(() => import("@/pages/Reporteria"));
+const EstadosProyectoPage = lazyWithRetry(() => import("@/pages/EstadosProyectoPage"));
+const EstadosAmcPage = lazyWithRetry(() => import("@/pages/EstadosAmcPage"));
+const RepositorioTipoPage = lazyWithRetry(() => import("@/pages/RepositorioTipoPage"));
+const DrivePage = lazyWithRetry(() => import("@/pages/DrivePage"));
+const Calendario = lazyWithRetry(() => import("@/pages/Calendario"));
+const ReunionesPage = lazyWithRetry(() => import("@/pages/AtencionEmpresas"));
+const HitosEjecucionPage = lazyWithRetry(() => import("@/pages/HitosEjecucionPage"));
+const AdminNotas = lazyWithRetry(() => import("@/pages/AdminNotas"));
+const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
 
 const PageFallback = () => (
   <div className="flex flex-1 items-center justify-center py-20">
