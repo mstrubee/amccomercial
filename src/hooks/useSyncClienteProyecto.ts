@@ -383,6 +383,188 @@ export async function recoverAllClienteContacts(): Promise<{
 }
 
 /**
+ * Deep recovery — scans ALL project denormalized contact fields (arq/const/ito/duenos)
+ * and fills any empty fields in matching client records.
+ *
+ * Unlike recoverAllClienteContacts, this does NOT require proyecto_clientes join-table
+ * entries, so it catches legacy clients that were only linked via free-text fields.
+ *
+ * Safe to run multiple times — it never overwrites data that already exists.
+ *
+ * Returns { recovered, errors } where:
+ *   recovered = number of clients that had at least one field filled
+ *   errors    = list of error messages for failed DB operations
+ */
+export async function recoverContactsFromProjectFields(): Promise<{
+  recovered: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+
+  // ── 1. Load every client (contacts + category) ──────────────────────────────
+  const { data: clientesRaw, error: clientErr } = await supabase
+    .from("clientes")
+    .select("id, nombre, categorias_cliente(nombre), contactos_cliente(id, contacto, email, telefono, orden)");
+
+  if (clientErr || !clientesRaw) {
+    return { recovered: 0, errors: [clientErr?.message || "Error al obtener clientes"] };
+  }
+
+  // ── 2. Build lookup: "catNombreLower|firmNombreLower" → cliente ──────────────
+  // One entry per unique (category, name) pair — first match wins.
+  const clientLookup = new Map<string, any>();
+  for (const c of clientesRaw as any[]) {
+    const catNombre = ((c.categorias_cliente as any)?.nombre || "").toLowerCase();
+    if (!catNombre) continue;
+    const key = `${catNombre}|${(c.nombre || "").trim().toLowerCase()}`;
+    if (!clientLookup.has(key)) clientLookup.set(key, c);
+  }
+
+  // ── 3. Build mutable contact state per client (deduplicates DB writes) ──────
+  type ContactRow = { id: string; contacto: string; email: string; telefono: string; orden: number };
+  type NewContact = { cliente_id: string; contacto: string; email: string; telefono: string; orden: number };
+  const clientState = new Map<string, {
+    existing: ContactRow[];
+    pendingNew: NewContact[];
+    nextOrden: number;
+  }>();
+
+  for (const c of clientesRaw as any[]) {
+    const sorted: ContactRow[] = ((c.contactos_cliente || []) as any[])
+      .sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0))
+      .map((ct: any) => ({
+        id: ct.id,
+        contacto: ct.contacto || "",
+        email: ct.email || "",
+        telefono: ct.telefono || "",
+        orden: ct.orden ?? 0,
+      }));
+    clientState.set(c.id, {
+      existing: sorted,
+      pendingNew: [],
+      nextOrden: sorted.length > 0 ? Math.max(...sorted.map(ct => ct.orden)) + 1 : 0,
+    });
+  }
+
+  // Original contact snapshot for diff (we need to know what was empty before)
+  const origContactMap = new Map<string, any>(); // contactId → original DB row
+  for (const c of clientesRaw as any[]) {
+    for (const ct of (c.contactos_cliente || []) as any[]) {
+      origContactMap.set(ct.id, ct);
+    }
+  }
+
+  // ── 4. Load every project's contact fields ──────────────────────────────────
+  const { data: proyectos, error: projErr } = await supabase
+    .from("proyectos")
+    .select(
+      "id, " +
+      "arq_nombre, arq_contacto, arq_mail, arq_telefono, " +
+      "const_nombre, const_contacto, const_mail, const_telefono, " +
+      "ito_nombre, ito_contacto, ito_mail, ito_telefono, " +
+      "duenos_nombre, duenos_contacto, duenos_mail, duenos_telefono"
+    );
+
+  if (projErr || !proyectos) {
+    return { recovered: 0, errors: [projErr?.message || "Error al obtener proyectos"] };
+  }
+
+  // ── 5. Scan each project's contact groups and accumulate changes ─────────────
+  const PREFIXES: Array<{ prefix: string; catLower: string }> = [
+    { prefix: "arq",    catLower: "arquitectura" },
+    { prefix: "const",  catLower: "constructora" },
+    { prefix: "ito",    catLower: "ito" },
+    { prefix: "duenos", catLower: "dueños" },
+  ];
+
+  for (const p of proyectos as any[]) {
+    for (const { prefix, catLower } of PREFIXES) {
+      const rawNombres = (p[`${prefix}_nombre`] as string) || "";
+      if (!rawNombres.trim()) continue;
+
+      const nombres   = rawNombres.split(" / ").map((s: string) => s.trim());
+      const contactos = ((p[`${prefix}_contacto`] as string) || "").split(" / ").map((s: string) => s.trim());
+      const emails    = ((p[`${prefix}_mail`]     as string) || "").split(" / ").map((s: string) => s.trim());
+      const telefonos = ((p[`${prefix}_telefono`] as string) || "").split(" / ").map((s: string) => s.trim());
+
+      for (let i = 0; i < nombres.length; i++) {
+        if (!nombres[i]) continue;
+
+        const key     = `${catLower}|${nombres[i].toLowerCase()}`;
+        const cliente = clientLookup.get(key);
+        if (!cliente) continue;
+
+        const contactoVal = contactos[i] || "";
+        const emailVal    = emails[i]    || "";
+        const telefonoVal = telefonos[i] || "";
+        if (!contactoVal && !emailVal && !telefonoVal) continue;
+
+        const state = clientState.get(cliente.id);
+        if (!state) continue;
+
+        // Try to find this contact by name in existing + pending lists
+        const allContacts = [...state.existing, ...state.pendingNew];
+        const nameMatch = contactoVal
+          ? allContacts.find(ct => ct.contacto.trim().toLowerCase() === contactoVal.toLowerCase())
+          : null;
+
+        if (nameMatch) {
+          // Only fill empty fields — never overwrite
+          if (!nameMatch.email    && emailVal)    nameMatch.email    = emailVal;
+          if (!nameMatch.telefono && telefonoVal) nameMatch.telefono = telefonoVal;
+        } else if (contactoVal) {
+          // New contact person not yet in this client's list
+          const alreadyPending = state.pendingNew.some(
+            ct => ct.contacto.trim().toLowerCase() === contactoVal.toLowerCase()
+          );
+          if (!alreadyPending) {
+            state.pendingNew.push({
+              cliente_id: cliente.id,
+              contacto:   contactoVal,
+              email:      emailVal,
+              telefono:   telefonoVal,
+              orden:      state.nextOrden++,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // ── 6. Write accumulated changes to DB ──────────────────────────────────────
+  const recoveredSet = new Set<string>();
+
+  for (const [clienteId, state] of clientState.entries()) {
+    // 6a. Update existing contacts whose email/telefono was filled in step 5
+    for (const ct of state.existing) {
+      const orig = origContactMap.get(ct.id);
+      if (!orig) continue;
+      const patches: Record<string, string> = {};
+      if (!orig.email    && ct.email)    patches.email    = ct.email;
+      if (!orig.telefono && ct.telefono) patches.telefono = ct.telefono;
+      if (!orig.contacto && ct.contacto) patches.contacto = ct.contacto;
+      if (Object.keys(patches).length > 0) {
+        const { error } = await supabase
+          .from("contactos_cliente")
+          .update(patches)
+          .eq("id", ct.id);
+        if (error) errors.push(`Update contacto ${ct.id}: ${error.message}`);
+        else recoveredSet.add(clienteId);
+      }
+    }
+
+    // 6b. Insert brand-new contact rows
+    for (const newCt of state.pendingNew) {
+      const { error } = await supabase.from("contactos_cliente").insert(newCt);
+      if (error) errors.push(`Insert ${newCt.contacto} (${newCt.cliente_id}): ${error.message}`);
+      else recoveredSet.add(newCt.cliente_id);
+    }
+  }
+
+  return { recovered: recoveredSet.size, errors };
+}
+
+/**
  * Hook that provides sync functions with query invalidation.
  */
 export function useSyncClienteProyecto() {
@@ -458,6 +640,11 @@ export function useSyncClienteProyecto() {
 
   /**
    * Bulk-recover all clients from project data (admin-only, one-time action).
+   *
+   * Runs two passes:
+   *   Pass 1 — via proyecto_clientes join table (fast path for formally-linked clients)
+   *   Pass 2 — direct scan of all project contact fields (catches legacy / unlinked clients)
+   *
    * Shows toast on completion and invalidates the clientes cache.
    */
   const [recovering, setRecovering] = useState(false);
@@ -465,16 +652,26 @@ export function useSyncClienteProyecto() {
     if (recovering) return;
     setRecovering(true);
     try {
-      const { recovered, skipped, errors } = await recoverAllClienteContacts();
-      if (errors.length > 0) {
-        toast.error(`Recuperación parcial: ${recovered} recuperado(s), ${errors.length} error(es)`);
-        console.error("Errores en recuperación:", errors);
-      } else if (recovered === 0) {
+      // Pass 1: clients with formal proyecto_clientes links
+      const r1 = await recoverAllClienteContacts();
+
+      // Pass 2: scan project fields directly — catches clients that have no
+      //          proyecto_clientes entries (legacy / free-text-only data).
+      //          Also fills fields that pass 1 may have missed.
+      const r2 = await recoverContactsFromProjectFields();
+
+      const totalRecovered = r1.recovered + r2.recovered;
+      const allErrors = [...r1.errors, ...r2.errors];
+
+      if (allErrors.length > 0) {
+        toast.error(`Recuperación parcial: ${totalRecovered} recuperado(s), ${allErrors.length} error(es)`);
+        console.error("Errores en recuperación:", allErrors);
+      } else if (totalRecovered === 0) {
         toast.info("No se encontraron campos vacíos que recuperar.");
       } else {
-        toast.success(`✅ ${recovered} cliente(s) recuperado(s) con datos de proyectos vinculados`);
+        toast.success(`✅ ${totalRecovered} cliente(s) recuperado(s) desde proyectos`);
       }
-      if (recovered > 0) qc.invalidateQueries({ queryKey: ["clientes"] });
+      if (totalRecovered > 0) qc.invalidateQueries({ queryKey: ["clientes"] });
     } catch (e: any) {
       toast.error("Error en recuperación: " + (e?.message || ""));
     } finally {
