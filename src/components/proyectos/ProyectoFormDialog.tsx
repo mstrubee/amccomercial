@@ -1347,7 +1347,7 @@ function ContactosSection(props: ContactosSectionProps) {
     const rows = splitToRows(values[0], values[1], values[2], values[3]);
     rows.splice(rowIndex, 1);
     if (rows.length === 0) {
-      rows.push({ nombre: "", contacto: "", telefono: "" });
+      rows.push({ nombre: "", contacto: "", email: "", telefono: "" });
     }
     const [n, c, e, t] = rowsToStrings(rows);
     setters[0](n);
