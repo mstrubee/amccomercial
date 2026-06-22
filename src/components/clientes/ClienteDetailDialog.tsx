@@ -30,10 +30,11 @@ interface Props {
   cliente: ClienteWithCategoria | null;
   categorias: CategoriaCliente[];
   canEdit: boolean;
+  canEditContacts?: boolean; // captadores can edit contacts but not client metadata
   canDelete: boolean;
 }
 
-export default function ClienteDetailDialog({ open, onOpenChange, cliente, categorias, canEdit, canDelete }: Props) {
+export default function ClienteDetailDialog({ open, onOpenChange, cliente, categorias, canEdit, canEditContacts = canEdit, canDelete }: Props) {
   const updateCliente = useUpdateCliente();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -247,7 +248,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between pr-6">
               <span>{editing ? "Editar Cliente" : "Detalle de Cliente"}</span>
-              {canEdit && !editing && (
+              {(canEdit || canEditContacts) && !editing && (
                 <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => { setEditing(true); editingRef.current = true; }}>
                   Editar
                 </Button>
@@ -263,7 +264,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Nombre</Label>
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
-                {editing ? (
+                {editing && canEdit ? (
                   <Input value={nombre} onChange={(e) => { setNombre(e.target.value); setHasChanges(true); }} />
                 ) : (
                   <p className="text-base font-semibold text-card-foreground">{nombre}</p>
@@ -278,7 +279,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">Categoría</Label>
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
-                {editing ? (
+                {editing && canEdit ? (
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={categoriaId}

@@ -34,8 +34,10 @@ export default function Clientes() {
   const { isAdmin, roles, isCaptador } = useAuth();
 
   const isUsuarioTipo1 = roles.includes("usuario_tipo_1");
-  // Captadores cannot edit, delete, or see client/captador lists
+  // Captadores cannot edit client metadata (name/category) or delete records
   const canEdit = (isAdmin || isUsuarioTipo1) && !isCaptador;
+  // Captadores CAN edit contact info (name, email, phone) but cannot delete contacts
+  const canEditContacts = isAdmin || isUsuarioTipo1 || isCaptador;
   const canDelete = isAdmin && !isCaptador;
 
   const [activeTab, setActiveTab] = useState("clientes");
@@ -63,6 +65,7 @@ export default function Clientes() {
             categorias={categorias || []}
             clientes={clientes || []}
             canEdit={canEdit}
+            canEditContacts={canEditContacts}
             canDelete={canDelete}
             isAdmin={isAdmin}
             onCreate={(data) => createCliente.mutateAsync(data)}
@@ -88,10 +91,11 @@ export default function Clientes() {
 }
 
 /* ── Clientes Tab ── */
-function ClientesTab({ categorias, clientes, canEdit, canDelete, isAdmin, onCreate, onDelete, createPending }: {
+function ClientesTab({ categorias, clientes, canEdit, canEditContacts, canDelete, isAdmin, onCreate, onDelete, createPending }: {
   categorias: CategoriaCliente[];
   clientes: ClienteWithCategoria[];
   canEdit: boolean;
+  canEditContacts: boolean;
   canDelete: boolean;
   isAdmin: boolean;
   onCreate: (data: any) => Promise<any>;
@@ -202,7 +206,7 @@ function ClientesTab({ categorias, clientes, canEdit, canDelete, isAdmin, onCrea
 
       <ContactListView grouped={grouped} expanded={expanded} setExpanded={setExpanded} canDelete={canDelete} onDetail={setDetailTarget} onDelete={setDeleteTarget} entityLabel="clientes" />
 
-      <ClienteDetailDialog open={!!detailTarget} onOpenChange={(v) => !v && setDetailTarget(null)} cliente={detailTarget} categorias={categorias} canEdit={canEdit} canDelete={canDelete} />
+      <ClienteDetailDialog open={!!detailTarget} onOpenChange={(v) => !v && setDetailTarget(null)} cliente={detailTarget} categorias={categorias} canEdit={canEdit} canEditContacts={canEditContacts} canDelete={canDelete} />
 
       <ClienteFormDialog open={showForm} onOpenChange={setShowForm} categorias={categorias} isLoading={createPending} onSubmit={(data) => { onCreate(data).then(() => setShowForm(false)); }} entityLabel="Cliente" />
 
