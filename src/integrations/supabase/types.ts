@@ -1357,7 +1357,6 @@ export type Database = {
           created_at: string
           current_section: string | null
           display_name: string
-          email: string
           id: string
           last_seen_at: string | null
           updated_at: string
@@ -1368,7 +1367,6 @@ export type Database = {
           created_at?: string
           current_section?: string | null
           display_name?: string
-          email: string
           id?: string
           last_seen_at?: string | null
           updated_at?: string
@@ -1379,7 +1377,6 @@ export type Database = {
           created_at?: string
           current_section?: string | null
           display_name?: string
-          email?: string
           id?: string
           last_seen_at?: string | null
           updated_at?: string
@@ -1961,6 +1958,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      captador_add_empresas_visibles: {
+        Args: { _empresa_ids: string[] }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
