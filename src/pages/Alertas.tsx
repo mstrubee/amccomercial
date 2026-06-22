@@ -279,7 +279,7 @@ export default function Alertas() {
         const deleg = delegacionesActivas?.find((d) => d.delegante_id === alertaToComplete.usuario_responsable_id);
         if (deleg) {
           const deleganteProfile = profiles?.find((p) => p.user_id === deleg.delegante_id);
-          onBehalfOf = deleganteProfile?.display_name || deleganteProfile?.email || "";
+          onBehalfOf = deleganteProfile?.display_name  || "";
         }
       }
       await toggleCompletada.mutateAsync({
@@ -353,7 +353,7 @@ export default function Alertas() {
             const p = profiles?.find((p) => p.user_id === d.delegante_id);
             return (
               <strong key={d.id}>
-                  {p?.display_name || p?.email || d.delegante_id}
+                  {p?.display_name  || d.delegante_id}
                   {i < delegacionesActivas.length - 1 ? ", " : ""}
                 </strong>);
 
@@ -728,7 +728,7 @@ export default function Alertas() {
             const deleg = delegacionesActivas?.find((d) => d.delegante_id === alerta.usuario_responsable_id);
             if (deleg) {
               const deleganteProfile = profiles?.find((p) => p.user_id === deleg.delegante_id);
-              toggleCompletada.mutate({ id, completada: true, on_behalf_of: deleganteProfile?.display_name || deleganteProfile?.email || "" });
+              toggleCompletada.mutate({ id, completada: true, on_behalf_of: deleganteProfile?.display_name  || "" });
               return;
             }
           }

@@ -90,7 +90,7 @@ function AlertaItem({ alerta, allAlertas, onEdit, onDelete, onComplete, onShowTr
               {format(fechaDate, "dd MMM yyyy", { locale: es })}
               {isOverdue && " (vencida)"}
             </span>
-            <span className="font-medium">{alerta.responsable_profile?.display_name || alerta.responsable_profile?.email || "—"}</span>
+            <span className="font-medium">{alerta.responsable_profile?.display_name  || "—"}</span>
           </div>
         </div>
       </div>
