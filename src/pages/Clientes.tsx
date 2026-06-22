@@ -94,12 +94,13 @@ export default function Clientes() {
 }
 
 /* ── Clientes Tab ── */
-function ClientesTab({ categorias, clientes, canEdit, canEditContacts, canDelete, isAdmin, onCreate, onDelete, createPending }: {
+function ClientesTab({ categorias, clientes, canEdit, canEditContacts, canDelete, canCreate, isAdmin, onCreate, onDelete, createPending }: {
   categorias: CategoriaCliente[];
   clientes: ClienteWithCategoria[];
   canEdit: boolean;
   canEditContacts: boolean;
   canDelete: boolean;
+  canCreate: boolean;
   isAdmin: boolean;
   onCreate: (data: any) => Promise<any>;
   onDelete: (id: string) => Promise<any>;
