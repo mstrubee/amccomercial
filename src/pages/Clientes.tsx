@@ -39,6 +39,8 @@ export default function Clientes() {
   // Captadores CAN edit contact info (name, email, phone) but cannot delete contacts
   const canEditContacts = isAdmin || isUsuarioTipo1 || isCaptador;
   const canDelete = isAdmin && !isCaptador;
+  // Captadores CAN create new clients (full record + contacts)
+  const canCreate = isAdmin || isUsuarioTipo1 || isCaptador;
 
   const [activeTab, setActiveTab] = useState("clientes");
 
@@ -67,6 +69,7 @@ export default function Clientes() {
             canEdit={canEdit}
             canEditContacts={canEditContacts}
             canDelete={canDelete}
+            canCreate={canCreate}
             isAdmin={isAdmin}
             onCreate={(data) => createCliente.mutateAsync(data)}
             onDelete={(id) => deleteCliente.mutateAsync(id)}
