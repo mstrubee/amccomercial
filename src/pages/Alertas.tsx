@@ -226,7 +226,6 @@ export default function Alertas() {
       a.proyectos?.nombre?.toLowerCase().includes(s) ||
       a.empresas?.nombre?.toLowerCase().includes(s) ||
       a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
-      a.responsable_profile?.email?.toLowerCase().includes(s) ||
       proyectosRaw?.some((p) =>
       p.id === a.proyecto_id &&
       p.proyecto_clientes?.some((pc: any) =>
