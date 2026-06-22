@@ -470,7 +470,7 @@ export default function FloatingChat() {
   const filteredProfiles = profiles.filter(
     (p) =>
       p.display_name.toLowerCase().includes(searchUser.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchUser.toLowerCase())
+      false
   );
 
   const displayMessages = searchMessages.trim()
@@ -932,7 +932,6 @@ export default function FloatingChat() {
                              </div>
                              <div className="min-w-0">
                                <p className="text-sm font-medium text-foreground">{p.display_name}</p>
-                               <p className="text-xs text-muted-foreground">{p.email}</p>
                              </div>
                            </button>
                          );
