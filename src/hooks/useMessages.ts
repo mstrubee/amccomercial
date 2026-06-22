@@ -9,7 +9,7 @@ export interface Conversation {
   updated_at: string;
   project_id: string | null;
   empresa_id: string | null;
-  participants: { user_id: string; display_name: string; email: string }[];
+  participants: { user_id: string; display_name: string }[];
   last_message?: { content: string; created_at: string; sender_id: string };
   unread_count: number;
 }
@@ -89,7 +89,7 @@ export function useMessages(options: UseMessagesOptions = {}) {
       const userIds = [...new Set(allParticipants?.map((p) => p.user_id) || [])];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
+        .select("user_id, display_name")
         .in("user_id", userIds);
 
       const profileMap = Object.fromEntries((profiles || []).map((p) => [p.user_id, p]));
@@ -125,7 +125,7 @@ export function useMessages(options: UseMessagesOptions = {}) {
 
         const convParticipants = (allParticipants || [])
           .filter((p) => p.conversation_id === convId && p.user_id !== user.id)
-          .map((p) => profileMap[p.user_id] || { user_id: p.user_id, display_name: "Usuario", email: "" });
+          .map((p) => profileMap[p.user_id] || { user_id: p.user_id, display_name: "Usuario" });
 
         const dbConversation = conversationMap[convId] as any;
 

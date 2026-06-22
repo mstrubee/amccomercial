@@ -323,7 +323,7 @@ export default function Proyectos() {
     }
   }, [qc]);
 
-  const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
+  const [profiles, setProfiles] = useState<{ user_id: string; display_name: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
 
   // (debounce moved into DebouncedInput component)
@@ -332,7 +332,7 @@ export default function Proyectos() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setCurrentUserId(data.user.id);
     });
-    supabase.from("profiles").select("user_id, display_name, email").then(({ data }) => {
+    supabase.from("profiles").select("user_id, display_name").then(({ data }) => {
       if (data) setProfiles(data);
     });
   }, []);
@@ -1603,17 +1603,7 @@ export default function Proyectos() {
                   );
                 }
                 const newEmpresaIds = data.empresa_links.map(l => l.empresa_id);
-                const { data: perms } = await supabase
-                  .from("user_permissions")
-                  .select("empresas_visibles")
-                  .eq("user_id", user.id)
-                  .maybeSingle();
-                const current: string[] = Array.isArray((perms as any)?.empresas_visibles) ? (perms as any).empresas_visibles : [];
-                const merged = Array.from(new Set([...current, ...newEmpresaIds]));
-                await supabase.from("user_permissions").upsert(
-                  { user_id: user.id, empresas_visibles: merged },
-                  { onConflict: "user_id" }
-                );
+                await supabase.rpc("captador_add_empresas_visibles" as any, { _empresa_ids: newEmpresaIds });
               }
               await qcMain.invalidateQueries({ queryKey: ["proyectos"] });
               setShowCreate(false);

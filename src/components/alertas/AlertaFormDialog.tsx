@@ -23,7 +23,7 @@ interface Props {
   editTarget?: AlertaWithRelations | null;
   proyectos: { id: string; nombre: string; numero: number }[];
   empresas: Tables<"empresas">[];
-  profiles: { user_id: string; display_name: string; email: string }[];
+  profiles: { user_id: string; display_name: string }[];
   currentUserId: string;
   defaultProyectoId?: string;
   defaultEmpresaId?: string;
@@ -331,7 +331,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
               <SelectContent>
                 {profiles.map((p) => (
                   <SelectItem key={p.user_id} value={p.user_id}>
-                    {p.display_name || p.email}
+                    {p.display_name}
                   </SelectItem>
                 ))}
               </SelectContent>

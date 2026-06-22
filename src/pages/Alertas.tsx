@@ -71,7 +71,7 @@ export default function Alertas() {
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      const { data } = await supabase.from("profiles").select("user_id, display_name");
       return data || [];
     }
   });
@@ -226,7 +226,6 @@ export default function Alertas() {
       a.proyectos?.nombre?.toLowerCase().includes(s) ||
       a.empresas?.nombre?.toLowerCase().includes(s) ||
       a.responsable_profile?.display_name?.toLowerCase().includes(s) ||
-      a.responsable_profile?.email?.toLowerCase().includes(s) ||
       proyectosRaw?.some((p) =>
       p.id === a.proyecto_id &&
       p.proyecto_clientes?.some((pc: any) =>
@@ -279,7 +278,7 @@ export default function Alertas() {
         const deleg = delegacionesActivas?.find((d) => d.delegante_id === alertaToComplete.usuario_responsable_id);
         if (deleg) {
           const deleganteProfile = profiles?.find((p) => p.user_id === deleg.delegante_id);
-          onBehalfOf = deleganteProfile?.display_name || deleganteProfile?.email || "";
+          onBehalfOf = deleganteProfile?.display_name  || "";
         }
       }
       await toggleCompletada.mutateAsync({
@@ -353,7 +352,7 @@ export default function Alertas() {
             const p = profiles?.find((p) => p.user_id === d.delegante_id);
             return (
               <strong key={d.id}>
-                  {p?.display_name || p?.email || d.delegante_id}
+                  {p?.display_name  || d.delegante_id}
                   {i < delegacionesActivas.length - 1 ? ", " : ""}
                 </strong>);
 
@@ -639,7 +638,7 @@ export default function Alertas() {
                       })()}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
-                    {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
+                    {a.responsable_profile?.display_name || "—"}
                   </td>
                   <td className="px-5 py-3 text-sm text-muted-foreground">
                     {format(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
@@ -728,7 +727,7 @@ export default function Alertas() {
             const deleg = delegacionesActivas?.find((d) => d.delegante_id === alerta.usuario_responsable_id);
             if (deleg) {
               const deleganteProfile = profiles?.find((p) => p.user_id === deleg.delegante_id);
-              toggleCompletada.mutate({ id, completada: true, on_behalf_of: deleganteProfile?.display_name || deleganteProfile?.email || "" });
+              toggleCompletada.mutate({ id, completada: true, on_behalf_of: deleganteProfile?.display_name  || "" });
               return;
             }
           }

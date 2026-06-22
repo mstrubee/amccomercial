@@ -194,7 +194,7 @@ export default function FloatingChat() {
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-chat", contextProject?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email").order("display_name");
+      const { data } = await supabase.from("profiles").select("user_id, display_name").order("display_name");
       return (data || []).filter((p) => p.user_id !== user?.id);
     },
     enabled: open && view === "new",
@@ -204,7 +204,7 @@ export default function FloatingChat() {
   const { data: allProfiles = [] } = useQuery({
     queryKey: ["profiles-all-chat"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      const { data } = await supabase.from("profiles").select("user_id, display_name");
       return data || [];
     },
     enabled: !!activeConversationId,
@@ -470,7 +470,7 @@ export default function FloatingChat() {
   const filteredProfiles = profiles.filter(
     (p) =>
       p.display_name.toLowerCase().includes(searchUser.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchUser.toLowerCase())
+      false
   );
 
   const displayMessages = searchMessages.trim()
@@ -932,7 +932,6 @@ export default function FloatingChat() {
                              </div>
                              <div className="min-w-0">
                                <p className="text-sm font-medium text-foreground">{p.display_name}</p>
-                               <p className="text-xs text-muted-foreground">{p.email}</p>
                              </div>
                            </button>
                          );

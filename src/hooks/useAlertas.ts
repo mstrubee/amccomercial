@@ -39,7 +39,7 @@ export interface AlertaRow {
 export interface AlertaWithRelations extends AlertaRow {
   proyectos: { id: string; nombre: string; numero: number } | null;
   empresas: { id: string; nombre: string } | null;
-  responsable_profile: { display_name: string; email: string } | null;
+  responsable_profile: { display_name: string } | null;
 }
 
 async function fetchAllAlertas(includeDeleted: boolean = false) {
@@ -100,15 +100,15 @@ async function enrichWithProfiles(data: any[], allUserFields: boolean = false) {
       ? [a.usuario_responsable_id, a.created_by, a.completed_by, a.updated_by, a.deleted_by].filter(Boolean)
       : [a.usuario_responsable_id]
   ))];
-  let profilesMap: Record<string, { display_name: string; email: string }> = {};
+  let profilesMap: Record<string, { display_name: string }> = {};
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, display_name, email")
+      .select("user_id, display_name")
       .in("user_id", userIds);
     if (profiles) {
       profiles.forEach((p: any) => {
-        profilesMap[p.user_id] = { display_name: p.display_name, email: p.email };
+        profilesMap[p.user_id] = { display_name: p.display_name };
       });
     }
   }
@@ -148,7 +148,7 @@ export function useAllAlertas() {
         responsable_profile: profilesMap[a.usuario_responsable_id] || null,
         alerta_clasificaciones: clasificacionesMap[a.id] || [],
         _profilesMap: profilesMap,
-      })) as (AlertaWithRelations & { _profilesMap: Record<string, { display_name: string; email: string }> })[];
+      })) as (AlertaWithRelations & { _profilesMap: Record<string, { display_name: string }> })[];
     },
   });
 }

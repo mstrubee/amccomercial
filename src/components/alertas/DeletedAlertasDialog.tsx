@@ -36,7 +36,7 @@ export default function DeletedAlertasDialog({ open, onClose }: Props) {
             <div className="space-y-2">
               {deleted.map(a => {
                 const pm = (a as any)._profilesMap || {};
-                const deletedByName = a.deleted_by ? (pm[a.deleted_by]?.display_name || pm[a.deleted_by]?.email || "—") : "—";
+                const deletedByName = a.deleted_by ? (pm[a.deleted_by]?.display_name  || "—") : "—";
                 return (
                   <div key={a.id} className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">
                     <div className="flex items-start justify-between gap-2">

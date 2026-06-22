@@ -891,7 +891,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                         {a.titulo && <div className="font-semibold text-amber-700 text-[11px]">{a.titulo}</div>}
                         <div className={cn("truncate", a.completada && "line-through text-muted-foreground")}>{a.texto}</div>
                         <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
-                          <span>{a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
+                          <span>{a.responsable_profile?.display_name || "—"}</span>
                           <span className={isOverdue ? "text-destructive font-medium" : ""}>{format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}{isOverdue && " (vencida)"}</span>
                         </div>
                       </div>
@@ -1382,7 +1382,7 @@ function ContactosSection(props: ContactosSectionProps) {
     newNombre: string
   ) => {
     const rows = splitToRows(values[0], values[1], values[2], values[3]);
-    rows[idx] = { ...rows[idx], nombre: newNombre, contacto: "", email: "", telefono: "" };
+    rows[idx] = { ...rows[idx], nombre: newNombre, contacto: "", telefono: "" };
     const [n, c, e, t] = rowsToStrings(rows);
     setters[0](n); setters[1](c); setters[2](e); setters[3](t);
     // Update client mapping

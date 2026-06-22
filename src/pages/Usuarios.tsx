@@ -71,7 +71,7 @@ export default function Usuarios() {
     const fetchProfiles = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email, last_seen_at, activity_status, current_section");
+        .select("user_id, display_name, last_seen_at, activity_status, current_section");
       setProfiles((data as ProfilePresence[]) || []);
     };
     fetchProfiles();

@@ -43,7 +43,7 @@ export default function Reporteria() {
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("user_id, display_name, email");
+      const { data, error } = await supabase.from("profiles").select("user_id, display_name");
       if (error) throw error;
       return data;
     },
@@ -69,7 +69,7 @@ export default function Reporteria() {
 
   const profileMap = useMemo(() => {
     const map: Record<string, string> = {};
-    profiles?.forEach((p) => { map[p.user_id] = p.display_name || p.email; });
+    profiles?.forEach((p) => { map[p.user_id] = p.display_name; });
     return map;
   }, [profiles]);
 
@@ -186,7 +186,7 @@ export default function Reporteria() {
               <SelectItem value="all">Todos los usuarios</SelectItem>
               {profiles?.map((p) => (
                 <SelectItem key={p.user_id} value={p.user_id}>
-                  {p.display_name || p.email}
+                  {p.display_name}
                 </SelectItem>
               ))}
             </SelectContent>

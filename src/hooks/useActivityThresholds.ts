@@ -44,7 +44,6 @@ export function useUpsertThreshold() {
 export interface ProfilePresence {
   user_id: string;
   display_name: string;
-  email: string;
   last_seen_at: string | null;
   activity_status: string | null;
   current_section: string | null;

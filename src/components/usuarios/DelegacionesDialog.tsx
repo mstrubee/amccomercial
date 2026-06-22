@@ -28,7 +28,7 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      const { data } = await supabase.from("profiles").select("user_id, display_name");
       return data || [];
     },
   });
@@ -53,7 +53,7 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
     (p) => p.user_id !== user?.id
   ) || [];
 
-  const profileMap = new Map(profiles?.map((p) => [p.user_id, p.display_name || p.email]) || []);
+  const profileMap = new Map(profiles?.map((p) => [p.user_id, p.display_name]) || []);
 
   const handleCreate = () => {
     if (!user || !delegadoId || !fechaFin) return;
@@ -105,7 +105,7 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
                         <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {availableProfiles.map((p) => (
-                            <SelectItem key={p.user_id} value={p.user_id}>{p.display_name || p.email}</SelectItem>
+                            <SelectItem key={p.user_id} value={p.user_id}>{p.display_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -174,7 +174,7 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
                     <SelectContent>
                       {availableProfiles.map((p) => (
                         <SelectItem key={p.user_id} value={p.user_id}>
-                          {p.display_name || p.email}
+                          {p.display_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
