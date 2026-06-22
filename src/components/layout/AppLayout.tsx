@@ -88,9 +88,11 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, isCaptado
 
   const adminSubItems = isAdmin
     ? allAdminSubItems
-    : isUsuarioTipo1
-      ? allAdminSubItems.filter(i => i.allowTipo1 && !(isCaptador && i.path === "/clientes"))
-      : [];
+    : isCaptador
+      ? allAdminSubItems.filter(i => i.path === "/clientes")
+      : isUsuarioTipo1
+        ? allAdminSubItems.filter(i => i.allowTipo1)
+        : [];
 
   const showAdminSection = adminSubItems.length > 0;
   const isAdminPathActive = adminSubItems.some((i) => location.pathname === i.path);
