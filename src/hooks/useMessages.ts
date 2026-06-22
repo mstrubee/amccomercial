@@ -9,7 +9,7 @@ export interface Conversation {
   updated_at: string;
   project_id: string | null;
   empresa_id: string | null;
-  participants: { user_id: string; display_name: string; email: string }[];
+  participants: { user_id: string; display_name: string }[];
   last_message?: { content: string; created_at: string; sender_id: string };
   unread_count: number;
 }

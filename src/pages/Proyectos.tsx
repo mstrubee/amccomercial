@@ -323,7 +323,7 @@ export default function Proyectos() {
     }
   }, [qc]);
 
-  const [profiles, setProfiles] = useState<{ user_id: string; display_name: string; email: string }[]>([]);
+  const [profiles, setProfiles] = useState<{ user_id: string; display_name: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
 
   // (debounce moved into DebouncedInput component)
