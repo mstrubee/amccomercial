@@ -200,7 +200,7 @@ function ClientesTab({ categorias, clientes, canEdit, canEditContacts, canDelete
               <Settings2 className="w-4 h-4" /> Categorías
             </Button>
           )}
-          {canEdit && (
+          {canCreate && (
             <Button className="gap-2" onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4" /> Nuevo Cliente
             </Button>
