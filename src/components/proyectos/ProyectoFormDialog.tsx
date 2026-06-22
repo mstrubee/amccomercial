@@ -1183,7 +1183,7 @@ function splitToRows(nombre: string, contacto: string, email: string, telefono: 
 }
 
 function rowsToStrings(rows: ContactoRow[]): [string, string, string, string] {
-  const filtered = rows.length === 0 ? [{ nombre: "", contacto: "", telefono: "" }] : rows;
+  const filtered = rows.length === 0 ? [{ nombre: "", contacto: "", email: "", telefono: "" }] : rows;
   return [
     filtered.map(r => r.nombre).join(" / ").replace(/^( \/ )+|( \/ )+$/g, "").trim(),
     filtered.map(r => r.contacto).join(" / ").replace(/^( \/ )+|( \/ )+$/g, "").trim(),
