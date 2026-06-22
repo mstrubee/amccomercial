@@ -40,7 +40,7 @@ export default function AlertaWidget() {
   const { data: profiles } = useQuery({
     queryKey: ["profiles-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      const { data } = await supabase.from("profiles").select("user_id, display_name");
       return data || [];
     },
   });

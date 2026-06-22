@@ -331,7 +331,7 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
               <SelectContent>
                 {profiles.map((p) => (
                   <SelectItem key={p.user_id} value={p.user_id}>
-                    {p.display_name || p.email}
+                    {p.display_name}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -332,7 +332,7 @@ export default function Proyectos() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setCurrentUserId(data.user.id);
     });
-    supabase.from("profiles").select("user_id, display_name, email").then(({ data }) => {
+    supabase.from("profiles").select("user_id, display_name").then(({ data }) => {
       if (data) setProfiles(data);
     });
   }, []);

@@ -23,7 +23,7 @@ export default function FloatingUserStatus() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email, last_seen_at, activity_status, current_section")
+        .select("user_id, display_name, last_seen_at, activity_status, current_section")
         .order("display_name");
       return (data as ProfilePresence[]) || [];
     },
@@ -74,7 +74,7 @@ export default function FloatingUserStatus() {
                     <div key={p.user_id} className="flex items-center gap-3 px-4 py-2 hover:bg-secondary/30 transition-colors">
                       <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", s.color, s.pulse && "animate-pulse")} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-card-foreground truncate">{p.display_name || p.email}</p>
+                        <p className="text-sm font-medium text-card-foreground truncate">{p.display_name}</p>
                         <p className="text-[11px] text-muted-foreground truncate">{s.text}</p>
                       </div>
                     </div>

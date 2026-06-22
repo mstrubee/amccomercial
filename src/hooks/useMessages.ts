@@ -89,7 +89,7 @@ export function useMessages(options: UseMessagesOptions = {}) {
       const userIds = [...new Set(allParticipants?.map((p) => p.user_id) || [])];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, email")
+        .select("user_id, display_name")
         .in("user_id", userIds);
 
       const profileMap = Object.fromEntries((profiles || []).map((p) => [p.user_id, p]));

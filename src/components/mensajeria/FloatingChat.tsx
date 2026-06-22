@@ -194,7 +194,7 @@ export default function FloatingChat() {
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-chat", contextProject?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email").order("display_name");
+      const { data } = await supabase.from("profiles").select("user_id, display_name").order("display_name");
       return (data || []).filter((p) => p.user_id !== user?.id);
     },
     enabled: open && view === "new",
@@ -204,7 +204,7 @@ export default function FloatingChat() {
   const { data: allProfiles = [] } = useQuery({
     queryKey: ["profiles-all-chat"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, display_name, email");
+      const { data } = await supabase.from("profiles").select("user_id, display_name");
       return data || [];
     },
     enabled: !!activeConversationId,

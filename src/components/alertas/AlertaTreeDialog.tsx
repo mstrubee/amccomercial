@@ -17,12 +17,12 @@ interface Props {
 }
 
 interface TreeNode {
-  alerta: AlertaWithRelations & { _profilesMap: Record<string, { display_name: string; email: string }> };
+  alerta: AlertaWithRelations & { _profilesMap: Record<string, { display_name: string }> };
   children: TreeNode[];
 }
 
 function buildTree(
-  alertas: (AlertaWithRelations & { _profilesMap: Record<string, { display_name: string; email: string }> })[],
+  alertas: (AlertaWithRelations & { _profilesMap: Record<string, { display_name: string }> })[],
   rootId?: string | null
 ): TreeNode[] {
   const byParent = new Map<string | null, typeof alertas>();
@@ -84,7 +84,7 @@ function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
   const getProfileName = (uid: string | null) => {
     if (!uid) return null;
     const p = pm[uid];
-    return p ? (p.display_name || p.email) : null;
+    return p ? (p.display_name) : null;
   };
 
   return (
