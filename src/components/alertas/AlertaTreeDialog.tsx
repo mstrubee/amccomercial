@@ -115,7 +115,7 @@ function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-muted-foreground">
               <span>📅 {format(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}</span>
-              <span>👤 {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}</span>
+              <span>👤 {a.responsable_profile?.display_name || "—"}</span>
               <span>Creada: {format(new Date(a.created_at), "dd/MM/yy HH:mm")} por {getProfileName(a.created_by) || "—"}</span>
               {a.updated_by && <span>Editada por {getProfileName(a.updated_by)}</span>}
               {a.completada && a.completed_by && (

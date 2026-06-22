@@ -639,7 +639,7 @@ export default function Alertas() {
                       })()}
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
-                    {a.responsable_profile?.display_name || a.responsable_profile?.email || "—"}
+                    {a.responsable_profile?.display_name || "—"}
                   </td>
                   <td className="px-5 py-3 text-sm text-muted-foreground">
                     {format(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}
