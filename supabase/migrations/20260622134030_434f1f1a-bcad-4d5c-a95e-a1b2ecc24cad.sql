@@ -1,0 +1,3 @@
+CREATE POLICY "captador can insert clientes" ON public.clientes FOR INSERT TO authenticated WITH CHECK (public.is_captador(auth.uid()));
+CREATE POLICY "captador can insert contactos_cliente" ON public.contactos_cliente FOR INSERT TO authenticated WITH CHECK (public.is_captador(auth.uid()));
+CREATE POLICY "captador can update contactos_cliente" ON public.contactos_cliente FOR UPDATE TO authenticated USING (public.is_captador(auth.uid())) WITH CHECK (public.is_captador(auth.uid()));
