@@ -502,14 +502,25 @@ export default function Proyectos() {
   // Then ALL rows of that project are included (not just the matching one).
   const visibleProyectoNamesByCaptador = useMemo(() => {
     if (filterCaptadores.length === 0) return null; // no filter active
+
+    // Captadores with ANY proyecto_captadores entry are on the new system;
+    // their stale empresas_visibles must not grant extra project visibility.
+    const captadoresInNewSystem = new Set<string>();
+    for (const p of (proyectos || [])) {
+      for (const pc of (p.proyecto_captadores || [])) {
+        captadoresInNewSystem.add(pc.captador_id);
+      }
+    }
+
     const visible = new Set<string>();
     for (const p of (proyectos || [])) {
-      // System 1: proyecto_captadores (legacy)
-      const hasLegacy = (p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id));
-      if (hasLegacy) { visible.add(p.nombre.trim().toLowerCase()); continue; }
-      // System 2: captador has empresa of this project in empresas_visibles
+      // New system: explicit project-level assignment
+      const hasNew = (p.proyecto_captadores || []).some((pc: any) => filterCaptadores.includes(pc.captador_id));
+      if (hasNew) { visible.add(p.nombre.trim().toLowerCase()); continue; }
+      // Legacy (empresas_visibles): only for captadores not yet in the new system
       const empresaIds = (p.proyecto_empresas || []).map(pe => pe.empresa_id);
       for (const cid of filterCaptadores) {
+        if (captadoresInNewSystem.has(cid)) continue;
         const cap = captadoresConUsuarios?.find(c => c.captadorId === cid);
         if (cap?.empresasVisibles && empresaIds.some(eid => cap.empresasVisibles!.includes(eid))) {
           visible.add(p.nombre.trim().toLowerCase());
@@ -1440,7 +1451,9 @@ export default function Proyectos() {
                               // Captadores: only show the specific empresas assigned to them
                               if (isCaptador && captadorId) {
                                 const inNew = (p.proyecto_captadores || []).some((pc: any) => pc.captador_id === captadorId);
-                                const inLegacy = Array.isArray(permissions?.empresas_visibles) && (permissions!.empresas_visibles as string[]).includes(pe.empresa_id);
+                                // If this captador has any new-system entry in the group, ignore legacy
+                                const groupHasNew = items.some(i => (i.proyecto_captadores || []).some((pc: any) => pc.captador_id === captadorId));
+                                const inLegacy = !groupHasNew && Array.isArray(permissions?.empresas_visibles) && (permissions!.empresas_visibles as string[]).includes(pe.empresa_id);
                                 if (!inNew && !inLegacy) continue;
                               }
                               // Non-captadores: apply empresa filter if active
@@ -2615,10 +2628,12 @@ function CaptadorProjectCell({
     if (!p) return null;
     const pc = (p.proyecto_captadores || [])[0] as any;
     if (pc) return pc.captador_id as string;
-    // Legacy: check empresas_visibles
+    // Legacy: only for captadores with no new-system entries in this group
     const empresaId = p.proyecto_empresas?.[0]?.empresa_id;
     if (empresaId) {
       for (const cap of captadoresConUsuarios) {
+        const captadorHasNew = items.some(i => (i.proyecto_captadores || []).some((pc2: any) => pc2.captador_id === cap.captadorId));
+        if (captadorHasNew) continue;
         if (Array.isArray(cap.empresasVisibles) && cap.empresasVisibles.includes(empresaId)) return cap.captadorId;
       }
     }
