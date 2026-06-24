@@ -497,21 +497,24 @@ export default function Proyectos() {
     return map;
   }, [proyectos, categorias, latestHistorialByPe]);
 
+  // Global set: captadores who have at least one proyecto_captadores entry anywhere.
+  // These captadores are on the new assignment system — their empresas_visibles
+  // must not grant visibility to projects they weren't explicitly assigned to.
+  const captadoresInNewSystem = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of (proyectos || [])) {
+      for (const pc of (p.proyecto_captadores || [])) {
+        s.add(pc.captador_id);
+      }
+    }
+    return s;
+  }, [proyectos]);
+
   // Pre-compute visible project names for captador filter.
   // A project is visible if ANY of its rows passes the captador check.
   // Then ALL rows of that project are included (not just the matching one).
   const visibleProyectoNamesByCaptador = useMemo(() => {
     if (filterCaptadores.length === 0) return null; // no filter active
-
-    // Captadores with ANY proyecto_captadores entry are on the new system;
-    // their stale empresas_visibles must not grant extra project visibility.
-    const captadoresInNewSystem = new Set<string>();
-    for (const p of (proyectos || [])) {
-      for (const pc of (p.proyecto_captadores || [])) {
-        captadoresInNewSystem.add(pc.captador_id);
-      }
-    }
-
     const visible = new Set<string>();
     for (const p of (proyectos || [])) {
       // New system: explicit project-level assignment
@@ -529,7 +532,7 @@ export default function Proyectos() {
       }
     }
     return visible;
-  }, [proyectos, filterCaptadores, captadoresConUsuarios]);
+  }, [proyectos, filterCaptadores, captadoresConUsuarios, captadoresInNewSystem]);
 
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = deferredSearch.trim().toLowerCase();
@@ -1418,6 +1421,7 @@ export default function Proyectos() {
                               <CaptadorProjectCell
                                 items={items}
                                 captadoresConUsuarios={captadoresConUsuarios || []}
+                                captadoresInNewSystem={captadoresInNewSystem}
                               />
                             </span>
                           )}
@@ -2595,9 +2599,11 @@ function CaptadorFilterPopover({ value, onToggle, onClear }: { value: string[]; 
 function CaptadorProjectCell({
   items,
   captadoresConUsuarios,
+  captadoresInNewSystem,
 }: {
   items: ProyectoWithEmpresas[];
   captadoresConUsuarios: { captadorId: string; nombre: string; userId: string; empresasVisibles: string[] | null }[];
+  captadoresInNewSystem: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
   // Optimistic overrides: proyectoId → captadorId (null = unassigned)
@@ -2628,17 +2634,16 @@ function CaptadorProjectCell({
     if (!p) return null;
     const pc = (p.proyecto_captadores || [])[0] as any;
     if (pc) return pc.captador_id as string;
-    // Legacy: only for captadores with no new-system entries in this group
+    // Legacy: only for captadores with NO new-system entries anywhere in the whole dataset
     const empresaId = p.proyecto_empresas?.[0]?.empresa_id;
     if (empresaId) {
       for (const cap of captadoresConUsuarios) {
-        const captadorHasNew = items.some(i => (i.proyecto_captadores || []).some((pc2: any) => pc2.captador_id === cap.captadorId));
-        if (captadorHasNew) continue;
+        if (captadoresInNewSystem.has(cap.captadorId)) continue;
         if (Array.isArray(cap.empresasVisibles) && cap.empresasVisibles.includes(empresaId)) return cap.captadorId;
       }
     }
     return null;
-  }, [items, captadoresConUsuarios, overrides]);
+  }, [items, captadoresConUsuarios, overrides, captadoresInNewSystem]);
 
   // Unique captadores assigned to at least one empresa (for trigger button)
   const asignados = useMemo(() => {
