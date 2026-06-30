@@ -43,6 +43,7 @@ import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoReposito
 import { useAddChecklistItem, startsWithDate } from "@/hooks/useEmpresaChecklist";
 import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
 import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/components/proyectos/HitosEjecucionPanel";
+import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
