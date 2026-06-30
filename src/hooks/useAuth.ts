@@ -82,7 +82,7 @@ export function useAuth() {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel(`user_permissions:${user.id}`)
+      .channel(`user_permissions:${user.id}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         {
