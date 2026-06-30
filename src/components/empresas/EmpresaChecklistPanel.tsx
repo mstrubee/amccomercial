@@ -271,18 +271,17 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
 
               {isEditing ? (
                 <span className="flex items-center gap-1 flex-1">
-                  <div className="flex-1">
-                    <MentionTextarea
-                      value={editText}
-                      onChange={(v) => setEditText(v)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEditText(item); }
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      className="min-h-[28px] h-7 py-1 text-sm resize-none"
-                      autoFocus
-                    />
-                  </div>
+                  <MentionTextarea
+                    wrapperClassName="flex-1"
+                    value={editText}
+                    onChange={(v) => setEditText(v)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEditText(item); }
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    className="min-h-[28px] h-7 py-1 text-sm resize-none"
+                    autoFocus
+                  />
                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => saveEditText(item)}><Check className="w-3 h-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditingId(null)}><X className="w-3 h-3" /></Button>
                 </span>
@@ -332,6 +331,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
       {!readOnly && (
         <div className="flex gap-1">
           <MentionTextarea
+            wrapperClassName="flex-1"
             placeholder="Nueva nota de reunión — indique mes y día en formato mm.dd para agregar fecha. Presione Ctrl+Enter para agregar la nota"
             value={newItemText}
             onChange={(v) => setNewItemText(v)}
