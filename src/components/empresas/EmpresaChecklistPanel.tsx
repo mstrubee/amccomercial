@@ -271,13 +271,18 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
 
               {isEditing ? (
                 <span className="flex items-center gap-1 flex-1">
-                  <Input
-                    className="h-6 text-sm flex-1"
-                    value={editText}
-                    onChange={e => setEditText(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") saveEditText(item); if (e.key === "Escape") setEditingId(null); }}
-                    autoFocus
-                  />
+                  <div className="flex-1">
+                    <MentionTextarea
+                      value={editText}
+                      onChange={(v) => setEditText(v)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEditText(item); }
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      className="min-h-[28px] h-7 py-1 text-sm resize-none"
+                      autoFocus
+                    />
+                  </div>
                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => saveEditText(item)}><Check className="w-3 h-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setEditingId(null)}><X className="w-3 h-3" /></Button>
                 </span>
@@ -338,10 +343,10 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
                 handleAddItem();
               }
             }}
-            className="min-h-[36px] text-xs"
+            className="h-8 min-h-[32px] py-1 text-xs resize-none"
             onClick={e => e.stopPropagation()}
           />
-          <Button size="icon" variant="outline" className="shrink-0 h-9" onClick={handleAddItem} disabled={!newItemText.trim()}>
+          <Button size="icon" variant="outline" className="shrink-0 h-8" onClick={handleAddItem} disabled={!newItemText.trim()}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
