@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import StatusBadge from "@/components/dashboard/StatusBadge";
 import { useProyectos, useCreateProyecto, useUpdateProyecto, useDeleteProyecto, useUpdateNotas, useUpdateNotaGrupo, ProyectoWithEmpresas } from "@/hooks/useProyectos";
 import { RESUME_PROYECTO_KEY, RESUME_PROYECTO_EVENT } from "@/components/proyectos/BackToProyectoFloat";
+import MentionTextarea from "@/components/mensajeria/MentionTextarea";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
@@ -2219,12 +2220,12 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta, currentUserName }: { 
 
   return (
     <div className="relative">
-      <textarea
+      <MentionTextarea
         ref={taRef}
         className="w-full min-h-[32px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         placeholder="Nota del proyecto..."
         value={value}
-        onChange={(e) => handleChange(e.target.value, e.target.selectionStart)}
+        onChange={(v, caret) => handleChange(v, caret ?? null)}
         onClick={(e) => e.stopPropagation()}
         onFocus={() => { isFocusedRef.current = true; }}
         onBlur={() => { isFocusedRef.current = false; }}
