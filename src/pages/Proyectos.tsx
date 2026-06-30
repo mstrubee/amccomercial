@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback, memo, useDeferredValue } from "react";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2, SlidersHorizontal } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2, SlidersHorizontal, AtSign } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,6 +43,7 @@ import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoReposito
 import { useAddChecklistItem, startsWithDate } from "@/hooks/useEmpresaChecklist";
 import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
 import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/components/proyectos/HitosEjecucionPanel";
+import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
@@ -197,6 +198,7 @@ export default function Proyectos() {
   const { data: estadosProyecto } = useEstadosProyecto();
   const { data: estadosAmc } = useEstadosAmc();
   const { data: clasificacionesAlerta } = useClasificacionesAlerta();
+  const { data: unreadMentions = 0 } = useMyMentionsUnreadCount(user?.id);
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
   const deleteProyecto = useDeleteProyecto();
@@ -919,10 +921,20 @@ export default function Proyectos() {
           <h1 className="text-3xl font-bold text-foreground">Proyectos</h1>
           <p className="text-muted-foreground mt-1">Base de datos de proyectos</p>
         </div>
-        <Button className="gap-2" onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4" />
-          Nuevo Proyecto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/menciones")} className="relative">
+            <AtSign className="w-4 h-4 mr-1" /> Menciones
+            {unreadMentions > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                {unreadMentions}
+              </span>
+            )}
+          </Button>
+          <Button className="gap-2" onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" />
+            Nuevo Proyecto
+          </Button>
+        </div>
       </motion.div>
 
       {/* Filters */}
