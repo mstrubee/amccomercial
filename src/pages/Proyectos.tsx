@@ -922,14 +922,6 @@ export default function Proyectos() {
           <p className="text-muted-foreground mt-1">Base de datos de proyectos</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate("/menciones")} className="relative">
-            <AtSign className="w-4 h-4 mr-1" /> Menciones
-            {unreadMentions > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
-                {unreadMentions}
-              </span>
-            )}
-          </Button>
           <Button className="gap-2" onClick={() => setShowCreate(true)}>
             <Plus className="w-4 h-4" />
             Nuevo Proyecto
@@ -988,6 +980,15 @@ export default function Proyectos() {
           )}
         </div>
         <div className="flex gap-2 flex-wrap items-center">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => navigate("/menciones")}>
+            <AtSign className="w-3 h-3" />
+            Menciones
+            {unreadMentions > 0 && (
+              <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">
+                {unreadMentions}
+              </span>
+            )}
+          </Button>
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
           <Popover>
             <PopoverTrigger asChild>
