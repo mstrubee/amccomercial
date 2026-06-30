@@ -20,23 +20,29 @@ export interface ChecklistMentionRow {
   proyecto?: { id: string; nombre: string } | null;
   empresa?: { id: string; nombre: string } | null;
   author?: { display_name: string | null } | null;
+  mentioned?: { display_name: string | null } | null;
   is_read?: boolean;
 }
 
-/** Fetch all mentions of the given user, with joined item/project info and read state. */
-export function useMyMentions(userId: string | undefined) {
+/**
+ * Fetch mentions visible to current user with joined item/project info and read state.
+ * - When `scope = "all"` (admin), fetches every mention RLS allows.
+ * - Otherwise, fetches only mentions targeted at `userId`.
+ */
+export function useMyMentions(userId: string | undefined, scope: "mine" | "all" = "mine") {
   return useQuery({
-    queryKey: ["my-mentions", userId],
+    queryKey: ["my-mentions", userId, scope],
     enabled: !!userId,
     queryFn: async (): Promise<ChecklistMentionRow[]> => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("checklist_mentions")
         .select(
           `id, checklist_item_id, mentioned_user_id, proyecto_id, empresa_id, created_at,
            checklist_item:empresa_checklist_items!checklist_mentions_checklist_item_id_fkey(id, text, created_at, created_by, empresa_id, proyecto_id)`,
         )
-        .eq("mentioned_user_id", userId!)
         .order("created_at", { ascending: false });
+      if (scope === "mine") q = q.eq("mentioned_user_id", userId!);
+      const { data, error } = await q;
       if (error) throw error;
       const rows = (data || []) as any[];
       if (rows.length === 0) return [];
@@ -61,22 +67,26 @@ export function useMyMentions(userId: string | undefined) {
         .eq("user_id", userId!)
         .in("mention_id", ids);
       const readSet = new Set((reads || []).map((r: any) => r.mention_id));
-      // Resolve authors in a separate query
-      const authorIds = Array.from(new Set(rows.map((r) => r.checklist_item?.created_by).filter(Boolean)));
-      const authorMap: Record<string, string> = {};
-      if (authorIds.length > 0) {
+      // Resolve authors + mentioned users in a single query
+      const profileIds = Array.from(new Set([
+        ...rows.map((r) => r.checklist_item?.created_by).filter(Boolean),
+        ...rows.map((r) => r.mentioned_user_id).filter(Boolean),
+      ]));
+      const nameMap: Record<string, string> = {};
+      if (profileIds.length > 0) {
         const { data: profs } = await supabase
           .from("profiles")
           .select("user_id, display_name")
-          .in("user_id", authorIds);
-        (profs || []).forEach((p: any) => { if (p.display_name) authorMap[p.user_id] = p.display_name; });
+          .in("user_id", profileIds);
+        (profs || []).forEach((p: any) => { if (p.display_name) nameMap[p.user_id] = p.display_name; });
       }
       return rows.map((r) => ({
         ...r,
         is_read: readSet.has(r.id),
         proyecto: r.proyecto_id ? proyectoMap[r.proyecto_id] || null : null,
         empresa: r.empresa_id ? empresaMap[r.empresa_id] || null : null,
-        author: r.checklist_item?.created_by ? { display_name: authorMap[r.checklist_item.created_by] || null } : null,
+        author: r.checklist_item?.created_by ? { display_name: nameMap[r.checklist_item.created_by] || null } : null,
+        mentioned: r.mentioned_user_id ? { display_name: nameMap[r.mentioned_user_id] || null } : null,
       }));
     },
   });
