@@ -198,6 +198,7 @@ export default function Proyectos() {
   const { data: estadosProyecto } = useEstadosProyecto();
   const { data: estadosAmc } = useEstadosAmc();
   const { data: clasificacionesAlerta } = useClasificacionesAlerta();
+  const { data: unreadMentions = 0 } = useMyMentionsUnreadCount();
   const createProyecto = useCreateProyecto();
   const updateProyecto = useUpdateProyecto();
   const deleteProyecto = useDeleteProyecto();
