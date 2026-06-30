@@ -20,6 +20,8 @@ import {
   useDeleteChecklistItemRecursive,
 } from "@/hooks/useEmpresaChecklist";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   empresaId: string;
@@ -31,6 +33,28 @@ interface Props {
 export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly }: Props) {
   const { user } = useAuth();
   const { data: items = [] } = useEmpresaChecklistItems(empresaId, proyectoId);
+
+  // Resolve author display names for items that have created_by set
+  const authorIds = useMemo(() => {
+    const s = new Set<string>();
+    items.forEach(i => { if (i.created_by) s.add(i.created_by); });
+    return Array.from(s);
+  }, [items]);
+  const { data: authorNames } = useQuery({
+    queryKey: ["checklist-authors", authorIds.sort().join(",")],
+    enabled: authorIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", authorIds);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((p: any) => { if (p.display_name) map[p.user_id] = p.display_name; });
+      return map;
+    },
+  });
+
   const addItem = useAddChecklistItem();
   const toggleItem = useToggleChecklistItem();
   const updateText = useUpdateChecklistItemText();
@@ -212,6 +236,12 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
               ) : (
                 <span className="text-muted-foreground text-xs cursor-pointer shrink-0" onDoubleClick={() => startEditDate(item)}>
                   {formatChecklistDate(item.created_at)}
+                </span>
+              )}
+
+              {item.created_by && authorNames?.[item.created_by] && (
+                <span className="text-muted-foreground text-xs shrink-0">
+                  ({authorNames[item.created_by]})
                 </span>
               )}
 
