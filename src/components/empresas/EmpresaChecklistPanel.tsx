@@ -2,6 +2,9 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import MentionTextarea from "@/components/mensajeria/MentionTextarea";
+import { useMentionableUsers } from "@/hooks/useMentionableUsers";
+import { splitTextWithMentions } from "@/lib/mention-utils";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -33,6 +36,27 @@ interface Props {
 export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly }: Props) {
   const { user } = useAuth();
   const { data: items = [] } = useEmpresaChecklistItems(empresaId, proyectoId);
+  const { data: mentionUsers = [] } = useMentionableUsers();
+  const knownHandles = useMemo(() => new Set(mentionUsers.map((u) => u.handle)), [mentionUsers]);
+  const myHandle = useMemo(
+    () => (user?.id ? mentionUsers.find((u) => u.user_id === user.id)?.handle : undefined),
+    [user?.id, mentionUsers],
+  );
+
+  const renderText = (text: string) => {
+    const parts = splitTextWithMentions(text, knownHandles);
+    if (parts.length === 0) return text;
+    return parts.map((p, i) =>
+      p.type === "mention" ? (
+        <span key={i} className={cn(
+          "rounded px-1 font-medium",
+          myHandle && p.handle === myHandle ? "bg-primary/25 text-primary" : "bg-primary/10 text-primary",
+        )}>{p.value}</span>
+      ) : (
+        <span key={i}>{p.value}</span>
+      ),
+    );
+  };
 
   // Resolve author display names for items that have created_by set
   const authorIds = useMemo(() => {
@@ -262,7 +286,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
                   className={cn("cursor-default", item.is_completed && "line-through text-muted-foreground")}
                   onDoubleClick={() => startEditText(item)}
                 >
-                  {item.text}
+                  {renderText(item.text)}
                 </span>
               )}
 
@@ -302,10 +326,10 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
       {/* Input area */}
       {!readOnly && (
         <div className="flex gap-1">
-          <Textarea
+          <MentionTextarea
             placeholder="Nueva nota de reunión — indique mes y día en formato mm.dd para agregar fecha. Presione Ctrl+Enter para agregar la nota"
             value={newItemText}
-            onChange={e => setNewItemText(e.target.value)}
+            onChange={(v) => setNewItemText(v)}
             onKeyDown={e => {
               if (e.key !== "Enter") return;
               e.stopPropagation();
@@ -364,7 +388,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
             <DialogTitle>Crear ítem de seguimiento</DialogTitle>
             <DialogDescription>Referencia: {followUpParent?.text}</DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Texto del sub-ítem de seguimiento..." value={followUpText} onChange={e => setFollowUpText(e.target.value)} className="min-h-[80px]" />
+          <MentionTextarea placeholder="Texto del sub-ítem de seguimiento..." value={followUpText} onChange={(v) => setFollowUpText(v)} className="min-h-[80px]" />
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setFollowUpParent(null)}>Omitir</Button>
             <Button onClick={handleFollowUp} disabled={!followUpText.trim()}>Agregar</Button>
@@ -379,7 +403,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
             <DialogTitle>Agregar sub-ítem</DialogTitle>
             <DialogDescription>Padre: {subItemParent?.text}</DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Texto del sub-ítem..." value={subItemText} onChange={e => setSubItemText(e.target.value)} className="min-h-[80px]" />
+          <MentionTextarea placeholder="Texto del sub-ítem..." value={subItemText} onChange={(v) => setSubItemText(v)} className="min-h-[80px]" />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSubItemParent(null)}>Cancelar</Button>
             <Button onClick={handleAddSubItem} disabled={!subItemText.trim()}>Agregar</Button>

@@ -63,6 +63,7 @@ const Calendario = lazyWithRetry(() => import("@/pages/Calendario"));
 const ReunionesPage = lazyWithRetry(() => import("@/pages/AtencionEmpresas"));
 const HitosEjecucionPage = lazyWithRetry(() => import("@/pages/HitosEjecucionPage"));
 const AdminNotas = lazyWithRetry(() => import("@/pages/AdminNotas"));
+const Menciones = lazyWithRetry(() => import("@/pages/Menciones"));
 const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
 
 const PageFallback = () => (
@@ -116,6 +117,7 @@ function AppRoutes() {
           {canAccessSection("proyectos") && <Route path="/proyectos" element={<Proyectos />} />}
           {canAccessSection("finanzas") && <Route path="/finanzas" element={<Finanzas />} />}
           {canAccessSection("alertas") && <Route path="/alertas" element={<Alertas />} />}
+          {canAccessSection("alertas") && <Route path="/menciones" element={<Menciones />} />}
           {isAdmin && <Route path="/usuarios" element={<Usuarios />} />}
           {isAdmin && <Route path="/carga-masiva" element={<CargaMasiva />} />}
           {isAdmin && <Route path="/categorias" element={<CategoriasPage />} />}

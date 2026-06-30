@@ -1,46 +1,81 @@
-## Objetivo
+## Plan: Menciones @usuario en checklist + Leído/No leído + Sección "Menciones"
 
-Asegurar que toda nota muestre `(Nombre del autor)` justo después de la fecha y antes del texto, tanto en el checklist (empresa/proyecto) como en la "Nota grupo" del proyecto.
+### 1. Backend (1 migración)
 
-## Estado actual
+**Tablas nuevas:**
+- `checklist_mentions` — vincula una nota del checklist con un usuario mencionado
+  - `checklist_item_id` (FK a `empresa_checklist_items`, cascade delete)
+  - `mentioned_user_id` (UUID, ref auth.users)
+  - `proyecto_id`, `empresa_id` (denormalizado para queries rápidas)
+  - índice único `(checklist_item_id, mentioned_user_id)`
+  - RLS: SELECT permitido al usuario mencionado y al autor; INSERT/DELETE solo autor o admin
+  - GRANTs estándar a `authenticated` y `service_role`
 
-- **Checklist (`empresa_checklist_items`)**: el render ya muestra `({authorNames[created_by]})` después de la fecha. La inserción ya guarda `created_by = auth.uid()`. No requiere cambios funcionales — los registros antiguos (857) quedan sin autor por decisión del usuario.
-- **Nota grupo del proyecto (`proyectos.nota_grupo`)**: es un textarea de texto libre. Hoy no inserta autor.
+- `checklist_mention_reads` — estado leído/no leído por mención
+  - `mention_id` (FK), `user_id`, `read_at`
+  - único `(mention_id, user_id)`
+  - RLS: cada usuario gestiona sus propias filas
 
-## Cambios a realizar
+**Trigger automático:**
+- Función `sync_checklist_mentions()` que se dispara `AFTER INSERT/UPDATE OF text` en `empresa_checklist_items`:
+  - Parsea `@token` del texto, busca en `profiles.display_name` (normalizando: minúsculas, sin espacios)
+  - Reemplaza filas en `checklist_mentions` para ese item
 
-### 1. Auto-insertar "(autor)" en la "Nota grupo" al escribir una línea con fecha
+### 2. Componente reutilizable `MentionTextarea`
 
-En `src/pages/Proyectos.tsx` → componente `NotaGrupoCell`:
+`src/components/mensajeria/MentionTextarea.tsx` — wrapper de `<Textarea>`:
+- Detecta `@` activo (último `@` antes del caret, sin espacio)
+- Muestra `Popover` con lista de usuarios (`profiles.display_name`), filtrada en vivo
+- Navegación con ↑/↓, selección con `Enter` o `Space` → inserta `@nombresincompresion`
+- `Escape` cierra el popover
 
-- Obtener el nombre del usuario actual una vez (vía `useAuth()` → `profile.display_name`, ya disponible en el componente padre; lo pasamos como prop `currentUserName` para no re-consultar en cada celda).
-- Detectar dentro de `handleChange` cuando el usuario acaba de escribir una **fecha al inicio de una línea nueva** seguida de un espacio (patrón ya existente en el helper `startsWithDate` de `useEmpresaChecklist.ts`, exportado).
-- Si la línea cumple el patrón fecha + espacio y **no contiene ya** `(...)` inmediatamente después de la fecha, transformar el texto insertando `(NombreAutor) ` justo después de la fecha.
-- La transformación se hace una sola vez por línea (idempotente): si la línea ya tiene `(algo)` tras la fecha, no se vuelve a insertar.
-- Se preserva el cursor lo mejor posible (se reubica al final del fragmento insertado).
+Reemplazará los `<Textarea>` de:
+- `EmpresaChecklistPanel.tsx` (nueva nota, follow-up, sub-item)
+- `NotaGrupoCell` en `Proyectos.tsx` (nota grupo del proyecto)
 
-Ejemplo:
-```
-Antes:  30.06 Visita a obra
-Después:30.06 (Valentina Cabrera) Visita a obra
-```
+### 3. Render de menciones
 
-### 2. Pasar el nombre del autor a la celda
+En el texto del checklist y nota grupo, renderizar `@nombre` como chip azul (span estilizado). Helper compartido `renderTextWithMentions(text)`.
 
-- En la fila del listado donde se renderiza `<NotaGrupoCell .../>`, pasar `currentUserName={profile?.display_name ?? ""}`.
-- Si está vacío, el auto-insert se omite (degradación silenciosa).
+### 4. Toggle Leído / No leído en el checklist
 
-### 3. Sin cambios de DB ni en checklist
+En `EmpresaChecklistPanel`:
+- Para ítems donde el usuario actual está mencionado, mostrar un icono `Eye`/`EyeOff` al hover, junto a las acciones existentes
+- Click marca/desmarca `checklist_mention_reads` para el `mention_id` del usuario actual
+- Filtro adicional junto a "Mostrar completados": botón "Solo no leídas" que aplica únicamente a ítems con menciones del usuario
 
-- No se migra ni se hace backfill de notas históricas.
-- `EmpresaChecklistPanel` y `useAddChecklistItem` quedan tal cual.
+### 5. Sección "Menciones" en navegación
 
-## Detalle técnico (para referencia)
+**Ruta nueva:** `/menciones` (página `src/pages/Menciones.tsx`).
 
-- Regex de detección de fecha al inicio de línea: reutilizar `startsWithDate` (ya exporta el patrón yyyy.mm.dd / dd.mm.yyyy / dd.mm / "dd de mes").
-- La transformación se ejecuta sobre la línea que contiene el cursor en el momento del cambio, no sobre todo el textarea, para no tocar líneas ya escritas por otros usuarios.
-- Para evitar bucles, se compara `nextValue !== prevValue` antes de aplicar `setValue`.
+**Acceso:**
+- En el header de `Alertas.tsx` (junto a Árbol/Clasificación/Eliminadas), botón "Menciones" con badge de no-leídas
+- También en el sidebar bajo el grupo Alertas (subentrada)
 
-## Archivos afectados
+**Página Menciones:**
+- Hook `useMyMentions()` que trae menciones del usuario actual con join a `empresa_checklist_items`, `proyectos`, `empresas`, profiles (autor)
+- Tabs: **No leídas** (default) / **Leídas** / **Todas**
+- Agrupado por proyecto (collapsible). Cada fila muestra: fecha, autor, empresa, texto con mención resaltada, botón "Ir al proyecto", botón marcar leída/no leída
+- "Ir al proyecto" → navega a `/proyectos` con `sessionStorage.menciones_return = "/menciones"` y abre el dialog del proyecto (reutilizar lógica de snapshot existente). Al marcar como visto se marca `read_at`.
 
-- `src/pages/Proyectos.tsx` (componente `NotaGrupoCell` y el call-site que lo renderiza).
+### 6. Botón flotante "Volver a Menciones"
+
+Crear `src/components/menciones/BackToMencionesFloat.tsx` (calcado de `BackToProyectoFloat`/`BackToAlertasFloat`):
+- Se monta en `AppLayout.tsx`
+- Lee `sessionStorage.menciones_return`. Si existe y la ruta actual no es `/menciones`, muestra botón flotante "← Volver a Menciones" (esquina superior derecha, always-on-top, cerrable)
+- Al cerrarse limpia el flag
+
+### 7. Hook permissions / sidebar
+
+- Añadir entrada `menciones` opcional en `ALL_SECTIONS` (visible para todos por defecto). Sin migración de permisos: simplemente visible.
+- Sidebar: agregar item dentro del grupo Alertas.
+
+### Archivos a tocar
+- **Migración** (1): tablas + trigger + RLS + grants
+- **Nuevos**: `MentionTextarea.tsx`, `renderTextWithMentions.ts`, `Menciones.tsx`, `useMyMentions.ts`, `useMentionReads.ts`, `BackToMencionesFloat.tsx`
+- **Editados**: `EmpresaChecklistPanel.tsx`, `Proyectos.tsx` (NotaGrupoCell), `Alertas.tsx` (botón header), `AppLayout.tsx` (sidebar + floater), `App.tsx` (ruta), `useEmpresaChecklist.ts` (tipo `ChecklistItem` no requiere cambios)
+
+### Detalles técnicos (no técnico: omitir)
+- Matching de `@token` contra `display_name`: normalizar quitando espacios/acentos en ambos lados; ambiguos → no se crea mención (requiere selección exacta desde el dropdown, que insertará el handle sin espacios)
+- Trigger usa `regexp_matches` con `@([\w]+)` y resuelve en `profiles`
+- Realtime: opcionalmente subscribirse a `checklist_mentions` para badge en vivo (fase 2, no incluido ahora)

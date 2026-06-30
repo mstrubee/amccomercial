@@ -453,6 +453,73 @@ export type Database = {
           },
         ]
       }
+      checklist_mention_reads: {
+        Row: {
+          id: string
+          mention_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          mention_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          mention_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_mention_reads_mention_id_fkey"
+            columns: ["mention_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_mentions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_mentions: {
+        Row: {
+          checklist_item_id: string
+          created_at: string
+          created_by: string | null
+          empresa_id: string | null
+          id: string
+          mentioned_user_id: string
+          proyecto_id: string | null
+        }
+        Insert: {
+          checklist_item_id: string
+          created_at?: string
+          created_by?: string | null
+          empresa_id?: string | null
+          id?: string
+          mentioned_user_id: string
+          proyecto_id?: string | null
+        }
+        Update: {
+          checklist_item_id?: string
+          created_at?: string
+          created_by?: string | null
+          empresa_id?: string | null
+          id?: string
+          mentioned_user_id?: string
+          proyecto_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_mentions_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
+            isOneToOne: false
+            referencedRelation: "empresa_checklist_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clasificaciones_alerta: {
         Row: {
           created_at: string
@@ -1977,6 +2044,7 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "usuario_tipo_1" | "usuario_tipo_2"
