@@ -101,7 +101,7 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
           if (!existing.email && c.email) patches.email = c.email;
           if (!existing.telefono && c.telefono) patches.telefono = c.telefono;
           if (Object.keys(patches).length > 0) {
-            await supabase.from("contactos_cliente").update(patches).eq("id", existing.id);
+            await supabase.from("contactos_cliente").update(patches as any).eq("id", existing.id);
             dbChanged = true;
           }
         } else if (c.contacto || c.email || c.telefono) {
