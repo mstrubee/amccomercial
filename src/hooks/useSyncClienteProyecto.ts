@@ -134,7 +134,7 @@ export async function syncProyectoToClientes(
         if (!match.email && c.email) patches.email = c.email;
         if (!match.telefono && c.telefono) patches.telefono = c.telefono;
         if (Object.keys(patches).length > 0) {
-          await supabase.from("contactos_cliente").update(patches).eq("id", match.id);
+          await supabase.from("contactos_cliente").update(patches as any).eq("id", match.id);
         }
       } else if (c.contacto) {
         // New person not yet in client's contact list → add them
@@ -277,7 +277,7 @@ export async function complementClienteFromProyectoData(
     if (!first.telefono && projectTelefono) { updates.telefono = projectTelefono; changed = true; }
 
     if (changed) {
-      await supabase.from("contactos_cliente").update(updates).eq("id", first.id);
+      await supabase.from("contactos_cliente").update(updates as any).eq("id", first.id);
     }
   }
 
@@ -354,7 +354,7 @@ export async function recoverAllClienteContacts(): Promise<{
           if (Object.keys(patches).length > 0) {
             const { error } = await supabase
               .from("contactos_cliente")
-              .update(patches)
+              .update(patches as any)
               .eq("id", existing.id);
             if (error) errors.push(`${raw.nombre}: ${error.message}`);
             else dbChanged = true;
@@ -546,7 +546,7 @@ export async function recoverContactsFromProjectFields(): Promise<{
       if (Object.keys(patches).length > 0) {
         const { error } = await supabase
           .from("contactos_cliente")
-          .update(patches)
+          .update(patches as any)
           .eq("id", ct.id);
         if (error) errors.push(`Update contacto ${ct.id}: ${error.message}`);
         else recoveredSet.add(clienteId);
