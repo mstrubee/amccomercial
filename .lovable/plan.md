@@ -1,45 +1,46 @@
 ## Objetivo
 
-Al crear una nota en el checklist (de proyecto o de empresa), mostrar el nombre del autor entre paréntesis justo después de la fecha y antes del texto. Ej:
+Asegurar que toda nota muestre `(Nombre del autor)` justo después de la fecha y antes del texto, tanto en el checklist (empresa/proyecto) como en la "Nota grupo" del proyecto.
 
-```text
-24.03  (Pablo Pérez)  Dejaron OG lista, obra retoma en Marzo...
+## Estado actual
+
+- **Checklist (`empresa_checklist_items`)**: el render ya muestra `({authorNames[created_by]})` después de la fecha. La inserción ya guarda `created_by = auth.uid()`. No requiere cambios funcionales — los registros antiguos (857) quedan sin autor por decisión del usuario.
+- **Nota grupo del proyecto (`proyectos.nota_grupo`)**: es un textarea de texto libre. Hoy no inserta autor.
+
+## Cambios a realizar
+
+### 1. Auto-insertar "(autor)" en la "Nota grupo" al escribir una línea con fecha
+
+En `src/pages/Proyectos.tsx` → componente `NotaGrupoCell`:
+
+- Obtener el nombre del usuario actual una vez (vía `useAuth()` → `profile.display_name`, ya disponible en el componente padre; lo pasamos como prop `currentUserName` para no re-consultar en cada celda).
+- Detectar dentro de `handleChange` cuando el usuario acaba de escribir una **fecha al inicio de una línea nueva** seguida de un espacio (patrón ya existente en el helper `startsWithDate` de `useEmpresaChecklist.ts`, exportado).
+- Si la línea cumple el patrón fecha + espacio y **no contiene ya** `(...)` inmediatamente después de la fecha, transformar el texto insertando `(NombreAutor) ` justo después de la fecha.
+- La transformación se hace una sola vez por línea (idempotente): si la línea ya tiene `(algo)` tras la fecha, no se vuelve a insertar.
+- Se preserva el cursor lo mejor posible (se reubica al final del fragmento insertado).
+
+Ejemplo:
+```
+Antes:  30.06 Visita a obra
+Después:30.06 (Valentina Cabrera) Visita a obra
 ```
 
-## Cambios
+### 2. Pasar el nombre del autor a la celda
 
-### 1. Base de datos — migración
+- En la fila del listado donde se renderiza `<NotaGrupoCell .../>`, pasar `currentUserName={profile?.display_name ?? ""}`.
+- Si está vacío, el auto-insert se omite (degradación silenciosa).
 
-Tabla `public.empresa_checklist_items`:
-- Agregar columna `created_by uuid` (FK a `auth.users`, sin `NOT NULL` para no romper filas históricas).
-- Índice por `created_by` (opcional, lo dejo fuera si no se necesita filtrar).
-- Las filas existentes quedan con `created_by = NULL` → se muestran sin autor (comportamiento actual).
-- No se tocan las policies de RLS ya existentes.
+### 3. Sin cambios de DB ni en checklist
 
-### 2. Captura del autor al crear el ítem
+- No se migra ni se hace backfill de notas históricas.
+- `EmpresaChecklistPanel` y `useAddChecklistItem` quedan tal cual.
 
-`src/hooks/useEmpresaChecklist.ts`:
-- `useAddChecklistItem`: incluir `created_by: auth.uid()` en el `insert`. Se obtiene con `supabase.auth.getUser()` o aceptando `user_id` como parámetro desde el llamador (ya tenemos `useAuth()` en el panel y los diálogos).
-- Actualizar la interfaz `ChecklistItem` para incluir `created_by: string | null`.
+## Detalle técnico (para referencia)
 
-### 3. Mostrar el nombre
+- Regex de detección de fecha al inicio de línea: reutilizar `startsWithDate` (ya exporta el patrón yyyy.mm.dd / dd.mm.yyyy / dd.mm / "dd de mes").
+- La transformación se ejecuta sobre la línea que contiene el cursor en el momento del cambio, no sobre todo el textarea, para no tocar líneas ya escritas por otros usuarios.
+- Para evitar bucles, se compara `nextValue !== prevValue` antes de aplicar `setValue`.
 
-`src/components/empresas/EmpresaChecklistPanel.tsx`:
-- Cargar un mapa `userId → display_name` desde `profiles` con un hook ligero (reutilizar uno existente si lo hay, o crear `useProfilesMap(userIds)` que consulta `profiles` por los IDs únicos presentes en los ítems).
-- En `renderItem`, justo después del bloque de fecha y antes del texto, mostrar `(<nombre>)` con estilo muted, solo cuando `created_by` existe y se resuelve a un nombre.
+## Archivos afectados
 
-### 4. Exportación de Reuniones (opcional, recomendado)
-
-`src/pages/AtencionEmpresas.tsx` — en `buildExportRows`, prefijar la nota con `(autor) ` para que el Excel también muestre el autor. Si prefieres no tocar la exportación, lo omitimos.
-
-## Detalle técnico
-
-- No se modifica el comportamiento de edición de texto/fecha ni completado: el autor queda fijo al momento de creación.
-- Si `created_by` es `NULL` (ítems antiguos) o el perfil no tiene `display_name`, no se renderiza el paréntesis para no mostrar "(Desconocido)".
-- El nombre viene de `profiles.display_name` (la columna `email` fue removida del schema previamente).
-- No se requiere edición del autor por la UI; un admin podría cambiarlo vía SQL si fuera necesario.
-
-## Preguntas abiertas
-
-1. ¿Aplicar también el autor en la exportación a Excel de "Reuniones" (sección 4)?
-2. ¿Mostrar el autor también en sub-ítems anidados, o solo en notas de primer nivel? (Por defecto: en todos los niveles, para consistencia.)
+- `src/pages/Proyectos.tsx` (componente `NotaGrupoCell` y el call-site que lo renderiza).
