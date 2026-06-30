@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown, AtSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +27,7 @@ import { useCategorias } from "@/hooks/useCategorias";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAuth } from "@/hooks/useAuth";
 import { useDelegacionesActivas } from "@/hooks/useDelegaciones";
+import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,6 +59,7 @@ export default function Alertas() {
   const { data: clasificaciones } = useClasificacionesAlerta();
   const { user, isAdmin } = useAuth();
   const { data: delegacionesActivas } = useDelegacionesActivas();
+  const { data: unreadMentions = 0 } = useMyMentionsUnreadCount(user?.id);
   const createAlerta = useCreateAlerta();
   const updateAlerta = useUpdateAlerta();
   const deleteAlerta = useDeleteAlerta();
@@ -335,6 +337,14 @@ export default function Alertas() {
           }
           <Button variant="outline" size="sm" onClick={() => setShowDeleted(true)}>
             <RotateCcw className="w-4 h-4 mr-1" /> Eliminadas
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/menciones")} className="relative">
+            <AtSign className="w-4 h-4 mr-1" /> Menciones
+            {unreadMentions > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                {unreadMentions}
+              </span>
+            )}
           </Button>
           <Button onClick={() => {setEditTarget(null);setCreateDefaults({});setDialogOpen(true);}}>
             <Plus className="w-4 h-4 mr-2" /> Nueva Alerta
