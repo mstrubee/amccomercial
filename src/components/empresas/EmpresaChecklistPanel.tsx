@@ -2,6 +2,9 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import MentionTextarea from "@/components/mensajeria/MentionTextarea";
+import { useMentionableUsers } from "@/hooks/useMentionableUsers";
+import { splitTextWithMentions } from "@/lib/mention-utils";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -33,6 +36,27 @@ interface Props {
 export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly }: Props) {
   const { user } = useAuth();
   const { data: items = [] } = useEmpresaChecklistItems(empresaId, proyectoId);
+  const { data: mentionUsers = [] } = useMentionableUsers();
+  const knownHandles = useMemo(() => new Set(mentionUsers.map((u) => u.handle)), [mentionUsers]);
+  const myHandle = useMemo(
+    () => (user?.id ? mentionUsers.find((u) => u.user_id === user.id)?.handle : undefined),
+    [user?.id, mentionUsers],
+  );
+
+  const renderText = (text: string) => {
+    const parts = splitTextWithMentions(text, knownHandles);
+    if (parts.length === 0) return text;
+    return parts.map((p, i) =>
+      p.type === "mention" ? (
+        <span key={i} className={cn(
+          "rounded px-1 font-medium",
+          myHandle && p.handle === myHandle ? "bg-primary/25 text-primary" : "bg-primary/10 text-primary",
+        )}>{p.value}</span>
+      ) : (
+        <span key={i}>{p.value}</span>
+      ),
+    );
+  };
 
   // Resolve author display names for items that have created_by set
   const authorIds = useMemo(() => {
@@ -262,7 +286,7 @@ export default function EmpresaChecklistPanel({ empresaId, proyectoId, readOnly 
                   className={cn("cursor-default", item.is_completed && "line-through text-muted-foreground")}
                   onDoubleClick={() => startEditText(item)}
                 >
-                  {item.text}
+                  {renderText(item.text)}
                 </span>
               )}
 
