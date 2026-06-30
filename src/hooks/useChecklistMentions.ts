@@ -33,15 +33,26 @@ export function useMyMentions(userId: string | undefined) {
         .from("checklist_mentions")
         .select(
           `id, checklist_item_id, mentioned_user_id, proyecto_id, empresa_id, created_at,
-           checklist_item:empresa_checklist_items!checklist_mentions_checklist_item_id_fkey(id, text, created_at, created_by, empresa_id, proyecto_id),
-           proyecto:proyectos!checklist_mentions_proyecto_id_fkey(id, nombre),
-           empresa:empresas!checklist_mentions_empresa_id_fkey(id, nombre)`,
+           checklist_item:empresa_checklist_items!checklist_mentions_checklist_item_id_fkey(id, text, created_at, created_by, empresa_id, proyecto_id)`,
         )
         .eq("mentioned_user_id", userId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       const rows = (data || []) as any[];
       if (rows.length === 0) return [];
+      // Resolve proyectos & empresas separately (no FK constraints declared)
+      const proyectoIds = Array.from(new Set(rows.map((r) => r.proyecto_id).filter(Boolean)));
+      const empresaIds = Array.from(new Set(rows.map((r) => r.empresa_id).filter(Boolean)));
+      const proyectoMap: Record<string, { id: string; nombre: string }> = {};
+      const empresaMap: Record<string, { id: string; nombre: string }> = {};
+      if (proyectoIds.length) {
+        const { data: ps } = await supabase.from("proyectos").select("id, nombre").in("id", proyectoIds);
+        (ps || []).forEach((p: any) => { proyectoMap[p.id] = { id: p.id, nombre: p.nombre }; });
+      }
+      if (empresaIds.length) {
+        const { data: es } = await supabase.from("empresas").select("id, nombre").in("id", empresaIds);
+        (es || []).forEach((e: any) => { empresaMap[e.id] = { id: e.id, nombre: e.nombre }; });
+      }
       // Fetch read state
       const ids = rows.map((r) => r.id);
       const { data: reads } = await supabase
@@ -63,6 +74,8 @@ export function useMyMentions(userId: string | undefined) {
       return rows.map((r) => ({
         ...r,
         is_read: readSet.has(r.id),
+        proyecto: r.proyecto_id ? proyectoMap[r.proyecto_id] || null : null,
+        empresa: r.empresa_id ? empresaMap[r.empresa_id] || null : null,
         author: r.checklist_item?.created_by ? { display_name: authorMap[r.checklist_item.created_by] || null } : null,
       }));
     },
