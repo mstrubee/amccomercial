@@ -19,3 +19,5 @@
 - `wrapperClassName` se aplica al `<div class="relative">`; `className` sigue aplicándose al `<textarea>` (no se rompe ningún uso existente: los demás callsites de `MentionTextarea` no usan la nueva prop).
 - El portal del menú usa `position: fixed`, `top = rect.bottom + 4`, `left = rect.left`, ancho `w-64`, con `z-50` o superior. Listener `scroll` (capture) + `resize` mientras el menú esté abierto para reposicionar.
 - No se modifica la lógica de detección de `@`, filtrado, navegación con teclado, ni selección con Enter/Space — la operatividad queda idéntica a la del input de creación.
+
+> Nota: este plan ya fue aplicado en el turno anterior. Si el comportamiento aún se ve incorrecto en tu vista, reaprobar para forzar un re-build / hard reload del preview.
