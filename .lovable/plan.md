@@ -1,42 +1,47 @@
-## Objetivo
+## Diagnóstico
 
-Habilitar al rol **Captador** para editar proyectos y empresas, y para crear proyectos nuevos. Al crear un proyecto, todas las empresas seleccionadas en el formulario quedan automáticamente vinculadas al captador (admin podrá luego reasignar).
+Encontré la causa de las reasignaciones aleatorias. Está en `src/pages/Proyectos.tsx`, en el bloque que llamamos "legacy" (líneas 500‑535 y 2630‑2646).
 
-## Cambios
+Hoy, para decidir qué captador "es dueño" de un proyecto, el código:
 
-### 1. `src/pages/Proyectos.tsx` — habilitar edición a captadores
-- Quitar el guard `!isCaptador` del botón **Editar línea madre** (línea 1159) → mostrar a captadores.
-- Quitar el guard `!isCaptador` del botón **Editar** por empresa-hijo (línea 1296) → mostrar a captadores.
-- Mantener el botón **Eliminar** restringido a admin (no se pide eliminación).
-- El botón "Nuevo Proyecto" ya está visible para todos, no requiere cambio.
+1. Mira si el proyecto tiene una fila en `proyecto_captadores` (sistema nuevo, explícito) → si la hay, usa esa. ✅
+2. **Si no hay fila**, recorre todos los captadores y atribuye el proyecto al primer captador cuyo `empresas_visibles` contenga la empresa del proyecto, siempre que ese captador no tenga *ninguna* fila en `proyecto_captadores` en toda la base. ⚠️
 
-### 2. `src/pages/Proyectos.tsx` — auto-vinculación al crear
-La lógica actual (líneas 1340-1360) ya hace merge de las empresas del nuevo proyecto en `user_permissions.empresas_visibles` del captador. Se complementará para:
-- Insertar también una fila en `proyecto_captadores` (proyecto_id, captador_id) por cada proyecto-empresa creado, de modo que el filtro por captador y la columna captador del admin muestren el vínculo inmediatamente.
-- Invalidar la query `["proyectos"]` luego del upsert para que la UI refleje el nuevo vínculo (await `invalidateQueries` antes de cerrar diálogo — regla de UX).
+Ese paso 2 es el que produce los síntomas descritos:
 
-### 3. `src/pages/Empresas.tsx` — habilitar edición a captadores
-- Confirmar que botones Editar/Nueva Condición no estén gateados por `isAdmin` excluyendo al captador. Hoy usan `permissions`/`isSectionRestrictedToAssigned` y no excluyen explícitamente al captador, por lo que probablemente no requiere cambio en la UI. Verificar y, si hay algún `if (!isCaptador)` o `if (isAdmin)` en acciones de edición, ajustarlo para permitir al captador.
+- Cuando el admin agrega una empresa al `empresas_visibles` de un captador (sólo para darle visibilidad), **todos los proyectos existentes de esa empresa aparecen como asignados a él**.
+- Si dos captadores comparten una misma empresa en `empresas_visibles` y ninguno ha creado proyectos todavía, el "dueño" mostrado depende del orden del array → cambia entre sesiones y se ve como aleatorio.
+- En la columna "Captador" del admin y en el filtro "Mis proyectos" del captador, los proyectos aparecen y desaparecen sin que nadie los haya tocado realmente.
 
-### 4. RLS en Supabase
-Revisar las policies de:
-- `proyectos` (INSERT, UPDATE)
-- `proyecto_empresas` (INSERT, UPDATE, DELETE)
-- `proyecto_captadores` (INSERT)
-- `empresas` (UPDATE)
-- `condiciones_comerciales` (INSERT/UPDATE, si captador edita empresa)
-- `user_permissions` (UPDATE del propio captador para hacer el merge de `empresas_visibles`)
+Además, al crear un proyecto, el captador llama `captador_add_empresas_visibles` (RPC) que mergea la empresa en su propia `empresas_visibles`. Eso es correcto para visibilidad futura, pero amplifica el problema anterior si quedan captadores "legacy".
 
-Si alguna policy actual restringe a admin solamente, crear una migración que añada policies adicionales permitiendo al captador (cuando `EXISTS (SELECT 1 FROM captadores WHERE user_id = auth.uid())`) realizar las operaciones requeridas, **limitado a empresas en su `empresas_visibles`** para evitar escalamiento.
+## Solución propuesta
 
-### 5. Verificación
-- Login como captador → ver botones Editar visibles en proyectos y empresas.
-- Crear proyecto con 2 empresas → confirmar fila en `proyecto_captadores`, `empresas_visibles` actualizado, proyecto visible en su filtro.
-- Editar un proyecto existente como captador → sin errores RLS.
-- Login como admin → la columna captador del proyecto refleja el vínculo y se puede modificar.
+Eliminar por completo el fallback legacy de atribución y dejar que **`proyecto_captadores` sea la única fuente de verdad** para "captador dueño del proyecto". `empresas_visibles` queda solo para lo que está pensado: filtrar qué empresas ve un usuario.
 
-## Notas técnicas
+### Cambios
 
-- Mantener intacta la lógica de visibilidad existente para captadores (filtros + permisos).
-- No tocar policies de DELETE en proyectos/empresas para captadores.
-- La memoria del proyecto requiere `await invalidateQueries` antes de cerrar diálogos; se respetará en el flujo de creación.
+1. **`src/pages/Proyectos.tsx`**
+   - `getAssigned` (≈2630): borrar el bloque que recorre `captadoresConUsuarios` y compara `empresasVisibles`. Si no hay fila en `proyecto_captadores`, devolver `null` (proyecto sin captador asignado).
+   - `visibleProyectoNamesByCaptador` (≈516): borrar la rama "Legacy (empresas_visibles)". Un proyecto solo es visible para un captador en el filtro si tiene fila en `proyecto_captadores`.
+   - `captadoresInNewSystem` (≈500): ya no es necesario; eliminarlo y sus usos.
+   - `asignados` (≈2649): queda igual, pero ahora solo refleja asignaciones reales.
+
+2. **Visibilidad del captador en su propia vista** (líneas 1456‑1459, 1093‑1094 y el effect 229)
+   - El captador seguirá viendo "Mis proyectos" usando `filterCaptadores` precargado con su `captadorId`. Como el filtro ahora solo cuenta `proyecto_captadores`, verá exactamente los proyectos en los que está explícitamente asignado.
+   - Esto no afecta las RLS (la base ya lo permite); solo ajusta la UI.
+
+3. **Sin cambios en backend / RLS / RPC**
+   - No tocar `captador_add_empresas_visibles`: sigue siendo correcto para que el captador pueda ver las empresas relacionadas a los proyectos que crea.
+   - No tocar policies de `proyecto_captadores` ni `user_permissions`.
+
+### Verificación
+
+- Login como admin: la columna "Captador" debe mostrar exactamente el captador insertado en `proyecto_captadores`, o vacío si no hay. Asignar/desasignar manualmente sigue funcionando.
+- Login como captador A con empresa X en `empresas_visibles` pero sin filas en `proyecto_captadores`: ya no verá proyectos ajenos de la empresa X bajo "Mis proyectos".
+- Captador que crea un proyecto nuevo: aparece asignado a él inmediatamente (vía la fila que inserta en `proyecto_captadores` en línea 1618‑1620).
+- Re-asignación de un proyecto desde el admin: se mantiene; el override optimista y la invalidación de queries siguen igual.
+
+### Riesgo / migración de datos
+
+Si hay captadores que hoy "se veían dueños" gracias al fallback legacy y eso era el comportamiento esperado en algún caso, dejarán de aparecer asignados hasta que el admin (o el captador, creando el proyecto) inserte la fila correspondiente en `proyecto_captadores`. Si quieres, en un paso posterior puedo proponer una migración única para sembrar `proyecto_captadores` a partir del estado actual, pero por defecto **no** lo incluyo en este fix para evitar asignar en masa proyectos a captadores equivocados — que es justo el problema que reportas.
