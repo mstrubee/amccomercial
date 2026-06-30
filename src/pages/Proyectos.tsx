@@ -2153,11 +2153,27 @@ const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresa
 });
 
 /* ── Nota grupo cell (no char limit, only for parent row) ── */
-function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void; onCreateAlerta?: (texto: string) => void }) {
+const DATE_LINE_RE = /^(\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|\d{1,2}[.\-/]\d{1,2}|\d{1,2}\s+de\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre))(\s+)(.+)$/i;
+
+function injectAuthorInLine(line: string, name: string): { line: string; insertedAt: number; insertedLen: number } | null {
+  if (!name) return null;
+  const m = line.match(DATE_LINE_RE);
+  if (!m) return null;
+  const rest = m[3];
+  if (rest.startsWith("(")) return null;
+  const datePart = m[1];
+  const spacePart = m[2];
+  const tag = `(${name}) `;
+  const newLine = `${datePart}${spacePart}${tag}${rest}`;
+  return { line: newLine, insertedAt: datePart.length + spacePart.length, insertedLen: tag.length };
+}
+
+function NotaGrupoCell({ proyecto, onSave, onCreateAlerta, currentUserName }: { proyecto: ProyectoWithEmpresas; onSave: (data: { id: string; nota_grupo: string }) => void; onCreateAlerta?: (texto: string) => void; currentUserName?: string }) {
   const [value, setValue] = useState((proyecto as any).nota_grupo || "");
   const [saved, setSaved] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFocusedRef = useRef(false);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!isFocusedRef.current) {
@@ -2165,23 +2181,50 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta }: { proyecto: Proyect
     }
   }, [(proyecto as any).nota_grupo]);
 
-  const handleChange = (text: string) => {
-    setValue(text);
+  const handleChange = (text: string, caret?: number | null) => {
+    let nextText = text;
+    let nextCaret = caret ?? null;
+    if (currentUserName && caret != null) {
+      // Find the line that contains the caret
+      const before = text.slice(0, caret);
+      const after = text.slice(caret);
+      const lineStart = before.lastIndexOf("\n") + 1;
+      const lineEndRel = after.indexOf("\n");
+      const lineEnd = lineEndRel === -1 ? text.length : caret + lineEndRel;
+      const line = text.slice(lineStart, lineEnd);
+      const res = injectAuthorInLine(line, currentUserName);
+      if (res) {
+        nextText = text.slice(0, lineStart) + res.line + text.slice(lineEnd);
+        const insertionAbs = lineStart + res.insertedAt;
+        nextCaret = caret >= insertionAbs ? caret + res.insertedLen : caret;
+      }
+    }
+    setValue(nextText);
     setSaved(false);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      onSave({ id: proyecto.id, nota_grupo: text });
+      onSave({ id: proyecto.id, nota_grupo: nextText });
       setSaved(true);
     }, 800);
+    if (nextText !== text && nextCaret != null) {
+      requestAnimationFrame(() => {
+        const el = taRef.current;
+        if (el) {
+          el.selectionStart = nextCaret!;
+          el.selectionEnd = nextCaret!;
+        }
+      });
+    }
   };
 
   return (
     <div className="relative">
       <textarea
+        ref={taRef}
         className="w-full min-h-[32px] resize-y rounded-md border border-border bg-card/50 px-2 py-1 text-xs text-card-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         placeholder="Nota del proyecto..."
         value={value}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value, e.target.selectionStart)}
         onClick={(e) => e.stopPropagation()}
         onFocus={() => { isFocusedRef.current = true; }}
         onBlur={() => { isFocusedRef.current = false; }}
