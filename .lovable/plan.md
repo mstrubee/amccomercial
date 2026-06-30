@@ -1,47 +1,45 @@
-## Diagnóstico
+## Objetivo
 
-Encontré la causa de las reasignaciones aleatorias. Está en `src/pages/Proyectos.tsx`, en el bloque que llamamos "legacy" (líneas 500‑535 y 2630‑2646).
+Al crear una nota en el checklist (de proyecto o de empresa), mostrar el nombre del autor entre paréntesis justo después de la fecha y antes del texto. Ej:
 
-Hoy, para decidir qué captador "es dueño" de un proyecto, el código:
+```text
+24.03  (Pablo Pérez)  Dejaron OG lista, obra retoma en Marzo...
+```
 
-1. Mira si el proyecto tiene una fila en `proyecto_captadores` (sistema nuevo, explícito) → si la hay, usa esa. ✅
-2. **Si no hay fila**, recorre todos los captadores y atribuye el proyecto al primer captador cuyo `empresas_visibles` contenga la empresa del proyecto, siempre que ese captador no tenga *ninguna* fila en `proyecto_captadores` en toda la base. ⚠️
+## Cambios
 
-Ese paso 2 es el que produce los síntomas descritos:
+### 1. Base de datos — migración
 
-- Cuando el admin agrega una empresa al `empresas_visibles` de un captador (sólo para darle visibilidad), **todos los proyectos existentes de esa empresa aparecen como asignados a él**.
-- Si dos captadores comparten una misma empresa en `empresas_visibles` y ninguno ha creado proyectos todavía, el "dueño" mostrado depende del orden del array → cambia entre sesiones y se ve como aleatorio.
-- En la columna "Captador" del admin y en el filtro "Mis proyectos" del captador, los proyectos aparecen y desaparecen sin que nadie los haya tocado realmente.
+Tabla `public.empresa_checklist_items`:
+- Agregar columna `created_by uuid` (FK a `auth.users`, sin `NOT NULL` para no romper filas históricas).
+- Índice por `created_by` (opcional, lo dejo fuera si no se necesita filtrar).
+- Las filas existentes quedan con `created_by = NULL` → se muestran sin autor (comportamiento actual).
+- No se tocan las policies de RLS ya existentes.
 
-Además, al crear un proyecto, el captador llama `captador_add_empresas_visibles` (RPC) que mergea la empresa en su propia `empresas_visibles`. Eso es correcto para visibilidad futura, pero amplifica el problema anterior si quedan captadores "legacy".
+### 2. Captura del autor al crear el ítem
 
-## Solución propuesta
+`src/hooks/useEmpresaChecklist.ts`:
+- `useAddChecklistItem`: incluir `created_by: auth.uid()` en el `insert`. Se obtiene con `supabase.auth.getUser()` o aceptando `user_id` como parámetro desde el llamador (ya tenemos `useAuth()` en el panel y los diálogos).
+- Actualizar la interfaz `ChecklistItem` para incluir `created_by: string | null`.
 
-Eliminar por completo el fallback legacy de atribución y dejar que **`proyecto_captadores` sea la única fuente de verdad** para "captador dueño del proyecto". `empresas_visibles` queda solo para lo que está pensado: filtrar qué empresas ve un usuario.
+### 3. Mostrar el nombre
 
-### Cambios
+`src/components/empresas/EmpresaChecklistPanel.tsx`:
+- Cargar un mapa `userId → display_name` desde `profiles` con un hook ligero (reutilizar uno existente si lo hay, o crear `useProfilesMap(userIds)` que consulta `profiles` por los IDs únicos presentes en los ítems).
+- En `renderItem`, justo después del bloque de fecha y antes del texto, mostrar `(<nombre>)` con estilo muted, solo cuando `created_by` existe y se resuelve a un nombre.
 
-1. **`src/pages/Proyectos.tsx`**
-   - `getAssigned` (≈2630): borrar el bloque que recorre `captadoresConUsuarios` y compara `empresasVisibles`. Si no hay fila en `proyecto_captadores`, devolver `null` (proyecto sin captador asignado).
-   - `visibleProyectoNamesByCaptador` (≈516): borrar la rama "Legacy (empresas_visibles)". Un proyecto solo es visible para un captador en el filtro si tiene fila en `proyecto_captadores`.
-   - `captadoresInNewSystem` (≈500): ya no es necesario; eliminarlo y sus usos.
-   - `asignados` (≈2649): queda igual, pero ahora solo refleja asignaciones reales.
+### 4. Exportación de Reuniones (opcional, recomendado)
 
-2. **Visibilidad del captador en su propia vista** (líneas 1456‑1459, 1093‑1094 y el effect 229)
-   - El captador seguirá viendo "Mis proyectos" usando `filterCaptadores` precargado con su `captadorId`. Como el filtro ahora solo cuenta `proyecto_captadores`, verá exactamente los proyectos en los que está explícitamente asignado.
-   - Esto no afecta las RLS (la base ya lo permite); solo ajusta la UI.
+`src/pages/AtencionEmpresas.tsx` — en `buildExportRows`, prefijar la nota con `(autor) ` para que el Excel también muestre el autor. Si prefieres no tocar la exportación, lo omitimos.
 
-3. **Sin cambios en backend / RLS / RPC**
-   - No tocar `captador_add_empresas_visibles`: sigue siendo correcto para que el captador pueda ver las empresas relacionadas a los proyectos que crea.
-   - No tocar policies de `proyecto_captadores` ni `user_permissions`.
+## Detalle técnico
 
-### Verificación
+- No se modifica el comportamiento de edición de texto/fecha ni completado: el autor queda fijo al momento de creación.
+- Si `created_by` es `NULL` (ítems antiguos) o el perfil no tiene `display_name`, no se renderiza el paréntesis para no mostrar "(Desconocido)".
+- El nombre viene de `profiles.display_name` (la columna `email` fue removida del schema previamente).
+- No se requiere edición del autor por la UI; un admin podría cambiarlo vía SQL si fuera necesario.
 
-- Login como admin: la columna "Captador" debe mostrar exactamente el captador insertado en `proyecto_captadores`, o vacío si no hay. Asignar/desasignar manualmente sigue funcionando.
-- Login como captador A con empresa X en `empresas_visibles` pero sin filas en `proyecto_captadores`: ya no verá proyectos ajenos de la empresa X bajo "Mis proyectos".
-- Captador que crea un proyecto nuevo: aparece asignado a él inmediatamente (vía la fila que inserta en `proyecto_captadores` en línea 1618‑1620).
-- Re-asignación de un proyecto desde el admin: se mantiene; el override optimista y la invalidación de queries siguen igual.
+## Preguntas abiertas
 
-### Riesgo / migración de datos
-
-Si hay captadores que hoy "se veían dueños" gracias al fallback legacy y eso era el comportamiento esperado en algún caso, dejarán de aparecer asignados hasta que el admin (o el captador, creando el proyecto) inserte la fila correspondiente en `proyecto_captadores`. Si quieres, en un paso posterior puedo proponer una migración única para sembrar `proyecto_captadores` a partir del estado actual, pero por defecto **no** lo incluyo en este fix para evitar asignar en masa proyectos a captadores equivocados — que es justo el problema que reportas.
+1. ¿Aplicar también el autor en la exportación a Excel de "Reuniones" (sección 4)?
+2. ¿Mostrar el autor también en sub-ítems anidados, o solo en notas de primer nivel? (Por defecto: en todos los niveles, para consistencia.)
