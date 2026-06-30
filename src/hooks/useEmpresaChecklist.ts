@@ -12,6 +12,7 @@ export interface ChecklistItem {
   completed_at: string | null;
   completed_by: string | null;
   parent_id: string | null;
+  created_by: string | null;
 }
 
 /** Fetch checklist items for a specific proyecto + empresa combo */
@@ -115,11 +116,13 @@ export function useAddChecklistItem() {
   return useMutation({
     mutationFn: async (input: { empresa_id: string; proyecto_id?: string | null; text: string; parent_id?: string | null }) => {
       const { date, cleanText } = parseDateFromText(input.text);
+      const { data: userData } = await supabase.auth.getUser();
       const row: any = {
         empresa_id: input.empresa_id,
         proyecto_id: input.proyecto_id || null,
         text: cleanText || input.text,
         parent_id: input.parent_id || null,
+        created_by: userData?.user?.id || null,
       };
       if (date) row.created_at = date.toISOString();
       const { data, error } = await supabase.from("empresa_checklist_items").insert(row).select().single();

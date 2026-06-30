@@ -809,6 +809,7 @@ export type Database = {
           completed_at: string | null
           completed_by: string | null
           created_at: string
+          created_by: string | null
           empresa_id: string
           id: string
           is_completed: boolean
@@ -820,6 +821,7 @@ export type Database = {
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string
+          created_by?: string | null
           empresa_id: string
           id?: string
           is_completed?: boolean
@@ -831,6 +833,7 @@ export type Database = {
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string
+          created_by?: string | null
           empresa_id?: string
           id?: string
           is_completed?: boolean
