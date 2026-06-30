@@ -33,6 +33,7 @@ import PersonalizacionDialog from "@/components/personalizacion/PersonalizacionD
 import FloatingUserStatus from "@/components/presence/FloatingUserStatus";
 import FloatingChat from "@/components/mensajeria/FloatingChat";
 import BackToProyectoFloat from "@/components/proyectos/BackToProyectoFloat";
+import BackToMencionesFloat from "@/components/menciones/BackToMencionesFloat";
 
 interface Props {
   children: React.ReactNode;
@@ -253,6 +254,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, isCaptado
       {/* Personalización Dialog */}
       <PersonalizacionDialog open={personalizacionOpen} onOpenChange={setPersonalizacionOpen} />
       <BackToProyectoFloat />
+      <BackToMencionesFloat />
     </div>
   );
 }
