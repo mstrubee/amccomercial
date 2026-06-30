@@ -81,8 +81,12 @@ export function useAuth() {
   // assigns or removes empresas, without needing to log out and back in.
   useEffect(() => {
     if (!user) return;
+    const channelId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`user_permissions:${user.id}:${Math.random().toString(36).slice(2)}`)
+      .channel(`user_permissions:${user.id}:${channelId}`)
       .on(
         "postgres_changes",
         {
@@ -94,7 +98,7 @@ export function useAuth() {
         () => fetchPermissions(user.id)
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { void supabase.removeChannel(channel); };
   }, [user, fetchPermissions]);
 
   const isAdmin = roles.includes("admin");
