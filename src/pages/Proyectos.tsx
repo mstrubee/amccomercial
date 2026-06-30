@@ -980,6 +980,15 @@ export default function Proyectos() {
           )}
         </div>
         <div className="flex gap-2 flex-wrap items-center">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => navigate("/menciones")}>
+            <AtSign className="w-3 h-3" />
+            Menciones
+            {unreadMentions > 0 && (
+              <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 text-[10px]">
+                {unreadMentions}
+              </span>
+            )}
+          </Button>
           {/* 1. Estado (x Proyecto) — was Estado AMC */}
           <Popover>
             <PopoverTrigger asChild>
