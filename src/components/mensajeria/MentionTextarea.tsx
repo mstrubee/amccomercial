@@ -131,17 +131,17 @@ const MentionTextarea = forwardRef<HTMLTextAreaElement, Props>(function MentionT
     <div className="relative">
       <textarea
         ref={innerRef}
+        {...rest}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        onClick={handleSelectOrClick}
+        onClick={(e) => { rest.onClick?.(e); handleSelectOrClick(); }}
         onKeyUp={handleSelectOrClick}
-        onBlur={() => setTimeout(() => setMenu(null), 120)}
+        onBlur={(e) => { rest.onBlur?.(e); setTimeout(() => setMenu(null), 120); }}
         className={cn(
           "w-full rounded-md border border-border bg-card/50 px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           className,
         )}
-        {...rest}
       />
       {menu && matches.length > 0 && (
         <div className="absolute z-50 left-2 top-full mt-1 w-64 max-h-56 overflow-y-auto rounded-md border border-border bg-popover shadow-md text-popover-foreground">
