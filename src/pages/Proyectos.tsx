@@ -693,6 +693,7 @@ export default function Proyectos() {
     let vigentes = 0;
     let ganados = 0;
     let obrasEjecucion = 0;
+    let proyectosEnConstruccion = 0;
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
@@ -705,10 +706,11 @@ export default function Proyectos() {
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
+      if (g.some(p => ESTADOS_CONSTRUCCION.includes(p.estado_obra))) proyectosEnConstruccion++;
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
-    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
+    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, filteredGroups, hasActiveFilters };
   }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
