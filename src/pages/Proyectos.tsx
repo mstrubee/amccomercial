@@ -1254,6 +1254,29 @@ export default function Proyectos() {
           active={filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e))}
         />
         <KpiCard
+          title="Proyectos Cotizados"
+          value={String(kpiStats.proyectosCotizados)}
+          subtitle="Estatus x Empresa"
+          icon={FileText}
+          variant="info"
+          delay={0.13}
+          onClick={() => {
+            const isActive = filterCategorias.length === COTIZACION_TARGET_IDS.length && COTIZACION_TARGET_IDS.every(id => filterCategorias.includes(id));
+            if (isActive) {
+              setFilterCategorias([]);
+            } else {
+              setFilterCategorias([...COTIZACION_TARGET_IDS]);
+              setFilterEstados([]);
+              setFilterEmpresas([]);
+              setFilterEstadosObra([]);
+              setFilterClasificaciones([]);
+              setFilterBotones([]);
+              setSearch("");
+            }
+          }}
+          active={filterCategorias.length === COTIZACION_TARGET_IDS.length && COTIZACION_TARGET_IDS.every(id => filterCategorias.includes(id))}
+        />
+        <KpiCard
           title="Obras / Ejecución"
           value={String(kpiStats.obrasEjecucion)}
           subtitle="Estado AMC (x Empresa)"
