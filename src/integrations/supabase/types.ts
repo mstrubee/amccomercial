@@ -877,7 +877,7 @@ export type Database = {
           completed_by: string | null
           created_at: string
           created_by: string | null
-          empresa_id: string
+          empresa_id: string | null
           id: string
           is_completed: boolean
           parent_id: string | null
@@ -889,7 +889,7 @@ export type Database = {
           completed_by?: string | null
           created_at?: string
           created_by?: string | null
-          empresa_id: string
+          empresa_id?: string | null
           id?: string
           is_completed?: boolean
           parent_id?: string | null
@@ -901,7 +901,7 @@ export type Database = {
           completed_by?: string | null
           created_at?: string
           created_by?: string | null
-          empresa_id?: string
+          empresa_id?: string | null
           id?: string
           is_completed?: boolean
           parent_id?: string | null
