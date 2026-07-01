@@ -47,6 +47,8 @@ import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/component
 import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
 
+const ESTADOS_CONSTRUCCION = ["Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones"];
+
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
   const seen = new Map<string, AlertaWithRelations>();
@@ -691,6 +693,7 @@ export default function Proyectos() {
     let vigentes = 0;
     let ganados = 0;
     let obrasEjecucion = 0;
+    let proyectosEnConstruccion = 0;
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
@@ -703,10 +706,11 @@ export default function Proyectos() {
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
+      if (g.some(p => ESTADOS_CONSTRUCCION.includes(p.estado_obra))) proyectosEnConstruccion++;
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
-    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, filteredGroups, hasActiveFilters };
+    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, filteredGroups, hasActiveFilters };
   }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
@@ -1211,27 +1215,27 @@ export default function Proyectos() {
           }}
         />
         <KpiCard
-          title="Ganados"
-          value={String(kpiStats.ganados)}
-          subtitle="Proyectos ganados"
+          title="Proyectos en Construcción"
+          value={String(kpiStats.proyectosEnConstruccion)}
+          subtitle="Estado obra activo"
           icon={Trophy}
           variant="success"
           delay={0.12}
           onClick={() => {
-            const isActive = filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID;
+            const isActive = filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e));
             if (isActive) {
-              setFilterCategorias([]);
+              setFilterEstadosObra([]);
             } else {
-              setFilterCategorias([GANADO_SUBCATEGORIA_ID]);
+              setFilterEstadosObra([...ESTADOS_CONSTRUCCION]);
               setFilterEstados([]);
               setFilterEmpresas([]);
-              setFilterEstadosObra([]);
+              setFilterCategorias([]);
               setFilterClasificaciones([]);
               setFilterBotones([]);
               setSearch("");
             }
           }}
-          active={filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID}
+          active={filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e))}
         />
         <KpiCard
           title="Obras / Ejecución"
