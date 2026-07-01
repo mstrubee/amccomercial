@@ -47,6 +47,8 @@ import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/component
 import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
 
+const ESTADOS_CONSTRUCCION = ["Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones"];
+
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
   const seen = new Map<string, AlertaWithRelations>();
