@@ -1215,27 +1215,27 @@ export default function Proyectos() {
           }}
         />
         <KpiCard
-          title="Ganados"
-          value={String(kpiStats.ganados)}
-          subtitle="Proyectos ganados"
+          title="Proyectos en Construcción"
+          value={String(kpiStats.proyectosEnConstruccion)}
+          subtitle="Estado obra activo"
           icon={Trophy}
           variant="success"
           delay={0.12}
           onClick={() => {
-            const isActive = filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID;
+            const isActive = filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e));
             if (isActive) {
-              setFilterCategorias([]);
+              setFilterEstadosObra([]);
             } else {
-              setFilterCategorias([GANADO_SUBCATEGORIA_ID]);
+              setFilterEstadosObra([...ESTADOS_CONSTRUCCION]);
               setFilterEstados([]);
               setFilterEmpresas([]);
-              setFilterEstadosObra([]);
+              setFilterCategorias([]);
               setFilterClasificaciones([]);
               setFilterBotones([]);
               setSearch("");
             }
           }}
-          active={filterCategorias.length === 1 && filterCategorias[0] === GANADO_SUBCATEGORIA_ID}
+          active={filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e))}
         />
         <KpiCard
           title="Obras / Ejecución"
