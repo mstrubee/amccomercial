@@ -373,7 +373,7 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
         <div className="flex gap-1">
           <MentionTextarea
             wrapperClassName="flex-1"
-            placeholder="Nueva nota — mm.dd para fecha. Ctrl+Enter para agregar. @ para mencionar."
+            placeholder="Checklist del proyecto. Ctrl+Enter para agregar. @ para hacer mención a miembros del equipo."
             value={newItemText}
             onChange={(v) => setNewItemText(v)}
             onKeyDown={e => {
