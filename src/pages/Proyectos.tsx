@@ -1195,7 +1195,7 @@ export default function Proyectos() {
       </motion.div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
         <KpiCard
           title="Total Proyectos"
           value={String(kpiStats.totalProyectos)}
