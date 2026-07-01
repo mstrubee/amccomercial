@@ -49,6 +49,15 @@ import { cn } from "@/lib/utils";
 
 const ESTADOS_CONSTRUCCION = ["Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones"];
 
+const COTIZACION_TARGET_IDS = [
+  "d24dd57b-ac65-460b-80a3-07ed24c97029", // Cotización (cat)
+  "ee31d10a-851c-4cab-93f8-ce42f2ac4f68", // Presupuesto Solicitado
+  "a565de53-2d5d-45be-a1c1-01d77b8ea895", // Cotizado Empresa
+  "d5e1df2f-eb42-42f9-b49c-47c9d6083948", // Enviado a Cliente
+  "35eaf6e0-a2f5-49ac-a33f-43850e095946", // Negociación (cat)
+  "19c00ab0-fa2d-42fb-b7c8-87bba0ccd8dd", // Cierre este mes
+];
+
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
   const seen = new Map<string, AlertaWithRelations>();
