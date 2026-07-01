@@ -321,7 +321,8 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
 
   const rootItems = tree["root"] || [];
 
-  if (totalCount === 0 && readOnly) return null;
+  const hasLegacy = !!(legacyNote && legacyNote.trim());
+  if (totalCount === 0 && readOnly && !hasLegacy) return null;
 
   return (
     <div className="space-y-2 w-full" onClick={(e) => e.stopPropagation()}>
@@ -346,6 +347,35 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
           <Button size="icon" variant="outline" className="shrink-0 h-8" onClick={handleAddItem} disabled={!newItemText.trim()}>
             <Plus className="w-4 h-4" />
           </Button>
+        </div>
+      )}
+
+      {hasLegacy && (
+        <div className="rounded-md border border-amber-300/60 bg-amber-100/40 p-2 text-xs space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium text-amber-900">Nota anterior (pendiente de convertir a checklist)</span>
+            {!readOnly && !editingLegacy && (
+              <div className="flex items-center gap-1">
+                <Button size="icon" variant="ghost" className="h-6 w-6" title="Editar" onClick={() => { setEditingLegacy(true); setLegacyDraft(legacyNote || ""); }}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" title="Eliminar nota anterior" onClick={() => { if (confirm("¿Eliminar la nota anterior?")) updateNotaGrupo.mutate({ id: proyectoId, nota_grupo: "" }); }}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+          {editingLegacy ? (
+            <div className="space-y-1">
+              <Textarea value={legacyDraft} onChange={(e) => setLegacyDraft(e.target.value)} className="min-h-[80px] text-xs" onClick={(e) => e.stopPropagation()} />
+              <div className="flex justify-end gap-1">
+                <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingLegacy(false)}>Cancelar</Button>
+                <Button size="sm" className="h-7" onClick={() => { updateNotaGrupo.mutate({ id: proyectoId, nota_grupo: legacyDraft }); setEditingLegacy(false); }}>Guardar</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="whitespace-pre-wrap text-foreground/90">{legacyNote}</div>
+          )}
         </div>
       )}
 
