@@ -726,7 +726,7 @@ export default function Proyectos() {
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
-    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, filteredGroups, hasActiveFilters };
+    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, proyectosCotizados, filteredGroups, hasActiveFilters };
   }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
