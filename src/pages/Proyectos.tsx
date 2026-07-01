@@ -2046,8 +2046,8 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
     return unique.sort((a, b) => {
       const nameA = (a.empresas?.nombre || "").split(" ")[0];
       const nameB = (b.empresas?.nombre || "").split(" ")[0];
-      const idxA = EMPRESA_ORDER.indexOf(nameA);
-      const idxB = EMPRESA_ORDER.indexOf(nameB);
+      const idxA = EMPRESA_ORDER.findIndex(n => n.toLowerCase() === nameA.toLowerCase());
+      const idxB = EMPRESA_ORDER.findIndex(n => n.toLowerCase() === nameB.toLowerCase());
       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
       if (idxA !== -1) return -1;
       if (idxB !== -1) return 1;
@@ -2127,8 +2127,8 @@ const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresa
     return filtered.sort((a, b) => {
       const nameA = (a.empresas?.nombre || "").split(" ")[0];
       const nameB = (b.empresas?.nombre || "").split(" ")[0];
-      const idxA = EMPRESA_ORDER.indexOf(nameA);
-      const idxB = EMPRESA_ORDER.indexOf(nameB);
+      const idxA = EMPRESA_ORDER.findIndex(n => n.toLowerCase() === nameA.toLowerCase());
+      const idxB = EMPRESA_ORDER.findIndex(n => n.toLowerCase() === nameB.toLowerCase());
       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
       if (idxA !== -1) return -1;
       if (idxB !== -1) return 1;
