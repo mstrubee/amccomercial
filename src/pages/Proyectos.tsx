@@ -2036,15 +2036,32 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
 
 ProjectRow.displayName = "ProjectRow";
 
+const EMPRESA_ORDER = ["Tecma", "Jacima", "Hunter", "Endemik"];
+
 /* ── Empresas cell component ── */
 const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap, statusByPe }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
-  if (!proyectoEmpresas || proyectoEmpresas.length === 0) {
+  const orderedEmpresas = useMemo(() => {
+    if (!proyectoEmpresas) return [];
+    const unique = proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id)));
+    return unique.sort((a, b) => {
+      const nameA = (a.empresas?.nombre || "").split(" ")[0];
+      const nameB = (b.empresas?.nombre || "").split(" ")[0];
+      const idxA = EMPRESA_ORDER.indexOf(nameA);
+      const idxB = EMPRESA_ORDER.indexOf(nameB);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return nameA.localeCompare(nameB);
+    });
+  }, [proyectoEmpresas, filterEmpresas]);
+
+  if (orderedEmpresas.length === 0) {
     return <span className="text-muted-foreground text-xs">Sin empresas</span>;
   }
 
   return (
     <div className="space-y-1">
-      {proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id))).map((pe) => {
+      {orderedEmpresas.map((pe) => {
         const totalVentas = ventasMap?.get(pe.id) || 0;
         const eff = statusByPe?.get(pe.id);
         const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
@@ -2096,15 +2113,26 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
 });
 
 /* ── Group header empresas cell (name + category + monto) ── */
+
 const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap, statusByPe }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
   const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
   const allEmpresas = useMemo(() => {
     const seen = new Set<string>();
-    return allEmpresasRaw.filter((pe) => {
+    const filtered = allEmpresasRaw.filter((pe) => {
       if (!pe.empresa_id || seen.has(pe.empresa_id)) return false;
       seen.add(pe.empresa_id);
       if (filterEmpresas.length > 0 && !filterEmpresas.includes(pe.empresa_id)) return false;
       return true;
+    });
+    return filtered.sort((a, b) => {
+      const nameA = (a.empresas?.nombre || "").split(" ")[0];
+      const nameB = (b.empresas?.nombre || "").split(" ")[0];
+      const idxA = EMPRESA_ORDER.indexOf(nameA);
+      const idxB = EMPRESA_ORDER.indexOf(nameB);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return nameA.localeCompare(nameB);
     });
   }, [allEmpresasRaw, filterEmpresas]);
 
