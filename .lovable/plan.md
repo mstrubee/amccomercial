@@ -1,39 +1,39 @@
 ## Objetivo
+Insertar una nueva tarjeta KPI llamada **"Proyectos Cotizados"** en la fila de KPIs del listado de proyectos, ubicada entre "Proyectos en Construcción" y "Obras / Ejecución".
 
-Transformar el textarea "Nota grupo" del listado de proyectos en un **Checklist de Proyecto** con las mismas capacidades que el checklist de empresas (jerárquico, fechas, autores, menciones @, editar/eliminar, sub-ítems, follow-up al completar, ocultar/mostrar completados). Debe quedar **separado** del checklist de empresas — no se mezclan datos. Además, el fondo del área de entrada debe ser **celeste con 50% de transparencia** (no color sólido).
+## Alcance
+- **Conteo:** La tarjeta contará los **grupos de proyecto** (líneas madre) donde **al menos una empresa vinculada** tenga un estatus comercial (Estatus x Empresa) que coincida con:
+  - **Categoría Cotización** y sus sub-estados:
+    - Presupuesto Solicitado
+    - Cotizado Empresa
+    - Enviado a Cliente
+  - **Categoría Negociación** y su sub-estado:
+    - Cierre este mes
+- El conteo se realiza sobre el universo completo de proyectos, no sobre el resultado filtrado.
+- **Filtro rápido:** Al hacer click en la tarjeta se aplicará el filtro **"Estatus (x Empresa)"** (`filterCategorias`) con los IDs correspondientes y se limpiarán los demás filtros, de forma coherente con el comportamiento de las tarjetas existentes.
 
-## Estrategia
+## Detalles técnicos
+1. **Constantes:** Se agregará `COTIZACION_TARGET_IDS` con los UUIDs de categoría/subcategoría obtenidos de la base de datos:
+   - Cotización (cat): `d24dd57b-ac65-460b-80a3-07ed24c97029`
+   - Presupuesto Solicitado (sub): `ee31d10a-851c-4cab-93f8-ce42f2ac4f68`
+   - Cotizado Empresa (sub): `a565de53-2d5d-45be-a1c1-01d77b8ea895`
+   - Enviado a Cliente (sub): `d5e1df2f-eb42-42f9-b49c-47c9d6083948`
+   - Negociación (cat): `35eaf6e0-a2f5-49ac-a33f-43850e095946`
+   - Cierre este mes (sub): `19c00ab0-fa2d-42fb-b7c8-87bba0ccd8dd`
 
-Reutilizar la tabla `empresa_checklist_items` (misma estructura, mismos triggers de menciones, misma página Menciones sin cambios) permitiendo filas de **solo proyecto** (`empresa_id = NULL`, `proyecto_id` = id del proyecto). Los checklists de empresa (`empresa_id` NOT NULL) y los de proyecto (`empresa_id` NULL) quedan totalmente separados por filtro. Se agrega un componente dedicado `ProyectoChecklistPanel` para el listado.
+2. **Cálculo KPI (`kpiStats`):**
+   - Nuevo campo `proyectosCotizados` en el objeto de estadísticas.
+   - Se evalúa cada grupo verificando si alguna empresa vinculada tiene `categoria_id` o `subcategoria_id` (efectivo, vía `statusByPe`) dentro de `COTIZACION_TARGET_IDS`.
 
-## Cambios
+3. **Layout:** El contenedor de KPIs cambiará de `sm:grid-cols-5` a `sm:grid-cols-6` para evitar que la sexta tarjeta salte de línea.
 
-### 1) Base de datos (migración)
-- `ALTER TABLE empresa_checklist_items ALTER COLUMN empresa_id DROP NOT NULL;`
-- Restricción `CHECK (empresa_id IS NOT NULL OR proyecto_id IS NOT NULL)` para asegurar coherencia.
-- Verificar/ajustar policies RLS existentes para permitir filas con `empresa_id NULL` acotadas por `proyecto_id` (misma política que usa `has_project_access` o equivalente ya vigente para proyecto_id).
-- El trigger `sync_checklist_mentions` sigue funcionando (usa `NEW.proyecto_id` / `NEW.empresa_id` tal cual).
+4. **Componente `KpiCard`:** Se insertará entre la tarjeta "Proyectos en Construcción" y "Obras / Ejecución", con:
+   - Título: "Proyectos Cotizados"
+   - Icono: `FileText` (o similar de lucide-react)
+   - `active`: verdadero cuando `filterCategorias` contenga exactamente los IDs del target.
+   - `onClick`: alterna el filtro `filterCategorias` con los target IDs y limpia `filterEstados`, `filterEmpresas`, `filterEstadosObra`, `filterClasificaciones`, `filterBotones`, `search`.
 
-### 2) Hooks (`src/hooks/useProyectoChecklist.ts` — nuevo)
-Envolturas delgadas sobre `empresa_checklist_items` con filtro `empresa_id IS NULL AND proyecto_id = X`:
-- `useProyectoChecklistItems(proyectoId)`
-- `useAddProyectoChecklistItem`, `useToggle...`, `useUpdate...Text`, `useUpdate...Date`, `useDelete...`, `useDelete...Recursive`
-- Reutilizan `parseDateFromText` de `useEmpresaChecklist`.
+5. **Sin cambios a:** lógica de agrupamiento, tablas, base de datos ni RLS.
 
-### 3) Componente `src/components/proyectos/ProyectoChecklistPanel.tsx` (nuevo)
-Copia adaptada de `EmpresaChecklistPanel`:
-- Sin `empresaId`; solo `proyectoId`.
-- Mismas funcionalidades: menciones vía `MentionTextarea`, edición inline con `@`, sub-ítems, follow-up dialog, editar fecha, ocultar/mostrar completados, autoría "(nombre)".
-- Reemplaza el textarea actual "Nota grupo" en `src/pages/Proyectos.tsx` (línea 1432, `NotaGrupoCell`).
-
-### 4) Estilos
-- `MentionTextarea` de entrada dentro del panel usa fondo **celeste 50%**: `bg-sky-300/50` (Tailwind) — no sólido. Se pasa vía `className` sobreescribiendo `bg-*` del componente por defecto.
-- El resto del panel (lista de ítems, hover, etc.) mantiene el estilo del checklist de empresas.
-
-### 5) Remoción / limpieza
-- Se elimina `NotaGrupoCell` (o se deja como fallback opcional detrás del panel). La columna DB `proyectos.nota_grupo` se **conserva sin cambios** (no se toca) para no perder datos históricos; se puede mostrar en modo lectura si contiene texto, pero la nueva escritura va al checklist.
-
-## Fuera de alcance
-- No se modifica la página Menciones (ya soporta `proyecto_id` sin `empresa_id`).
-- No se altera el checklist de empresas.
-- No se migran las notas existentes en `proyectos.nota_grupo` a ítems de checklist.
+## Archivos a modificar
+- `src/pages/Proyectos.tsx`
