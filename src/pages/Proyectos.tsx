@@ -1430,7 +1430,7 @@ export default function Proyectos() {
                     {/* Parent note row */}
                     <tr className={evenBg}>
                        <td className="px-5 pb-2 pt-0" colSpan={10}>
-                        <ProyectoChecklistPanel proyectoId={first.id} />
+                        <ProyectoChecklistPanel proyectoId={first.id} legacyNote={(first as any).nota_grupo} />
                       </td>
                     </tr>
                     <AnimatePresence>
