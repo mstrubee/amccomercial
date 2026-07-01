@@ -1,23 +1,39 @@
-## Problemas
+## Objetivo
 
-1. **Textarea de nueva nota angosto**: `MentionTextarea` envuelve el `<textarea>` en un `<div class="relative">` sin `flex-1`. Dentro del contenedor padre (`flex gap-1`), el wrapper colapsa al contenido y el textarea `w-full` queda mínimo. El `Input` original ocupaba todo el ancho disponible porque era un único elemento flex sin wrapper.
+Transformar el textarea "Nota grupo" del listado de proyectos en un **Checklist de Proyecto** con las mismas capacidades que el checklist de empresas (jerárquico, fechas, autores, menciones @, editar/eliminar, sub-ítems, follow-up al completar, ocultar/mostrar completados). Debe quedar **separado** del checklist de empresas — no se mezclan datos. Además, el fondo del área de entrada debe ser **celeste con 50% de transparencia** (no color sólido).
 
-2. **Dropdown @ no aparece al editar línea**: Ya se reemplazó el `Input` por `MentionTextarea`, pero la lista no se ve porque el contenedor de la checklist tiene `max-h-[300px] overflow-y-auto` y el menú está posicionado `absolute` dentro de ese contenedor, por lo que queda recortado por el overflow.
+## Estrategia
+
+Reutilizar la tabla `empresa_checklist_items` (misma estructura, mismos triggers de menciones, misma página Menciones sin cambios) permitiendo filas de **solo proyecto** (`empresa_id = NULL`, `proyecto_id` = id del proyecto). Los checklists de empresa (`empresa_id` NOT NULL) y los de proyecto (`empresa_id` NULL) quedan totalmente separados por filtro. Se agrega un componente dedicado `ProyectoChecklistPanel` para el listado.
 
 ## Cambios
 
-### `src/components/mensajeria/MentionTextarea.tsx`
-- Agregar prop opcional `wrapperClassName` para que el `<div class="relative">` externo pueda recibir `flex-1` (u otras clases de layout) sin afectar el textarea.
-- Renderizar el menú desplegable con `createPortal` a `document.body`, posicionado en `fixed` usando `getBoundingClientRect()` del textarea, con `z-index` alto. Esto evita el clipping por contenedores con `overflow:auto` (tanto en el checklist como en cualquier diálogo). Recalcular posición al abrir, al hacer scroll o al cambiar el query.
+### 1) Base de datos (migración)
+- `ALTER TABLE empresa_checklist_items ALTER COLUMN empresa_id DROP NOT NULL;`
+- Restricción `CHECK (empresa_id IS NOT NULL OR proyecto_id IS NOT NULL)` para asegurar coherencia.
+- Verificar/ajustar policies RLS existentes para permitir filas con `empresa_id NULL` acotadas por `proyecto_id` (misma política que usa `has_project_access` o equivalente ya vigente para proyecto_id).
+- El trigger `sync_checklist_mentions` sigue funcionando (usa `NEW.proyecto_id` / `NEW.empresa_id` tal cual).
 
-### `src/components/empresas/EmpresaChecklistPanel.tsx`
-- Input de nueva nota: pasar `wrapperClassName="flex-1"` al `MentionTextarea` para que recupere el ancho completo de la fila.
-- Edición inline de una línea: pasar `wrapperClassName="flex-1"` al `MentionTextarea` de edición (y quitar el `<div className="flex-1">` extra), para que conserve el ancho y herede el comportamiento del menú vía portal.
+### 2) Hooks (`src/hooks/useProyectoChecklist.ts` — nuevo)
+Envolturas delgadas sobre `empresa_checklist_items` con filtro `empresa_id IS NULL AND proyecto_id = X`:
+- `useProyectoChecklistItems(proyectoId)`
+- `useAddProyectoChecklistItem`, `useToggle...`, `useUpdate...Text`, `useUpdate...Date`, `useDelete...`, `useDelete...Recursive`
+- Reutilizan `parseDateFromText` de `useEmpresaChecklist`.
 
-## Detalles técnicos
+### 3) Componente `src/components/proyectos/ProyectoChecklistPanel.tsx` (nuevo)
+Copia adaptada de `EmpresaChecklistPanel`:
+- Sin `empresaId`; solo `proyectoId`.
+- Mismas funcionalidades: menciones vía `MentionTextarea`, edición inline con `@`, sub-ítems, follow-up dialog, editar fecha, ocultar/mostrar completados, autoría "(nombre)".
+- Reemplaza el textarea actual "Nota grupo" en `src/pages/Proyectos.tsx` (línea 1432, `NotaGrupoCell`).
 
-- `wrapperClassName` se aplica al `<div class="relative">`; `className` sigue aplicándose al `<textarea>` (no se rompe ningún uso existente: los demás callsites de `MentionTextarea` no usan la nueva prop).
-- El portal del menú usa `position: fixed`, `top = rect.bottom + 4`, `left = rect.left`, ancho `w-64`, con `z-50` o superior. Listener `scroll` (capture) + `resize` mientras el menú esté abierto para reposicionar.
-- No se modifica la lógica de detección de `@`, filtrado, navegación con teclado, ni selección con Enter/Space — la operatividad queda idéntica a la del input de creación.
+### 4) Estilos
+- `MentionTextarea` de entrada dentro del panel usa fondo **celeste 50%**: `bg-sky-300/50` (Tailwind) — no sólido. Se pasa vía `className` sobreescribiendo `bg-*` del componente por defecto.
+- El resto del panel (lista de ítems, hover, etc.) mantiene el estilo del checklist de empresas.
 
-> Nota: este plan ya fue aplicado en el turno anterior. Si el comportamiento aún se ve incorrecto en tu vista, reaprobar para forzar un re-build / hard reload del preview.
+### 5) Remoción / limpieza
+- Se elimina `NotaGrupoCell` (o se deja como fallback opcional detrás del panel). La columna DB `proyectos.nota_grupo` se **conserva sin cambios** (no se toca) para no perder datos históricos; se puede mostrar en modo lectura si contiene texto, pero la nueva escritura va al checklist.
+
+## Fuera de alcance
+- No se modifica la página Menciones (ya soporta `proyecto_id` sin `empresa_id`).
+- No se altera el checklist de empresas.
+- No se migran las notas existentes en `proyectos.nota_grupo` a ítems de checklist.
