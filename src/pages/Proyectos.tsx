@@ -703,6 +703,7 @@ export default function Proyectos() {
     let ganados = 0;
     let obrasEjecucion = 0;
     let proyectosEnConstruccion = 0;
+    let proyectosCotizados = 0;
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
@@ -716,6 +717,12 @@ export default function Proyectos() {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
       if (g.some(p => ESTADOS_CONSTRUCCION.includes(p.estado_obra))) proyectosEnConstruccion++;
+      if (g.some(p => p.proyecto_empresas?.some(pe => {
+        const eff = statusByPe.get(pe.id);
+        const catId = eff?.categoria?.id || (pe as any).categoria_id || "";
+        const subId = eff?.subcategoria?.id || (pe as any).subcategoria_id || "";
+        return COTIZACION_TARGET_IDS.includes(catId) || COTIZACION_TARGET_IDS.includes(subId);
+      }))) proyectosCotizados++;
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
