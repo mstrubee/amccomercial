@@ -38,6 +38,7 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
   const updateNotaGrupo = useUpdateNotaGrupo();
   const [editingLegacy, setEditingLegacy] = useState(false);
   const [legacyDraft, setLegacyDraft] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
   const { data: items = [] } = useProyectoChecklistItems(proyectoId);
   const { data: mentionUsers = [] } = useMentionableUsers();
   const knownHandles = useMemo(() => new Set(mentionUsers.map((u) => u.handle)), [mentionUsers]);
@@ -327,6 +328,48 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
   return (
     <div className="space-y-2 w-full" onClick={(e) => e.stopPropagation()}>
       {!readOnly && (
+        <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+          <div className="rounded-md border border-sky-300/50 bg-sky-500/20">
+            <div className="flex items-center justify-between px-2 py-1">
+              <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
+                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !notesOpen && "-rotate-90")} />
+                Notas{hasLegacy ? "" : " (vacío)"}
+              </CollapsibleTrigger>
+              {notesOpen && !editingLegacy && (
+                <div className="flex items-center gap-1">
+                  <Button size="icon" variant="ghost" className="h-6 w-6" title="Editar" onClick={(e) => { e.stopPropagation(); setEditingLegacy(true); setLegacyDraft(legacyNote || ""); }}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  {hasLegacy && (
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" title="Eliminar notas" onClick={(e) => { e.stopPropagation(); if (confirm("¿Eliminar las notas?")) updateNotaGrupo.mutate({ id: proyectoId, nota_grupo: "" }); }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            <CollapsibleContent>
+              <div className="px-2 pb-2 text-xs">
+                {editingLegacy ? (
+                  <div className="space-y-1">
+                    <Textarea value={legacyDraft} onChange={(e) => setLegacyDraft(e.target.value)} className="min-h-[80px] text-xs bg-background/60" placeholder="Escribe tus notas..." onClick={(e) => e.stopPropagation()} />
+                    <div className="flex justify-end gap-1">
+                      <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingLegacy(false)}>Cancelar</Button>
+                      <Button size="sm" className="h-7" onClick={() => { updateNotaGrupo.mutate({ id: proyectoId, nota_grupo: legacyDraft }); setEditingLegacy(false); }}>Guardar</Button>
+                    </div>
+                  </div>
+                ) : hasLegacy ? (
+                  <div className="whitespace-pre-wrap text-foreground/90">{legacyNote}</div>
+                ) : (
+                  <div className="text-muted-foreground italic">Sin notas. Presiona el lápiz para agregar.</div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+      )}
+
+      {!readOnly && (
         <div className="flex gap-1">
           <MentionTextarea
             wrapperClassName="flex-1"
@@ -347,35 +390,6 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
           <Button size="icon" variant="outline" className="shrink-0 h-8" onClick={handleAddItem} disabled={!newItemText.trim()}>
             <Plus className="w-4 h-4" />
           </Button>
-        </div>
-      )}
-
-      {hasLegacy && (
-        <div className="rounded-md border border-amber-300/60 bg-amber-100/40 p-2 text-xs space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-medium text-amber-900">Nota anterior (pendiente de convertir a checklist)</span>
-            {!readOnly && !editingLegacy && (
-              <div className="flex items-center gap-1">
-                <Button size="icon" variant="ghost" className="h-6 w-6" title="Editar" onClick={() => { setEditingLegacy(true); setLegacyDraft(legacyNote || ""); }}>
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" title="Eliminar nota anterior" onClick={() => { if (confirm("¿Eliminar la nota anterior?")) updateNotaGrupo.mutate({ id: proyectoId, nota_grupo: "" }); }}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            )}
-          </div>
-          {editingLegacy ? (
-            <div className="space-y-1">
-              <Textarea value={legacyDraft} onChange={(e) => setLegacyDraft(e.target.value)} className="min-h-[80px] text-xs" onClick={(e) => e.stopPropagation()} />
-              <div className="flex justify-end gap-1">
-                <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingLegacy(false)}>Cancelar</Button>
-                <Button size="sm" className="h-7" onClick={() => { updateNotaGrupo.mutate({ id: proyectoId, nota_grupo: legacyDraft }); setEditingLegacy(false); }}>Guardar</Button>
-              </div>
-            </div>
-          ) : (
-            <div className="whitespace-pre-wrap text-foreground/90">{legacyNote}</div>
-          )}
         </div>
       )}
 
