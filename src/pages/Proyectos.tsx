@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useSearchParams, useLocation, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2, SlidersHorizontal, AtSign } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Loader2, MapPin, Building2, Copy, ChevronRight, Bell, X, Check, FolderKanban, TrendingUp, Filter, Trophy, Hammer, MousePointerClick, Folder, MessageCircle, ListChecks, ArrowLeft, UserCircle2, SlidersHorizontal, AtSign, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +48,15 @@ import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
 
 const ESTADOS_CONSTRUCCION = ["Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones"];
+
+const COTIZACION_TARGET_IDS = [
+  "d24dd57b-ac65-460b-80a3-07ed24c97029", // Cotización (cat)
+  "ee31d10a-851c-4cab-93f8-ce42f2ac4f68", // Presupuesto Solicitado
+  "a565de53-2d5d-45be-a1c1-01d77b8ea895", // Cotizado Empresa
+  "d5e1df2f-eb42-42f9-b49c-47c9d6083948", // Enviado a Cliente
+  "35eaf6e0-a2f5-49ac-a33f-43850e095946", // Negociación (cat)
+  "19c00ab0-fa2d-42fb-b7c8-87bba0ccd8dd", // Cierre este mes
+];
 
 /** Deduplicate alertas by content key, keeping the oldest by created_at */
 function deduplicateAlertas(alertas: AlertaWithRelations[]): AlertaWithRelations[] {
@@ -694,6 +703,7 @@ export default function Proyectos() {
     let ganados = 0;
     let obrasEjecucion = 0;
     let proyectosEnConstruccion = 0;
+    let proyectosCotizados = 0;
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
@@ -707,10 +717,16 @@ export default function Proyectos() {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
       if (g.some(p => ESTADOS_CONSTRUCCION.includes(p.estado_obra))) proyectosEnConstruccion++;
+      if (g.some(p => p.proyecto_empresas?.some(pe => {
+        const eff = statusByPe.get(pe.id);
+        const catId = eff?.categoria?.id || (pe as any).categoria_id || "";
+        const subId = eff?.subcategoria?.id || (pe as any).subcategoria_id || "";
+        return COTIZACION_TARGET_IDS.includes(catId) || COTIZACION_TARGET_IDS.includes(subId);
+      }))) proyectosCotizados++;
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
-    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, filteredGroups, hasActiveFilters };
+    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, proyectosCotizados, filteredGroups, hasActiveFilters };
   }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
@@ -1179,7 +1195,7 @@ export default function Proyectos() {
       </motion.div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
         <KpiCard
           title="Total Proyectos"
           value={String(kpiStats.totalProyectos)}
@@ -1236,6 +1252,29 @@ export default function Proyectos() {
             }
           }}
           active={filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e))}
+        />
+        <KpiCard
+          title="Proyectos Cotizados"
+          value={String(kpiStats.proyectosCotizados)}
+          subtitle="Estatus x Empresa"
+          icon={FileText}
+          variant="info"
+          delay={0.13}
+          onClick={() => {
+            const isActive = filterCategorias.length === COTIZACION_TARGET_IDS.length && COTIZACION_TARGET_IDS.every(id => filterCategorias.includes(id));
+            if (isActive) {
+              setFilterCategorias([]);
+            } else {
+              setFilterCategorias([...COTIZACION_TARGET_IDS]);
+              setFilterEstados([]);
+              setFilterEmpresas([]);
+              setFilterEstadosObra([]);
+              setFilterClasificaciones([]);
+              setFilterBotones([]);
+              setSearch("");
+            }
+          }}
+          active={filterCategorias.length === COTIZACION_TARGET_IDS.length && COTIZACION_TARGET_IDS.every(id => filterCategorias.includes(id))}
         />
         <KpiCard
           title="Obras / Ejecución"
