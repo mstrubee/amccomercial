@@ -42,6 +42,7 @@ import {
 import ProyectoRepositorioDialog from "@/components/repositorio/ProyectoRepositorioDialog";
 import { useAddChecklistItem, startsWithDate } from "@/hooks/useEmpresaChecklist";
 import EmpresaChecklistPanel from "@/components/empresas/EmpresaChecklistPanel";
+import ProyectoChecklistPanel from "@/components/proyectos/ProyectoChecklistPanel";
 import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/components/proyectos/HitosEjecucionPanel";
 import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
@@ -1429,7 +1430,7 @@ export default function Proyectos() {
                     {/* Parent note row */}
                     <tr className={evenBg}>
                        <td className="px-5 pb-2 pt-0" colSpan={10}>
-                        <NotaGrupoCell proyecto={first} onSave={updateNotaGrupo.mutate} onCreateAlerta={(texto) => setAlertaCreateContext({ proyecto_id: first.id, empresa_id: null, defaultTexto: texto })} currentUserName={profiles.find(p => p.user_id === currentUserId)?.display_name || ""} />
+                        <ProyectoChecklistPanel proyectoId={first.id} />
                       </td>
                     </tr>
                     <AnimatePresence>

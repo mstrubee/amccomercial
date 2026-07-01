@@ -1,0 +1,2 @@
+ALTER TABLE public.empresa_checklist_items ALTER COLUMN empresa_id DROP NOT NULL;
+ALTER TABLE public.empresa_checklist_items ADD CONSTRAINT empresa_checklist_items_scope_chk CHECK (empresa_id IS NOT NULL OR proyecto_id IS NOT NULL);
