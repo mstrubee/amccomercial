@@ -24,14 +24,20 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUpdateNotaGrupo } from "@/hooks/useProyectos";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Props {
   proyectoId: string;
   readOnly?: boolean;
+  legacyNote?: string | null;
 }
 
-export default function ProyectoChecklistPanel({ proyectoId, readOnly }: Props) {
+export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNote }: Props) {
   const { user } = useAuth();
+  const updateNotaGrupo = useUpdateNotaGrupo();
+  const [editingLegacy, setEditingLegacy] = useState(false);
+  const [legacyDraft, setLegacyDraft] = useState("");
   const { data: items = [] } = useProyectoChecklistItems(proyectoId);
   const { data: mentionUsers = [] } = useMentionableUsers();
   const knownHandles = useMemo(() => new Set(mentionUsers.map((u) => u.handle)), [mentionUsers]);
