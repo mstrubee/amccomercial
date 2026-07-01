@@ -2113,7 +2113,6 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
 });
 
 /* ── Group header empresas cell (name + category + monto) ── */
-const EMPRESA_ORDER = ["Tecma", "Jacima", "Hunter", "Endemik"];
 
 const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap, statusByPe }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
   const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
