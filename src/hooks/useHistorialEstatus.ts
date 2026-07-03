@@ -18,8 +18,12 @@ export function useHistorialEstatusByIds(ids: string[]) {
   const qc = useQueryClient();
   useEffect(() => {
     if (ids.length === 0) return;
+    const channelId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel("historial-estatus-rt")
+      .channel(`historial-estatus-rt:${channelId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "historial_estatus_empresa" },
