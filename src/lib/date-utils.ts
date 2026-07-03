@@ -1,3 +1,25 @@
+import { format } from "date-fns";
+
+/**
+ * Formats a date value with date-fns, returning a fallback instead of throwing
+ * when the value is null/empty or produces an Invalid Date.
+ *
+ * `date-fns` `format()` throws `RangeError: Invalid time value` for invalid
+ * dates; a bad DB value (empty string, malformed legacy/bulk-imported date)
+ * would crash the render and — with no Error Boundary — blank the whole app.
+ */
+export function safeFormatDate(
+  value: string | number | Date | null | undefined,
+  fmt: string,
+  options?: Parameters<typeof format>[2],
+  fallback = "—",
+): string {
+  if (value == null || value === "") return fallback;
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return fallback;
+  return format(d, fmt, options);
+}
+
 /**
  * Parse a date-only string (YYYY-MM-DD) as local date, avoiding UTC timezone shift.
  * This prevents the off-by-one-day issue in negative UTC offset timezones.

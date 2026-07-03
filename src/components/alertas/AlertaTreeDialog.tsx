@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAllAlertas, useRestoreAlerta, AlertaWithRelations } from "@/hooks/useAlertas";
 import { GitBranch, RotateCcw, CheckCircle2, Circle, Trash2, ChevronRight, ChevronDown } from "lucide-react";
-import { format } from "date-fns";
-import { parseLocalDate } from "@/lib/date-utils";
+import { parseLocalDate, safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -114,18 +113,18 @@ function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
               <span className={cn("truncate", a.completada && "line-through text-muted-foreground", a.deleted && "line-through text-destructive/60")}>{a.texto}</span>
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-muted-foreground">
-              <span>📅 {format(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}</span>
+              <span>📅 {safeFormatDate(parseLocalDate(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}</span>
               <span>👤 {a.responsable_profile?.display_name || "—"}</span>
-              <span>Creada: {format(new Date(a.created_at), "dd/MM/yy HH:mm")} por {getProfileName(a.created_by) || "—"}</span>
+              <span>Creada: {safeFormatDate(a.created_at, "dd/MM/yy HH:mm")} por {getProfileName(a.created_by) || "—"}</span>
               {a.updated_by && <span>Editada por {getProfileName(a.updated_by)}</span>}
               {a.completada && a.completed_by && (
                 <span className="text-emerald-700">
-                  ✓ Completada: {a.completed_at ? format(new Date(a.completed_at), "dd/MM/yy HH:mm") : ""} por {getProfileName(a.completed_by)}
+                  ✓ Completada: {safeFormatDate(a.completed_at, "dd/MM/yy HH:mm", undefined, "")} por {getProfileName(a.completed_by)}
                 </span>
               )}
               {a.deleted && a.deleted_by && (
                 <span className="text-destructive">
-                  🗑 Eliminada: {a.deleted_at ? format(new Date(a.deleted_at), "dd/MM/yy HH:mm") : ""} por {getProfileName(a.deleted_by)}
+                  🗑 Eliminada: {safeFormatDate(a.deleted_at, "dd/MM/yy HH:mm", undefined, "")} por {getProfileName(a.deleted_by)}
                 </span>
               )}
             </div>

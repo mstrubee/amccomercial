@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 
 export interface ActivityThreshold {
@@ -72,7 +72,7 @@ export function getActivityStatus(
   if (diff > offlineMs) {
     return {
       color: "bg-destructive",
-      text: `Visto: ${format(new Date(profile.last_seen_at), "dd/MM/yyyy HH:mm", { locale: es })}`,
+      text: `Visto: ${safeFormatDate(profile.last_seen_at, "dd/MM/yyyy HH:mm", { locale: es })}`,
       pulse: false,
     };
   }

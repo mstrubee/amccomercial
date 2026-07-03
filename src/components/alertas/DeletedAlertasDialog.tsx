@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAllAlertas, useRestoreAlerta, AlertaWithRelations } from "@/hooks/useAlertas";
 import { RotateCcw, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 
 interface Props {
@@ -48,7 +48,7 @@ export default function DeletedAlertasDialog({ open, onClose }: Props) {
                           {a.empresas ? ` · ${a.empresas.nombre}` : ""}
                         </div>
                         <div className="text-[10px] text-destructive mt-0.5">
-                          Eliminada: {a.deleted_at ? format(new Date(a.deleted_at), "dd MMM yyyy HH:mm", { locale: es }) : "—"} por {deletedByName}
+                          Eliminada: {safeFormatDate(a.deleted_at, "dd MMM yyyy HH:mm", { locale: es })} por {deletedByName}
                         </div>
                       </div>
                       <Button

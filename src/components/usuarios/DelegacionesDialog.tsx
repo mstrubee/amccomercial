@@ -9,7 +9,7 @@ import { UserCheck, XCircle, Loader2, Plus, Pencil, Trash2, Check, X } from "luc
 import { useDelegacionesPorDelegante, useCreateDelegacion, useRevokeDelegacion, useUpdateDelegacion, useDeleteDelegacion, Delegacion } from "@/hooks/useDelegaciones";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 
 interface Props {
@@ -124,7 +124,7 @@ export default function DelegacionesDialog({ open, onOpenChange, user }: Props) 
                       <div>
                         <p className="text-sm font-medium">{profileMap.get(d.delegado_id) || d.delegado_id}</p>
                         <p className="text-xs text-muted-foreground">
-                          Hasta: {format(new Date(d.fecha_fin), "dd MMM yyyy", { locale: es })}
+                          Hasta: {safeFormatDate(d.fecha_fin, "dd MMM yyyy", { locale: es })}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">

@@ -38,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
+import { safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
@@ -796,7 +796,7 @@ export default function FloatingChat() {
 
                             {conv.last_message && (
                               <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                                {format(new Date(conv.last_message.created_at), "d MMM, HH:mm", { locale: es })}
+                                {safeFormatDate(conv.last_message.created_at, "d MMM, HH:mm", { locale: es })}
                               </p>
                             )}
                           </div>
@@ -1072,7 +1072,7 @@ export default function FloatingChat() {
                                       </div>
                                     </div>
                                     <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
-                                      {format(new Date(msg.created_at), "HH:mm")}
+                                      {safeFormatDate(msg.created_at, "HH:mm")}
                                     </span>
                                   </>
                                 )}
@@ -1080,7 +1080,7 @@ export default function FloatingChat() {
                                 {isMine && (
                                   <>
                                     <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
-                                      {format(new Date(msg.created_at), "HH:mm")}
+                                      {safeFormatDate(msg.created_at, "HH:mm")}
                                     </span>
                                     <div className="max-w-[90%]">
                                       <p className="text-[10px] text-muted-foreground mb-0.5 mr-1 font-medium text-right whitespace-nowrap truncate" title={senderName}>

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Loader2, Trash2, Settings2, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
+import { safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 
 import { Badge } from "@/components/ui/badge";
@@ -228,7 +229,7 @@ export default function Reporteria() {
                         {projectLogs.map((log: any) => (
                           <TableRow key={log.id}>
                             <TableCell className="text-xs text-muted-foreground font-mono">
-                              {format(new Date(log.created_at), "HH:mm:ss", { locale: es })}
+                              {safeFormatDate(log.created_at, "HH:mm:ss", { locale: es })}
                             </TableCell>
                             <TableCell>
                               <span className="text-xs font-medium capitalize">{actionLabels[log.action] || log.action}</span>

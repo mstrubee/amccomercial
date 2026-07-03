@@ -19,10 +19,10 @@ import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa"
 import { useHistorialEstatusByIds, useCreateHistorialEstatus, useDeleteHistorialEstatus, useDeleteHistorialEstatusBulk } from "@/hooks/useHistorialEstatus";
 import { VALOR_UF } from "@/data/mock-data";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
-import { format, isBefore, startOfDay } from "date-fns";
+import { isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { todayLocalISO } from "@/lib/date-utils";
+import { todayLocalISO, safeFormatDate } from "@/lib/date-utils";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { ProyectoInput, ProyectoWithEmpresas, EmpresaLink } from "@/hooks/useProyectos";
 import { useCategorias, CategoriaWithSubs } from "@/hooks/useCategorias";
@@ -892,7 +892,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                         <div className={cn("truncate", a.completada && "line-through text-muted-foreground")}>{a.texto}</div>
                         <div className="flex gap-2 text-[10px] text-muted-foreground mt-0.5">
                           <span>{a.responsable_profile?.display_name || "—"}</span>
-                          <span className={isOverdue ? "text-destructive font-medium" : ""}>{format(new Date(a.fecha_seguimiento), "dd MMM yyyy", { locale: es })}{isOverdue && " (vencida)"}</span>
+                          <span className={isOverdue ? "text-destructive font-medium" : ""}>{safeFormatDate(a.fecha_seguimiento, "dd MMM yyyy", { locale: es })}{isOverdue && " (vencida)"}</span>
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
+import { safeFormatDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import type { CalendarEvent } from "@/hooks/useGoogleCalendar";
 
@@ -65,9 +66,7 @@ export default function CalendarGrid({ currentMonth, events, onDayClick, onEvent
               </div>
               <div className="space-y-0.5">
                 {dayEvents.slice(0, 3).map((ev) => {
-                  const time = ev.start.dateTime
-                    ? format(new Date(ev.start.dateTime), "HH:mm")
-                    : "";
+                  const time = safeFormatDate(ev.start.dateTime, "HH:mm", undefined, "");
                   return (
                     <button
                       key={ev.id}
