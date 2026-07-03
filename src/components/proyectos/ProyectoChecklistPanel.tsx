@@ -31,9 +31,15 @@ interface Props {
   proyectoId: string;
   readOnly?: boolean;
   legacyNote?: string | null;
+  isEven?: boolean;
 }
 
-export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNote }: Props) {
+export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNote, isEven }: Props) {
+  const boxBg = isEven ? "bg-[var(--row-par-box)]" : "bg-[var(--row-impar-box)]";
+  const boxBorder = isEven ? "border-[var(--row-par-box-border)]" : "border-[var(--row-impar-box-border)]";
+  const inputBg = isEven
+    ? "bg-[var(--row-par-box)] focus-visible:bg-[var(--row-par-box)]"
+    : "bg-[var(--row-impar-box)] focus-visible:bg-[var(--row-impar-box)]";
   const { user } = useAuth();
   const updateNotaGrupo = useUpdateNotaGrupo();
   const [editingLegacy, setEditingLegacy] = useState(false);
@@ -329,7 +335,7 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
     <div className="space-y-2 w-full" onClick={(e) => e.stopPropagation()}>
       {!readOnly && (
         <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
-          <div className="rounded-md border border-sky-300/50 bg-sky-500/20">
+          <div className={cn("rounded-md border", boxBorder, boxBg)}>
             <div className="flex items-center justify-between px-2 py-1">
               <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium hover:text-foreground transition-colors">
                 <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !notesOpen && "-rotate-90")} />
@@ -384,7 +390,7 @@ export default function ProyectoChecklistPanel({ proyectoId, readOnly, legacyNot
                 handleAddItem();
               }
             }}
-            className="h-8 min-h-[32px] py-1 text-xs resize-none bg-sky-300/50 focus-visible:bg-sky-300/50"
+            className={cn("h-8 min-h-[32px] py-1 text-xs resize-none", inputBg)}
             onClick={e => e.stopPropagation()}
           />
           <Button size="icon" variant="outline" className="shrink-0 h-8" onClick={handleAddItem} disabled={!newItemText.trim()}>

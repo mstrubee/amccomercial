@@ -46,6 +46,8 @@ import ProyectoChecklistPanel from "@/components/proyectos/ProyectoChecklistPane
 import HitosEjecucionPanel, { type HitosEjecucionPanelHandle } from "@/components/proyectos/HitosEjecucionPanel";
 import { useMyMentionsUnreadCount } from "@/hooks/useChecklistMentions";
 import { cn } from "@/lib/utils";
+import { useRowColorScheme } from "@/hooks/useRowColorScheme";
+import RowColorDialog from "@/components/proyectos/RowColorDialog";
 
 const ESTADOS_CONSTRUCCION = ["Constructora Adjudicada", "Obra Gruesa Inicial", "Obra Gruesa Intermedia", "Terminaciones"];
 
@@ -261,6 +263,9 @@ export default function Proyectos() {
   const [isSavingParent, setIsSavingParent] = useState(false);
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
   const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
+  const rowColors = useRowColorScheme();
+  const [colorDialogOpen, setColorDialogOpen] = useState(false);
+  const openColorDialog = useCallback((e: React.MouseEvent) => { e.preventDefault(); setColorDialogOpen(true); }, []);
 
   // Resume "Editar Proyecto" after navigating to /clientes to create a client.
   useEffect(() => {
@@ -936,7 +941,7 @@ export default function Proyectos() {
         </button>
       </motion.div>
     )}
-    <div className="h-full flex flex-col overflow-hidden gap-4">
+    <div className="h-full flex flex-col overflow-hidden gap-4" style={rowColors.cssVars as React.CSSProperties}>
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Proyectos</h1>
@@ -1334,17 +1339,17 @@ export default function Proyectos() {
                 const expanded = expandedGroups[key] ?? false;
                 const parentNum = groupIdx + 1;
                 const isEven = groupIdx % 2 === 1;
-                const evenBg  = isEven ? "bg-yellow-100/65" : "";
-                const hoverBg = isEven ? "hover:bg-yellow-200/75" : "hover:bg-gray-100/50";
+                const evenBg  = isEven ? "bg-[var(--row-par)]" : "bg-[var(--row-impar)]";
+                const hoverBg = isEven ? "hover:bg-[var(--row-par-hover)]" : "hover:bg-[var(--row-impar-hover)]";
 
                 if (!isGroup) {
                   const p = items[0];
                   // Captadores can't edit/delete rows
                   if (isCaptador) {
                     // Captadores see all empresas of the project row (no empresa filter)
-                    return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={() => {}} onDelete={() => {}} onTemplate={() => {}} onOpenChat={openProjectChat} updateNotas={() => {}} filterBotones={filterBotones} filterEmpresas={[]} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={() => {}} />;
+                    return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={() => {}} onDelete={() => {}} onTemplate={() => {}} onOpenChat={openProjectChat} updateNotas={() => {}} filterBotones={filterBotones} filterEmpresas={[]} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={() => {}} onContextMenu={openColorDialog} />;
                   }
-                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} />;
+                  return <ProjectRow key={p.id} p={p} displayNum={String(parentNum)} isEven={isEven} onView={setViewTarget} onEdit={setEditTarget} onDelete={setDeleteTarget} onTemplate={setTemplateSource} onOpenChat={openProjectChat} updateNotas={updateNotas.mutate} filterBotones={filterBotones} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} estadosAmc={estadosAmc} onUpdateEstadoAmcPE={handleUpdateEstadoAmcPE} onContextMenu={openColorDialog} />;
                 }
 
                 // Grouped header
@@ -1356,6 +1361,7 @@ export default function Proyectos() {
                       id={`proyecto-row-${first.id}`}
                       className={`${hoverBg} transition-colors cursor-pointer border-t-[3px] border-muted-foreground/30 ${evenBg} ${highlightProyectoId === first.id ? "ring-2 ring-primary ring-inset" : ""}`}
                       onClick={() => toggleGroup(key)}
+                      onContextMenu={openColorDialog}
                     >
                       <td className="px-5 py-3 text-muted-foreground">
                         <ChevronRight className={`w-4 h-4 inline transition-transform ${expanded ? "rotate-90" : ""}`} /> {parentNum}
@@ -1473,7 +1479,7 @@ export default function Proyectos() {
                     {/* Parent note row */}
                     <tr className={evenBg}>
                        <td className="px-5 pb-2 pt-0" colSpan={10}>
-                        <ProyectoChecklistPanel proyectoId={first.id} legacyNote={(first as any).nota_grupo} />
+                        <ProyectoChecklistPanel proyectoId={first.id} legacyNote={(first as any).nota_grupo} isEven={isEven} />
                       </td>
                     </tr>
                     <AnimatePresence>
@@ -1501,8 +1507,8 @@ export default function Proyectos() {
                           }
                         }
                         const groupChildIds = new Set(items.map(i => i.id));
-                        const childBg   = isEven ? "bg-yellow-100/55" : "bg-secondary/20";
-                        const childHover = isEven ? "hover:bg-yellow-200/65" : "hover:bg-secondary/35";
+                        const childBg   = isEven ? "bg-[var(--row-par)]" : "bg-[var(--row-impar)]";
+                        const childHover = isEven ? "hover:bg-[var(--row-par-hover)]" : "hover:bg-[var(--row-impar-hover)]";
 
                         return childRows.map(({ p, pe }, childIdx) => {
                           const empresaId = pe.empresa_id;
@@ -1516,6 +1522,7 @@ export default function Proyectos() {
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}
                                 className={`${childHover} transition-colors border-t-2 border-foreground/20 ${childBg} ${highlightProyectoId === p.id ? "ring-2 ring-primary ring-inset" : ""}`}
+                                onContextMenu={openColorDialog}
                               >
                                 <td className="px-5 py-2 text-muted-foreground pl-10 align-top">{parentNum}.{childIdx + 1}</td>
                                 <td colSpan={3} className="px-5 py-2 align-top">
@@ -1677,6 +1684,15 @@ export default function Proyectos() {
           }}
         />
       )}
+
+      <RowColorDialog
+        open={colorDialogOpen}
+        onOpenChange={setColorDialogOpen}
+        parColor={rowColors.colors.par}
+        imparColor={rowColors.colors.impar}
+        onSave={rowColors.setColors}
+        onReset={rowColors.resetColors}
+      />
 
       {/* (Add line dialog removed - managed via parent edit) */}
       {/* Edit child row dialog */}
@@ -2007,7 +2023,7 @@ function EstadoAmcPopoverInline({ currentStatus, estadosAmc, onUpdate }: { curre
 }
 
 /* ── Single project row ── */
-const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, statusByPe, estadosAmc, onUpdateEstadoAmcPE }: {
+const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onEdit, onDelete, onTemplate, onOpenChat, updateNotas, filterBotones, filterEmpresas = [], ventasMap, statusByPe, estadosAmc, onUpdateEstadoAmcPE, onContextMenu }: {
   p: ProyectoWithEmpresas;
   displayNum: string;
   isEven: boolean;
@@ -2023,14 +2039,15 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
   statusByPe?: Map<string, any>;
   estadosAmc?: { id: string; nombre: string; color: string }[];
   onUpdateEstadoAmcPE: (peId: string, estado: string) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
-  const evenBg  = isEven ? "bg-yellow-100/65" : "";
-  const hoverBg = isEven ? "hover:bg-yellow-200/75" : "hover:bg-gray-100/50";
+  const evenBg  = isEven ? "bg-[var(--row-par)]" : "bg-[var(--row-impar)]";
+  const hoverBg = isEven ? "hover:bg-[var(--row-par-hover)]" : "hover:bg-[var(--row-impar-hover)]";
   // For single-project rows: show Estatus summary in col 7, Estado AMC per empresa in col 8
   const pe0 = p.proyecto_empresas?.[0];
   return (
     <>
-      <tr className={`${hoverBg} transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`}>
+      <tr className={`${hoverBg} transition-colors border-t-[3px] border-muted-foreground/30 ${evenBg}`} onContextMenu={onContextMenu}>
         <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
         <td className="px-5 py-3"><ContactosColumn proyecto={p} /></td>
