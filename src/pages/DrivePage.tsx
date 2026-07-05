@@ -58,14 +58,26 @@ export default function DrivePage() {
     stopRequestedRef.current = false;
     setDedupState({ status: "analyzing", total: 0, processed: 0, needsReview: 0 });
     try {
-      const { data: analysis, error: analyzeError } = await supabase.functions.invoke("sync-drive", {
-        body: { action: "analyze_duplicates" },
-      });
-      if (analyzeError) throw analyzeError;
-      if (stopRequestedRef.current) { setDedupState(null); return; } // cancelled while analyzing
+      let cursor: number | null = 0;
+      let analyzed = 0;
+      let scanTotal = 0;
+      const items: DuplicateItem[] = [];
+      let needsReview = 0;
 
-      const items: DuplicateItem[] = analysis.items || [];
-      const needsReview: number = analysis.needs_review?.length || 0;
+      while (cursor !== null) {
+        const { data: analysis, error: analyzeError } = await supabase.functions.invoke("sync-drive", {
+          body: { action: "analyze_duplicates", cursor, limit: 10 },
+        });
+        if (analyzeError) throw analyzeError;
+        if (stopRequestedRef.current) { setDedupState(null); return; } // cancelled while analyzing
+
+        items.push(...((analysis.items || []) as DuplicateItem[]));
+        needsReview += analysis.needs_review?.length || 0;
+        analyzed = analysis.analyzed || analyzed;
+        scanTotal = analysis.scan_total || scanTotal;
+        setDedupState({ status: "analyzing", total: scanTotal, processed: analyzed, needsReview });
+        cursor = analysis.complete ? null : analysis.cursor;
+      }
 
       setDedupState({ status: "running", total: items.length, processed: 0, needsReview });
       await runDeletionLoop(items, 0, needsReview);
