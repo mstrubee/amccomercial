@@ -5,12 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { useDriveAuthStatus, useGetDriveAuthUrl } from "@/hooks/useDriveSync";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import DriveDedupPanel, { DedupProgressState, DuplicateItem } from "@/components/repositorio/DriveDedupPanel";
 
 export default function DrivePage() {
   const { data: driveStatus, isLoading, refetch } = useDriveAuthStatus();
   const getAuthUrl = useGetDriveAuthUrl();
-  const [deduplicating, setDeduplicating] = useState(false);
+  const [dedupState, setDedupState] = useState<DedupProgressState | null>(null);
+  // Checked between items in the deletion loop below. A ref (not state) so
+  // "Detener"/"Cancelar" take effect immediately without waiting for a
+  // re-render, and so the in-flight loop closure always reads the latest value.
+  const stopRequestedRef = useRef(false);
 
   const handleConnect = async () => {
     try {
@@ -22,33 +27,69 @@ export default function DrivePage() {
     }
   };
 
+  // Processes `items` sequentially, starting the visible counter at
+  // `alreadyProcessed` (nonzero when resuming a previously stopped run).
+  // Stops cleanly between items (never mid-request) when "Detener"/"Cancelar"
+  // is pressed, preserving the untouched items for "Reanudar".
+  const runDeletionLoop = async (items: DuplicateItem[], alreadyProcessed: number, needsReview: number) => {
+    let processed = alreadyProcessed;
+    for (let i = 0; i < items.length; i++) {
+      if (stopRequestedRef.current) {
+        const remainingItems = items.slice(i);
+        setDedupState({ status: "stopped", total: processed + remainingItems.length, processed, needsReview, remainingItems });
+        return;
+      }
+
+      const item = items[i];
+      setDedupState((prev) => (prev ? { ...prev, currentName: item.name } : prev));
+      const { error: trashError } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "trash_duplicate_item", type: item.type, drive_id: item.drive_id, keeper_id: item.keeper_id },
+      });
+      if (trashError) console.error("[DEDUP] Failed to remove item:", item.name, trashError);
+      processed++;
+      setDedupState((prev) => (prev ? { ...prev, processed } : prev));
+    }
+
+    setDedupState((prev) => (prev ? { ...prev, status: "done", currentName: undefined, remainingItems: undefined } : prev));
+    toast.success(`${processed} duplicado(s) eliminado(s)`);
+  };
+
   const handleDeduplicate = async () => {
-    setDeduplicating(true);
+    stopRequestedRef.current = false;
+    setDedupState({ status: "analyzing", total: 0, processed: 0, needsReview: 0 });
     try {
-      const { data: folderResult, error: folderError } = await supabase.functions.invoke("sync-drive", {
-        body: { action: "deduplicate" },
+      const { data: analysis, error: analyzeError } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "analyze_duplicates" },
       });
-      if (folderError) throw folderError;
-      if (folderResult.details?.length > 0) {
-        console.log("[DEDUP] Folder details:", folderResult.details);
-      }
+      if (analyzeError) throw analyzeError;
+      if (stopRequestedRef.current) { setDedupState(null); return; } // cancelled while analyzing
 
-      const { data: fileResult, error: fileError } = await supabase.functions.invoke("sync-drive", {
-        body: { action: "deduplicate_files" },
-      });
-      if (fileError) throw fileError;
-      if (fileResult.details?.length > 0) {
-        console.log("[DEDUP] File details:", fileResult.details);
-      }
+      const items: DuplicateItem[] = analysis.items || [];
+      const needsReview: number = analysis.needs_review?.length || 0;
 
-      toast.success(
-        `${folderResult.trashed || 0} carpeta(s) y ${fileResult.trashed || 0} archivo(s) duplicado(s) eliminados`
-      );
+      setDedupState({ status: "running", total: items.length, processed: 0, needsReview });
+      await runDeletionLoop(items, 0, needsReview);
     } catch (e: any) {
       toast.error("Error: " + e.message);
-    } finally {
-      setDeduplicating(false);
+      setDedupState(null);
     }
+  };
+
+  const handleResume = () => {
+    if (!dedupState?.remainingItems) return;
+    stopRequestedRef.current = false;
+    const { remainingItems, processed, needsReview } = dedupState;
+    setDedupState((prev) => (prev ? { ...prev, status: "running", currentName: undefined } : prev));
+    runDeletionLoop(remainingItems, processed, needsReview);
+  };
+
+  const handleStop = () => {
+    stopRequestedRef.current = true;
+  };
+
+  const handleCancel = () => {
+    stopRequestedRef.current = true;
+    setDedupState(null);
   };
 
   return (
@@ -101,9 +142,13 @@ export default function DrivePage() {
                   size="sm"
                   className="gap-1.5 text-destructive hover:text-destructive"
                   onClick={handleDeduplicate}
-                  disabled={deduplicating}
+                  disabled={!!dedupState && dedupState.status !== "done"}
                 >
-                  {deduplicating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  {dedupState && (dedupState.status === "analyzing" || dedupState.status === "running") ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
                   Limpiar duplicados
                 </Button>
               </div>
@@ -133,6 +178,17 @@ export default function DrivePage() {
           )}
         </CardContent>
       </Card>
+
+      {dedupState && (
+        <DriveDedupPanel
+          state={dedupState}
+          onClose={() => setDedupState(null)}
+          onStop={handleStop}
+          onCancel={handleCancel}
+          onResume={handleResume}
+          onReanalyze={handleDeduplicate}
+        />
+      )}
     </div>
   );
 }

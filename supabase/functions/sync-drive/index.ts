@@ -807,175 +807,142 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(results, null, 2), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (action === "deduplicate") {
-      console.log("[DEDUP] Starting deduplication of project folders in Drive");
+    // Scans for duplicate project folders AND duplicate files, WITHOUT deleting
+    // anything. Returns the full list of removable items so the frontend can
+    // show an accurate count up front and then process them one by one
+    // (via trash_duplicate_item) to report real progress as it goes.
+    if (action === "analyze_duplicates") {
+      console.log("[DEDUP] Analyzing duplicates in Drive");
       const accessToken = await getAccessToken();
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
 
-      // Find AMC Repositorio root
+      type DupItem = { type: "folder" | "file"; drive_id: string; keeper_id: string; name: string };
+      const items: DupItem[] = [];
+      const needsReview: Array<{ drive_id: string; name: string }> = [];
+
+      // --- Duplicate project folders (under AMC Repositorio) ---
       const amcQuery = `name='AMC Repositorio' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
       const amcResp = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(amcQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id,name)`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const amcData = await amcResp.json();
-      if (!amcData.files?.length) {
-        return new Response(JSON.stringify({ message: "No AMC Repositorio found", trashed: 0 }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const amcRootId = amcData.files[0].id;
+      const amcRootId = amcData.files?.[0]?.id;
 
-      // List all children of AMC Repositorio
-      let allChildren: Array<{ id: string; name: string; createdTime: string }> = [];
-      let pageToken: string | undefined;
-      do {
-        const q = `'${amcRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-        const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=nextPageToken,files(id,name,createdTime)&orderBy=createdTime&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`;
-        const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-        const data = await resp.json();
-        if (data.files) allChildren.push(...data.files);
-        pageToken = data.nextPageToken;
-      } while (pageToken);
+      if (amcRootId) {
+        let allChildren: Array<{ id: string; name: string; createdTime: string }> = [];
+        let pageToken: string | undefined;
+        do {
+          const q = `'${amcRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+          const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=nextPageToken,files(id,name,createdTime)&orderBy=createdTime&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`;
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+          const data = await resp.json();
+          if (data.files) allChildren.push(...data.files);
+          pageToken = data.nextPageToken;
+        } while (pageToken);
 
-      console.log(`[DEDUP] Found ${allChildren.length} project folders under AMC Repositorio`);
+        const folderGroups = new Map<string, typeof allChildren>();
+        for (const child of allChildren) {
+          const key = child.name.trim().toLowerCase();
+          if (!folderGroups.has(key)) folderGroups.set(key, []);
+          folderGroups.get(key)!.push(child);
+        }
 
-      // Group by name
-      const groups = new Map<string, typeof allChildren>();
-      for (const child of allChildren) {
-        const key = child.name.trim().toLowerCase();
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(child);
-      }
-
-      let trashed = 0;
-      const details: string[] = [];
-
-      for (const [name, folders] of groups.entries()) {
-        if (folders.length <= 1) continue;
-
-        // Sort by createdTime ascending — keep the oldest
-        folders.sort((a, b) => a.createdTime.localeCompare(b.createdTime));
-        const keeper = folders[0];
-        const duplicates = folders.slice(1);
-
-        console.log(`[DEDUP] "${name}": keeping ${keeper.id}, trashing ${duplicates.length} duplicate(s)`);
-
-        for (const dup of duplicates) {
-          // Check if dup folder has any contents
-          const contentsResp = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${dup.id}' in parents and trashed=false`)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id)&pageSize=1`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          const contentsData = await contentsResp.json();
-          const hasContents = (contentsData.files?.length || 0) > 0;
-
-          if (hasContents) {
-            console.log(`[DEDUP] Skipping "${dup.name}" (${dup.id}) — has contents, needs manual review`);
-            details.push(`Skipped "${dup.name}" (${dup.id}) — has contents`);
-            continue;
-          }
-
-          // Trash the empty duplicate
-          const trashResp = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
-            {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ trashed: true }),
+        for (const folders of folderGroups.values()) {
+          if (folders.length <= 1) continue;
+          // Keep the oldest project folder.
+          folders.sort((a, b) => a.createdTime.localeCompare(b.createdTime));
+          const keeper = folders[0];
+          for (const dup of folders.slice(1)) {
+            const contentsResp = await fetch(
+              `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${dup.id}' in parents and trashed=false`)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id)&pageSize=1`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            const contentsData = await contentsResp.json();
+            const hasContents = (contentsData.files?.length || 0) > 0;
+            if (hasContents) {
+              needsReview.push({ drive_id: dup.id, name: dup.name });
+              continue;
             }
-          );
-          if (trashResp.ok) {
-            trashed++;
-            details.push(`Trashed "${dup.name}" (${dup.id})`);
-            console.log(`[DEDUP] Trashed duplicate: "${dup.name}" (${dup.id})`);
-
-            // Update any DB records pointing to this duplicate to point to keeper
-            await admin
-              .from("project_folders")
-              .update({ drive_folder_id: keeper.id })
-              .eq("drive_folder_id", dup.id);
-          } else {
-            console.log(`[DEDUP] Failed to trash "${dup.name}" (${dup.id}): ${trashResp.status}`);
+            items.push({ type: "folder", drive_id: dup.id, keeper_id: keeper.id, name: dup.name });
           }
         }
       }
 
-      console.log(`[DEDUP] Complete: ${trashed} duplicate(s) trashed`);
-      return new Response(
-        JSON.stringify({ message: `Deduplicación completada: ${trashed} duplicado(s) eliminado(s)`, trashed, details }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (action === "deduplicate_files") {
-      console.log("[DEDUP_FILES] Starting deduplication of files in Drive");
-      const accessToken = await getAccessToken();
-      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const admin = createClient(supabaseUrl, serviceRoleKey);
-
-      // Every Drive folder we currently know about, across all projects.
+      // --- Duplicate files (within every Drive folder we know about) ---
       const { data: folders } = await admin
         .from("project_folders")
         .select("id, drive_folder_id")
         .not("drive_folder_id", "is", null);
-
-      let filesTrashed = 0;
-      const details: string[] = [];
 
       for (const folder of folders || []) {
         const driveFolderId = folder.drive_folder_id as string;
         const files = await listFilesInFolder(accessToken, driveFolderId);
         if (files.length === 0) continue;
 
-        // Group by normalized name within this folder
-        const groups = new Map<string, typeof files>();
+        const fileGroups = new Map<string, typeof files>();
         for (const f of files) {
           const key = f.name.trim().toLowerCase();
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key)!.push(f);
+          if (!fileGroups.has(key)) fileGroups.set(key, []);
+          fileGroups.get(key)!.push(f);
         }
 
-        for (const [name, group] of groups.entries()) {
+        for (const group of fileGroups.values()) {
           if (group.length <= 1) continue;
-
-          // Keep the most recent file (descending createdTime); trash the rest.
+          // Keep the most recent file.
           group.sort((a, b) => b.createdTime.localeCompare(a.createdTime));
           const keeper = group[0];
-          const duplicates = group.slice(1);
-
-          console.log(`[DEDUP_FILES] "${name}" in folder ${driveFolderId}: keeping ${keeper.id} (most recent), trashing ${duplicates.length} older duplicate(s)`);
-
-          for (const dup of duplicates) {
-            const trashResp = await fetch(
-              `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
-              {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ trashed: true }),
-              }
-            );
-
-            if (trashResp.ok) {
-              filesTrashed++;
-              details.push(`Trashed "${dup.name}" (${dup.id}) — kept ${keeper.id}`);
-              console.log(`[DEDUP_FILES] Trashed duplicate file: "${dup.name}" (${dup.id})`);
-              // Remove the stale drive_files record(s) pointing at the trashed file
-              await admin.from("drive_files").delete().eq("drive_file_id", dup.id);
-            } else {
-              console.log(`[DEDUP_FILES] Failed to trash "${dup.name}" (${dup.id}): ${trashResp.status}`);
-              details.push(`Failed to trash "${dup.name}" (${dup.id})`);
-            }
+          for (const dup of group.slice(1)) {
+            items.push({ type: "file", drive_id: dup.id, keeper_id: keeper.id, name: dup.name });
           }
         }
       }
 
-      console.log(`[DEDUP_FILES] Complete: ${filesTrashed} duplicate file(s) trashed`);
+      console.log(`[DEDUP] Analysis complete: ${items.length} duplicate(s) found, ${needsReview.length} need manual review`);
       return new Response(
-        JSON.stringify({ message: `Deduplicación de archivos completada: ${filesTrashed} duplicado(s) eliminado(s)`, trashed: filesTrashed, details }),
+        JSON.stringify({ total: items.length, items, needs_review: needsReview }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Removes a single duplicate identified by analyze_duplicates. Called once
+    // per item from the frontend so it can track real progress (i / total).
+    if (action === "trash_duplicate_item") {
+      const { type, drive_id, keeper_id } = body;
+      if (!type || !drive_id || !keeper_id) throw new Error("type, drive_id and keeper_id are required");
+
+      const accessToken = await getAccessToken();
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const trashResp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${drive_id}?supportsAllDrives=true`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ trashed: true }),
+        }
+      );
+
+      if (!trashResp.ok) {
+        console.log(`[DEDUP] Failed to trash ${type} ${drive_id}: ${trashResp.status}`);
+        return new Response(
+          JSON.stringify({ success: false, error: `Drive returned ${trashResp.status}` }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (type === "folder") {
+        await admin.from("project_folders").update({ drive_folder_id: keeper_id }).eq("drive_folder_id", drive_id);
+      } else {
+        await admin.from("drive_files").delete().eq("drive_file_id", drive_id);
+      }
+
+      console.log(`[DEDUP] Trashed ${type} ${drive_id} (kept ${keeper_id})`);
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     throw new Error("Invalid action");
