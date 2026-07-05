@@ -25,14 +25,25 @@ export default function DrivePage() {
   const handleDeduplicate = async () => {
     setDeduplicating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-drive", {
+      const { data: folderResult, error: folderError } = await supabase.functions.invoke("sync-drive", {
         body: { action: "deduplicate" },
       });
-      if (error) throw error;
-      toast.success(data.message || "Deduplicación completada");
-      if (data.details?.length > 0) {
-        console.log("[DEDUP] Details:", data.details);
+      if (folderError) throw folderError;
+      if (folderResult.details?.length > 0) {
+        console.log("[DEDUP] Folder details:", folderResult.details);
       }
+
+      const { data: fileResult, error: fileError } = await supabase.functions.invoke("sync-drive", {
+        body: { action: "deduplicate_files" },
+      });
+      if (fileError) throw fileError;
+      if (fileResult.details?.length > 0) {
+        console.log("[DEDUP] File details:", fileResult.details);
+      }
+
+      toast.success(
+        `${folderResult.trashed || 0} carpeta(s) y ${fileResult.trashed || 0} archivo(s) duplicado(s) eliminados`
+      );
     } catch (e: any) {
       toast.error("Error: " + e.message);
     } finally {

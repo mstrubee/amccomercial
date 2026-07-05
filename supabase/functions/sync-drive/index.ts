@@ -147,6 +147,32 @@ async function renameDriveFolder(accessToken: string, folderId: string, newName:
   }
 }
 
+/** List the non-folder files directly inside a Drive folder (paginated). */
+async function listFilesInFolder(
+  accessToken: string,
+  folderId: string
+): Promise<Array<{ id: string; name: string; createdTime: string }>> {
+  const files: Array<{ id: string; name: string; createdTime: string }> = [];
+  let pageToken: string | undefined;
+  do {
+    const q = `'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`;
+    const url =
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+      `&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives` +
+      `&fields=nextPageToken,files(id,name,createdTime)&orderBy=createdTime&pageSize=200` +
+      `${pageToken ? `&pageToken=${pageToken}` : ""}`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.log(`[DEDUP_FILES] Failed to list files in ${folderId}: ${JSON.stringify(data?.error || data)}`);
+      break;
+    }
+    if (data.files) files.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return files;
+}
+
 /** Check if a Drive folder exists and return its name + parents. Returns null if not found/broken. */
 async function getDriveFolderInfo(
   accessToken: string,
@@ -879,6 +905,75 @@ Deno.serve(async (req) => {
       console.log(`[DEDUP] Complete: ${trashed} duplicate(s) trashed`);
       return new Response(
         JSON.stringify({ message: `Deduplicación completada: ${trashed} duplicado(s) eliminado(s)`, trashed, details }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "deduplicate_files") {
+      console.log("[DEDUP_FILES] Starting deduplication of files in Drive");
+      const accessToken = await getAccessToken();
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      // Every Drive folder we currently know about, across all projects.
+      const { data: folders } = await admin
+        .from("project_folders")
+        .select("id, drive_folder_id")
+        .not("drive_folder_id", "is", null);
+
+      let filesTrashed = 0;
+      const details: string[] = [];
+
+      for (const folder of folders || []) {
+        const driveFolderId = folder.drive_folder_id as string;
+        const files = await listFilesInFolder(accessToken, driveFolderId);
+        if (files.length === 0) continue;
+
+        // Group by normalized name within this folder
+        const groups = new Map<string, typeof files>();
+        for (const f of files) {
+          const key = f.name.trim().toLowerCase();
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(f);
+        }
+
+        for (const [name, group] of groups.entries()) {
+          if (group.length <= 1) continue;
+
+          // Keep the most recent file (descending createdTime); trash the rest.
+          group.sort((a, b) => b.createdTime.localeCompare(a.createdTime));
+          const keeper = group[0];
+          const duplicates = group.slice(1);
+
+          console.log(`[DEDUP_FILES] "${name}" in folder ${driveFolderId}: keeping ${keeper.id} (most recent), trashing ${duplicates.length} older duplicate(s)`);
+
+          for (const dup of duplicates) {
+            const trashResp = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
+              {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ trashed: true }),
+              }
+            );
+
+            if (trashResp.ok) {
+              filesTrashed++;
+              details.push(`Trashed "${dup.name}" (${dup.id}) — kept ${keeper.id}`);
+              console.log(`[DEDUP_FILES] Trashed duplicate file: "${dup.name}" (${dup.id})`);
+              // Remove the stale drive_files record(s) pointing at the trashed file
+              await admin.from("drive_files").delete().eq("drive_file_id", dup.id);
+            } else {
+              console.log(`[DEDUP_FILES] Failed to trash "${dup.name}" (${dup.id}): ${trashResp.status}`);
+              details.push(`Failed to trash "${dup.name}" (${dup.id})`);
+            }
+          }
+        }
+      }
+
+      console.log(`[DEDUP_FILES] Complete: ${filesTrashed} duplicate file(s) trashed`);
+      return new Response(
+        JSON.stringify({ message: `Deduplicación de archivos completada: ${filesTrashed} duplicado(s) eliminado(s)`, trashed: filesTrashed, details }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
