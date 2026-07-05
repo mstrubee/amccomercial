@@ -106,6 +106,17 @@ function AppRoutes() {
   }
 
   if (!user) {
+    // The OAuth consent route must still render when signed out so users see
+    // a proper message (and the client-side effect can preserve the return URL).
+    if (location.pathname === "/.lovable/oauth/consent") {
+      return (
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+          </Routes>
+        </Suspense>
+      );
+    }
     return <Auth onLogin={signIn} />;
   }
 
