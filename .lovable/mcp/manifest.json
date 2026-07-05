@@ -26,24 +26,25 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "search": {
-              "description": "Texto a buscar en nombre, dirección o comuna.",
-              "type": "string"
+              "type": "string",
+              "description": "Texto a buscar en nombre, dirección o comuna."
             },
             "estado_obra": {
-              "description": "Filtrar por estado de obra exacto.",
-              "type": "string"
+              "type": "string",
+              "description": "Filtrar por estado de obra exacto."
             },
             "limit": {
-              "default": 50,
               "type": "integer",
               "minimum": 1,
-              "maximum": 200
+              "maximum": 200,
+              "default": 50
             }
-          }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -57,19 +58,19 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "id": {
               "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "ID del proyecto."
             }
           },
           "required": [
             "id"
-          ]
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -83,30 +84,30 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "only_mine": {
+              "type": "boolean",
               "default": true,
-              "description": "Solo alertas donde soy responsable.",
-              "type": "boolean"
+              "description": "Solo alertas donde soy responsable."
             },
             "include_completed": {
-              "default": false,
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             },
             "proyecto_id": {
               "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "format": "uuid"
             },
             "limit": {
-              "default": 50,
               "type": "integer",
               "minimum": 1,
-              "maximum": 200
+              "maximum": 200,
+              "default": 50
             }
-          }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -120,20 +121,21 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "search": {
-              "description": "Filtro por nombre.",
-              "type": "string"
+              "type": "string",
+              "description": "Filtro por nombre."
             },
             "limit": {
-              "default": 100,
               "type": "integer",
               "minimum": 1,
-              "maximum": 200
+              "maximum": 200,
+              "default": 100
             }
-          }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -147,20 +149,21 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "search": {
-              "description": "Filtro por nombre o contacto.",
-              "type": "string"
+              "type": "string",
+              "description": "Filtro por nombre o contacto."
             },
             "limit": {
-              "default": 100,
               "type": "integer",
               "minimum": 1,
-              "maximum": 200
+              "maximum": 200,
+              "default": 100
             }
-          }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       }
