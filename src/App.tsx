@@ -66,6 +66,7 @@ const HitosEjecucionPage = lazyWithRetry(() => import("@/pages/HitosEjecucionPag
 const AdminNotas = lazyWithRetry(() => import("@/pages/AdminNotas"));
 const Menciones = lazyWithRetry(() => import("@/pages/Menciones"));
 const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
+const OAuthConsent = lazyWithRetry(() => import("@/pages/OAuthConsent"));
 
 const PageFallback = () => (
   <div className="flex flex-1 items-center justify-center py-20">
@@ -115,6 +116,7 @@ function AppRoutes() {
       <ErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={<PageFallback />}>
         <Routes>
+          <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
           <Route path="/" element={canAccessSection("dashboard") ? <Dashboard /> : <Navigate to={canAccessSection("proyectos") ? "/proyectos" : canAccessSection("empresas") ? "/empresas" : canAccessSection("finanzas") ? "/finanzas" : canAccessSection("alertas") ? "/alertas" : "/"} replace />} />
           {canAccessSection("empresas") && <Route path="/empresas" element={<Empresas />} />}
           {canAccessSection("proyectos") && <Route path="/proyectos" element={<Proyectos />} />}
