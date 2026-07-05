@@ -158,7 +158,15 @@ Deno.serve(async (req) => {
       throw new Error("Failed to save file to queue: " + storageErr.message);
     }
 
-    // Step 2: Register in pending_sync
+    // Step 2: Register in pending_sync.
+    // IMPORTANT: this row is created directly as "uploading", not "pending".
+    // We are about to attempt the Drive upload ourselves (Step 3) in this same
+    // request. If it were left as "pending", process-sync-queue's own scan
+    // (status IN ('pending','failed')) could pick up this exact row while our
+    // own upload is still in flight and upload the same file a second time —
+    // this was the root cause of files being synced twice. Marking it
+    // "uploading" atomically at creation time removes that race entirely: the
+    // queue processor simply never sees this row until we're done with it.
     const { data: pendingRow, error: pendingErr } = await admin
       .from("pending_sync")
       .insert({
@@ -168,7 +176,7 @@ Deno.serve(async (req) => {
         file_size: file.size,
         mime_type: file.type || "application/octet-stream",
         storage_path: storagePath,
-        status: "pending",
+        status: "uploading",
         created_by: user.id,
       })
       .select()

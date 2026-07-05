@@ -97,6 +97,27 @@ Deno.serve(async (req) => {
 
     for (const item of pending) {
       try {
+        // Atomically claim this item before doing any work. The initial
+        // fetch above (status IN pending/failed) is a plain SELECT, so two
+        // overlapping invocations of this function (e.g. the "online" retry
+        // and the periodic queue poll firing close together) could both read
+        // the same row before either writes to it. This conditional UPDATE
+        // only succeeds for whichever caller gets there first — Postgres
+        // guarantees mutual exclusion on the row — so a second caller sees
+        // zero rows affected and skips the item instead of uploading it again.
+        const { data: claimed, error: claimErr } = await admin
+          .from("pending_sync")
+          .update({ status: "uploading" })
+          .eq("id", item.id)
+          .in("status", ["pending", "failed"])
+          .select();
+
+        if (claimErr) throw claimErr;
+        if (!claimed || claimed.length === 0) {
+          console.log(`[QUEUE] Skipping "${item.file_name}" — already claimed by another sync in progress`);
+          continue;
+        }
+
         // Check if drive_folder_id is valid — if not, try to get updated one from project_folders
         let targetFolderId = item.drive_folder_id;
         
@@ -141,9 +162,6 @@ Deno.serve(async (req) => {
             throw new Error("DRIVE_FOLDER_NOT_FOUND: Folder not yet synced to Drive");
           }
         }
-
-        // Mark as uploading
-        await admin.from("pending_sync").update({ status: "uploading" }).eq("id", item.id);
 
         // Download file from bucket
         const { data: fileData, error: dlErr } = await admin.storage
