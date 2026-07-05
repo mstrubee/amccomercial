@@ -910,70 +910,87 @@ Deno.serve(async (req) => {
     }
 
     if (action === "deduplicate_files") {
-      console.log("[DEDUP_FILES] Starting deduplication of files in Drive");
+      console.log("[DEDUP_FILES] Scheduling deduplication of files in Drive (background)");
       const accessToken = await getAccessToken();
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
 
-      // Every Drive folder we currently know about, across all projects.
       const { data: folders } = await admin
         .from("project_folders")
         .select("id, drive_folder_id")
         .not("drive_folder_id", "is", null);
 
-      let filesTrashed = 0;
-      const details: string[] = [];
+      const folderIds = (folders || [])
+        .map((f: any) => f.drive_folder_id as string)
+        .filter(Boolean);
 
-      for (const folder of folders || []) {
-        const driveFolderId = folder.drive_folder_id as string;
-        const files = await listFilesInFolder(accessToken, driveFolderId);
-        if (files.length === 0) continue;
+      const task = (async () => {
+        let filesTrashed = 0;
+        const CONCURRENCY = 8;
 
-        // Group by normalized name within this folder
-        const groups = new Map<string, typeof files>();
-        for (const f of files) {
-          const key = f.name.trim().toLowerCase();
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key)!.push(f);
-        }
+        const processFolder = async (driveFolderId: string) => {
+          try {
+            const files = await listFilesInFolder(accessToken, driveFolderId);
+            if (files.length === 0) return;
 
-        for (const [name, group] of groups.entries()) {
-          if (group.length <= 1) continue;
-
-          // Keep the most recent file (descending createdTime); trash the rest.
-          group.sort((a, b) => b.createdTime.localeCompare(a.createdTime));
-          const keeper = group[0];
-          const duplicates = group.slice(1);
-
-          console.log(`[DEDUP_FILES] "${name}" in folder ${driveFolderId}: keeping ${keeper.id} (most recent), trashing ${duplicates.length} older duplicate(s)`);
-
-          for (const dup of duplicates) {
-            const trashResp = await fetch(
-              `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
-              {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ trashed: true }),
-              }
-            );
-
-            if (trashResp.ok) {
-              filesTrashed++;
-              details.push(`Trashed "${dup.name}" (${dup.id}) — kept ${keeper.id}`);
-              console.log(`[DEDUP_FILES] Trashed duplicate file: "${dup.name}" (${dup.id})`);
-              // Remove the stale drive_files record(s) pointing at the trashed file
-              await admin.from("drive_files").delete().eq("drive_file_id", dup.id);
-            } else {
-              console.log(`[DEDUP_FILES] Failed to trash "${dup.name}" (${dup.id}): ${trashResp.status}`);
-              details.push(`Failed to trash "${dup.name}" (${dup.id})`);
+            const groups = new Map<string, typeof files>();
+            for (const f of files) {
+              const key = f.name.trim().toLowerCase();
+              if (!groups.has(key)) groups.set(key, []);
+              groups.get(key)!.push(f);
             }
+
+            for (const [name, group] of groups.entries()) {
+              if (group.length <= 1) continue;
+              group.sort((a, b) => b.createdTime.localeCompare(a.createdTime));
+              const duplicates = group.slice(1);
+              console.log(`[DEDUP_FILES] "${name}" in ${driveFolderId}: trashing ${duplicates.length}`);
+
+              await Promise.all(duplicates.map(async (dup) => {
+                const trashResp = await fetch(
+                  `https://www.googleapis.com/drive/v3/files/${dup.id}?supportsAllDrives=true`,
+                  {
+                    method: "PATCH",
+                    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ trashed: true }),
+                  }
+                );
+                if (trashResp.ok) {
+                  filesTrashed++;
+                  await admin.from("drive_files").delete().eq("drive_file_id", dup.id);
+                } else {
+                  console.log(`[DEDUP_FILES] Failed ${dup.id}: ${trashResp.status}`);
+                }
+                await trashResp.text().catch(() => {});
+              }));
+            }
+          } catch (e) {
+            console.log(`[DEDUP_FILES] Folder ${driveFolderId} error:`, (e as Error).message);
           }
+        };
+
+        for (let i = 0; i < folderIds.length; i += CONCURRENCY) {
+          const batch = folderIds.slice(i, i + CONCURRENCY);
+          await Promise.all(batch.map(processFolder));
         }
+
+        console.log(`[DEDUP_FILES] Background complete: ${filesTrashed} duplicate file(s) trashed across ${folderIds.length} folders`);
+      })();
+
+      // Fire-and-forget; keep the runtime alive until it finishes.
+      // @ts-ignore - EdgeRuntime is available in Supabase edge runtime
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(task);
       }
 
-      console.log(`[DEDUP_FILES] Complete: ${filesTrashed} duplicate file(s) trashed`);
       return new Response(
-        JSON.stringify({ message: `Deduplicación de archivos completada: ${filesTrashed} duplicado(s) eliminado(s)`, trashed: filesTrashed, details }),
+        JSON.stringify({
+          message: `Deduplicación de archivos iniciada en segundo plano para ${folderIds.length} carpeta(s). Revisa los logs para ver el progreso.`,
+          trashed: 0,
+          details: [],
+          background: true,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
