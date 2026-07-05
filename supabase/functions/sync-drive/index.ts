@@ -14,6 +14,9 @@ interface ProjectFolder {
   children?: ProjectFolder[];
 }
 
+type DuplicateItem = { type: "folder" | "file"; drive_id: string; keeper_id: string; name: string };
+type DuplicateFolderNeedsReview = { drive_id: string; name: string };
+
 async function getAccessToken(): Promise<string> {
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
@@ -171,6 +174,76 @@ async function listFilesInFolder(
     pageToken = data.nextPageToken;
   } while (pageToken);
   return files;
+}
+
+function clampAnalyzeBatchSize(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 10;
+  return Math.max(1, Math.min(25, Math.floor(parsed)));
+}
+
+function parseAnalyzeCursor(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
+}
+
+async function analyzeDuplicateProjectFolders(accessToken: string): Promise<{
+  items: DuplicateItem[];
+  needsReview: DuplicateFolderNeedsReview[];
+}> {
+  const items: DuplicateItem[] = [];
+  const needsReview: DuplicateFolderNeedsReview[] = [];
+
+  const amcQuery = `name='AMC Repositorio' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const amcResp = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(amcQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const amcData = await amcResp.json();
+  const amcRootId = amcData.files?.[0]?.id;
+
+  if (!amcRootId) return { items, needsReview };
+
+  let allChildren: Array<{ id: string; name: string; createdTime: string }> = [];
+  let pageToken: string | undefined;
+  do {
+    const q = `'${amcRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=nextPageToken,files(id,name,createdTime)&orderBy=createdTime&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const data = await resp.json();
+    if (data.files) allChildren.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  const folderGroups = new Map<string, typeof allChildren>();
+  for (const child of allChildren) {
+    const key = child.name.trim().toLowerCase();
+    if (!folderGroups.has(key)) folderGroups.set(key, []);
+    folderGroups.get(key)!.push(child);
+  }
+
+  for (const folders of folderGroups.values()) {
+    if (folders.length <= 1) continue;
+    // Keep the oldest project folder.
+    folders.sort((a, b) => a.createdTime.localeCompare(b.createdTime));
+    const keeper = folders[0];
+    for (const dup of folders.slice(1)) {
+      const contentsResp = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${dup.id}' in parents and trashed=false`)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id)&pageSize=1`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const contentsData = await contentsResp.json();
+      const hasContents = (contentsData.files?.length || 0) > 0;
+      if (hasContents) {
+        needsReview.push({ drive_id: dup.id, name: dup.name });
+        continue;
+      }
+      items.push({ type: "folder", drive_id: dup.id, keeper_id: keeper.id, name: dup.name });
+    }
+  }
+
+  return { items, needsReview };
 }
 
 /** Check if a Drive folder exists and return its name + parents. Returns null if not found/broken. */
@@ -807,74 +880,45 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(results, null, 2), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Scans for duplicate project folders AND duplicate files, WITHOUT deleting
-    // anything. Returns the full list of removable items so the frontend can
-    // show an accurate count up front and then process them one by one
-    // (via trash_duplicate_item) to report real progress as it goes.
+    // Scans duplicate project folders AND duplicate files in small batches,
+    // WITHOUT deleting anything. The previous all-at-once scan could exceed the
+    // edge request idle limit when many Drive folders existed. The frontend now
+    // loops through this action with the returned cursor, so each request stays
+    // short and still returns the full removable list before deletion starts.
     if (action === "analyze_duplicates") {
-      console.log("[DEDUP] Analyzing duplicates in Drive");
+      const cursor = parseAnalyzeCursor(body.cursor);
+      const batchSize = clampAnalyzeBatchSize(body.limit);
+      console.log(`[DEDUP] Analyzing duplicates in Drive (cursor=${cursor}, limit=${batchSize})`);
       const accessToken = await getAccessToken();
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const admin = createClient(supabaseUrl, serviceRoleKey);
 
-      type DupItem = { type: "folder" | "file"; drive_id: string; keeper_id: string; name: string };
-      const items: DupItem[] = [];
-      const needsReview: Array<{ drive_id: string; name: string }> = [];
+      const items: DuplicateItem[] = [];
+      const needsReview: DuplicateFolderNeedsReview[] = [];
 
-      // --- Duplicate project folders (under AMC Repositorio) ---
-      const amcQuery = `name='AMC Repositorio' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-      const amcResp = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(amcQuery)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id,name)`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const amcData = await amcResp.json();
-      const amcRootId = amcData.files?.[0]?.id;
-
-      if (amcRootId) {
-        let allChildren: Array<{ id: string; name: string; createdTime: string }> = [];
-        let pageToken: string | undefined;
-        do {
-          const q = `'${amcRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-          const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=nextPageToken,files(id,name,createdTime)&orderBy=createdTime&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`;
-          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-          const data = await resp.json();
-          if (data.files) allChildren.push(...data.files);
-          pageToken = data.nextPageToken;
-        } while (pageToken);
-
-        const folderGroups = new Map<string, typeof allChildren>();
-        for (const child of allChildren) {
-          const key = child.name.trim().toLowerCase();
-          if (!folderGroups.has(key)) folderGroups.set(key, []);
-          folderGroups.get(key)!.push(child);
-        }
-
-        for (const folders of folderGroups.values()) {
-          if (folders.length <= 1) continue;
-          // Keep the oldest project folder.
-          folders.sort((a, b) => a.createdTime.localeCompare(b.createdTime));
-          const keeper = folders[0];
-          for (const dup of folders.slice(1)) {
-            const contentsResp = await fetch(
-              `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${dup.id}' in parents and trashed=false`)}&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&fields=files(id)&pageSize=1`,
-              { headers: { Authorization: `Bearer ${accessToken}` } }
-            );
-            const contentsData = await contentsResp.json();
-            const hasContents = (contentsData.files?.length || 0) > 0;
-            if (hasContents) {
-              needsReview.push({ drive_id: dup.id, name: dup.name });
-              continue;
-            }
-            items.push({ type: "folder", drive_id: dup.id, keeper_id: keeper.id, name: dup.name });
-          }
-        }
+      if (cursor === 0) {
+        const folderAnalysis = await analyzeDuplicateProjectFolders(accessToken);
+        items.push(...folderAnalysis.items);
+        needsReview.push(...folderAnalysis.needsReview);
       }
 
       // --- Duplicate files (within every Drive folder we know about) ---
-      const { data: folders } = await admin
+      const { data: folders, count: totalFolders, error: foldersError } = await admin
         .from("project_folders")
         .select("id, drive_folder_id")
+        .not("drive_folder_id", "is", null)
+        .order("id", { ascending: true })
+        .range(cursor, cursor + batchSize - 1);
+
+      if (foldersError) throw foldersError;
+
+      const { count: folderCount, error: countError } = await admin
+        .from("project_folders")
+        .select("id", { count: "exact", head: true })
         .not("drive_folder_id", "is", null);
+
+      if (countError) throw countError;
+      const scanTotal = folderCount ?? totalFolders ?? 0;
 
       for (const folder of folders || []) {
         const driveFolderId = folder.drive_folder_id as string;
@@ -899,9 +943,21 @@ Deno.serve(async (req) => {
         }
       }
 
-      console.log(`[DEDUP] Analysis complete: ${items.length} duplicate(s) found, ${needsReview.length} need manual review`);
+      const analyzed = Math.min(cursor + (folders?.length || 0), scanTotal);
+      const complete = analyzed >= scanTotal;
+      const nextCursor = complete ? null : analyzed;
+
+      console.log(`[DEDUP] Batch complete: ${items.length} duplicate(s), ${needsReview.length} need review, scanned ${analyzed}/${scanTotal}`);
       return new Response(
-        JSON.stringify({ total: items.length, items, needs_review: needsReview }),
+        JSON.stringify({
+          total: items.length,
+          items,
+          needs_review: needsReview,
+          cursor: nextCursor,
+          complete,
+          analyzed,
+          scan_total: scanTotal,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
