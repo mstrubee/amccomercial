@@ -1023,18 +1023,20 @@ export default function CargaMasiva() {
               .eq("id", projectId);
             if (updErr) throw updErr;
           }
-          // Update empresa links if any
+          // Update empresa links if any.
+          // UPSERT instead of DELETE+INSERT: preserves manually-set monto_cotizacion,
+          // adjudicado and ganado_* fields that the team may have edited after the
+          // first upload.  Only categoria_id and subcategoria_id (which come from
+          // the spreadsheet) are refreshed.
           if (empLinks.length > 0) {
-            await supabase.from("proyecto_empresas").delete().eq("proyecto_id", projectId);
             const links = empLinks.map((el) => ({
               proyecto_id: projectId,
               empresa_id: el.empresa_id,
-              monto_cotizacion: 0,
-              adjudicado: false,
               categoria_id: el.categoria_id,
               subcategoria_id: null,
             }));
-            const { error: linkErr } = await supabase.from("proyecto_empresas").insert(links);
+            const { error: linkErr } = await supabase.from("proyecto_empresas")
+              .upsert(links, { onConflict: "proyecto_id,empresa_id" });
             if (linkErr) throw linkErr;
           }
         } else if (empLinks.length === 0) {
@@ -1064,7 +1066,13 @@ export default function CargaMasiva() {
             subcategoria_id: null,
           }));
           const { error: linkErr } = await supabase.from("proyecto_empresas").insert(links);
-          if (linkErr) throw linkErr;
+          if (linkErr) {
+            // Compensatory delete: remove the N orphaned project rows so the
+            // DB doesn't accumulate nameless projects with no empresa link.
+            const createdIds = created!.map((p: any) => p.id);
+            await supabase.from("proyectos").delete().in("id", createdIds);
+            throw linkErr;
+          }
         }
 
         // Create alertas - handle parent-child dependencies
