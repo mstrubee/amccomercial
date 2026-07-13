@@ -966,39 +966,10 @@ export default function CargaMasiva() {
           .map((a) => a.texto)
           .join("\n");
 
-        const projectPayload = {
-          nombre: safeStr(d["Nombre Proyecto"]),
-          fecha_ingreso: fechaIngreso || new Date().toISOString().split("T")[0],
-          clasificacion_id,
-          estado_obra: safeStr(d["Estado Obra"]),
-          fecha_estado_obra: (fechaEstado && fechaEstado !== "null") ? fechaEstado : null,
-          estado_amc: safeStr(d["Estado (x Proyecto)"]) || "Vigente",
-          direccion: safeStr(d["Dirección"]),
-          region: safeStr(d["Región"]),
-          comuna: safeStr(d["Comuna"]),
-          arq_nombre: safeStr(d["Arq Nombre"]),
-          arq_contacto: safeStr(d["Arq Contacto"]),
-          arq_mail: safeStr(d["Arq Email"]),
-          arq_telefono: safeStr(d["Arq Teléfono"]),
-          const_nombre: safeStr(d["Const Nombre"]),
-          const_contacto: safeStr(d["Const Contacto"]),
-          const_mail: safeStr(d["Const Email"]),
-          const_telefono: safeStr(d["Const Teléfono"]),
-          ito_nombre: safeStr(d["ITO Nombre"]),
-          ito_contacto: safeStr(d["ITO Contacto"]),
-          ito_mail: safeStr(d["ITO Email"]),
-          ito_telefono: safeStr(d["ITO Teléfono"]),
-          duenos_nombre: safeStr(d["Dueños Nombre"]),
-          duenos_contacto: safeStr(d["Dueños Contacto"]),
-          duenos_mail: safeStr(d["Dueños Email"]),
-          duenos_telefono: safeStr(d["Dueños Teléfono"]),
-          adjudicado: false,
-          notas: notasTexto,
-        };
-
         let projectId: string;
 
-        // Check for existing project with same name to avoid duplicates on retry
+        // Check for existing project with same name to avoid duplicates on retry.
+        // This read stays outside the RPC so the pause/resume UX is unaffected.
         const projName = safeStr(d["Nombre Proyecto"]);
         const { data: existingProj } = await supabase
           .from("proyectos")
@@ -1007,73 +978,45 @@ export default function CargaMasiva() {
           .limit(1)
           .maybeSingle();
 
-        if (existingProj) {
-          // Project already exists — update only non-empty fields
-          projectId = existingProj.id;
-          const updatePayload: Record<string, any> = {};
-          for (const [key, val] of Object.entries(projectPayload)) {
-            if (val !== null && val !== undefined && val !== "") {
-              updatePayload[key] = val;
-            }
+        // DATA-001: all three write branches (existing / new-no-links / new-N-links)
+        // are handled by a single RPC that executes inside one PostgreSQL transaction.
+        // If the empresa-link write fails, the project insert is rolled back automatically
+        // — no orphaned rows, no compensatory delete needed.
+        const { data: rpcResult, error: rpcErr } = await (supabase as any).rpc(
+          "process_carga_masiva_row",
+          {
+            p_existing_proj_id:  existingProj?.id ?? null,
+            p_nombre:            safeStr(d["Nombre Proyecto"]),
+            p_fecha_ingreso:     fechaIngreso || new Date().toISOString().split("T")[0],
+            p_clasificacion_id:  clasificacion_id,
+            p_estado_obra:       safeStr(d["Estado Obra"]),
+            p_fecha_estado_obra: (fechaEstado && fechaEstado !== "null") ? fechaEstado : null,
+            p_estado_amc:        safeStr(d["Estado (x Proyecto)"]) || "Vigente",
+            p_direccion:         safeStr(d["Dirección"]),
+            p_region:            safeStr(d["Región"]),
+            p_comuna:            safeStr(d["Comuna"]),
+            p_arq_nombre:        safeStr(d["Arq Nombre"]),
+            p_arq_contacto:      safeStr(d["Arq Contacto"]),
+            p_arq_mail:          safeStr(d["Arq Email"]),
+            p_arq_telefono:      safeStr(d["Arq Teléfono"]),
+            p_const_nombre:      safeStr(d["Const Nombre"]),
+            p_const_contacto:    safeStr(d["Const Contacto"]),
+            p_const_mail:        safeStr(d["Const Email"]),
+            p_const_telefono:    safeStr(d["Const Teléfono"]),
+            p_ito_nombre:        safeStr(d["ITO Nombre"]),
+            p_ito_contacto:      safeStr(d["ITO Contacto"]),
+            p_ito_mail:          safeStr(d["ITO Email"]),
+            p_ito_telefono:      safeStr(d["ITO Teléfono"]),
+            p_duenos_nombre:     safeStr(d["Dueños Nombre"]),
+            p_duenos_contacto:   safeStr(d["Dueños Contacto"]),
+            p_duenos_mail:       safeStr(d["Dueños Email"]),
+            p_duenos_telefono:   safeStr(d["Dueños Teléfono"]),
+            p_notas:             notasTexto,
+            p_emp_links:         empLinks,
           }
-          if (Object.keys(updatePayload).length > 0) {
-            const { error: updErr } = await supabase
-              .from("proyectos")
-              .update(updatePayload as any)
-              .eq("id", projectId);
-            if (updErr) throw updErr;
-          }
-          // Update empresa links if any.
-          // UPSERT instead of DELETE+INSERT: preserves manually-set monto_cotizacion,
-          // adjudicado and ganado_* fields that the team may have edited after the
-          // first upload.  Only categoria_id and subcategoria_id (which come from
-          // the spreadsheet) are refreshed.
-          if (empLinks.length > 0) {
-            const links = empLinks.map((el) => ({
-              proyecto_id: projectId,
-              empresa_id: el.empresa_id,
-              categoria_id: el.categoria_id,
-              subcategoria_id: null,
-            }));
-            const { error: linkErr } = await supabase.from("proyecto_empresas")
-              .upsert(links, { onConflict: "proyecto_id,empresa_id" });
-            if (linkErr) throw linkErr;
-          }
-        } else if (empLinks.length === 0) {
-          const { data: created, error } = await supabase
-            .from("proyectos")
-            .insert(projectPayload as any)
-            .select("id")
-            .single();
-          if (error) throw error;
-          projectId = created.id;
-        } else {
-          const inserts = empLinks.map(() => ({ ...projectPayload }));
-          const { data: created, error } = await supabase
-            .from("proyectos")
-            .insert(inserts as any[])
-            .select();
-          if (error) throw error;
-
-          projectId = created![0].id;
-
-          const links = created!.map((p: any, i: number) => ({
-            proyecto_id: p.id,
-            empresa_id: empLinks[i].empresa_id,
-            monto_cotizacion: 0,
-            adjudicado: false,
-            categoria_id: empLinks[i].categoria_id,
-            subcategoria_id: null,
-          }));
-          const { error: linkErr } = await supabase.from("proyecto_empresas").insert(links);
-          if (linkErr) {
-            // Compensatory delete: remove the N orphaned project rows so the
-            // DB doesn't accumulate nameless projects with no empresa link.
-            const createdIds = created!.map((p: any) => p.id);
-            await supabase.from("proyectos").delete().in("id", createdIds);
-            throw linkErr;
-          }
-        }
+        );
+        if (rpcErr) throw rpcErr;
+        projectId = rpcResult as string;
 
         // Create alertas - handle parent-child dependencies
         // Selected (crearAlerta) => active, unselected with date => historical (completada)
