@@ -20,6 +20,7 @@ export const ALL_SECTIONS = [
   { key: "finanzas", label: "Finanzas" },
   { key: "alertas", label: "Alertas" },
   { key: "reuniones", label: "Reuniones" },
+  { key: "calendario", label: "Calendario" },
 ] as const;
 
 // All available dashboard widgets

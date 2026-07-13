@@ -232,6 +232,10 @@ export function useCreateAlerta() {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       qc.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
+      // HOOK-004: invalidate proyectos when the mutation also updates proyecto_empresas
+      if (variables.empresa_id && (variables.categoria_proyecto_id || variables.subcategoria_proyecto_id)) {
+        qc.invalidateQueries({ queryKey: ["proyectos"] });
+      }
       const details = (variables as any).on_behalf_of
         ? `${variables.proyecto_id}|a nombre de ${(variables as any).on_behalf_of}`
         : variables.proyecto_id;
@@ -285,6 +289,10 @@ export function useUpdateAlerta() {
       qc.invalidateQueries({ queryKey: ["alertas"] });
       qc.invalidateQueries({ queryKey: ["alertas-all"] });
       qc.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
+      // HOOK-004: invalidate proyectos when the mutation also updates proyecto_empresas
+      if (variables.empresa_id && (variables.categoria_proyecto_id || variables.subcategoria_proyecto_id)) {
+        qc.invalidateQueries({ queryKey: ["proyectos"] });
+      }
       logActivity.mutate({ action: "editar", entity_type: "alerta", entity_id: variables.id, entity_name: variables.titulo, details: variables.proyecto_id });
     },
     onError: (e) => toast.error("Error al actualizar: " + e.message),

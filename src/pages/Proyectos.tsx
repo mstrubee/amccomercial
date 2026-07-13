@@ -260,6 +260,9 @@ export default function Proyectos() {
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
   const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
+  // PROJ-003: ref instead of state avoids stale closure race between the two
+  // submit handlers that both check isSavingParent before setting it to true.
+  const isSavingParentRef = useRef(false);
   const [isSavingParent, setIsSavingParent] = useState(false);
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
   const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
@@ -349,12 +352,15 @@ export default function Proyectos() {
   // (debounce moved into DebouncedInput component)
 
   useEffect(() => {
+    // PROJ-001: mount guard prevents setState on unmounted component
+    let mounted = true;
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setCurrentUserId(data.user.id);
+      if (mounted && data.user) setCurrentUserId(data.user.id);
     });
     supabase.from("profiles").select("user_id, display_name").then(({ data }) => {
-      if (data) setProfiles(data);
+      if (mounted && data) setProfiles(data);
     });
+    return () => { mounted = false; };
   }, []);
 
   // Highlight project from widget navigation or URL param
@@ -901,6 +907,8 @@ export default function Proyectos() {
       });
       qcMain.invalidateQueries({ queryKey: ["proyectos"] });
     } catch (e: any) {
+      // PROJ-002: invalidate on failure so optimistic patch doesn't persist stale data
+      qcMain.invalidateQueries({ queryKey: ["proyectos"] });
       toast.error("Error al actualizar: " + (e?.message || "desconocido"));
       throw e;
     }
@@ -1752,12 +1760,15 @@ export default function Proyectos() {
               return;
             }
 
-            if (isSavingParent) return;
+            // PROJ-003: ref check prevents double-submit race between concurrent callbacks
+            if (isSavingParentRef.current) return;
+            isSavingParentRef.current = true;
             setIsSavingParent(true);
             try {
               await executeParentSubmit(data, sharedFields, editParentGroup, [], selectedEmpresaIds);
               setEditParentGroup(null);
             } finally {
+              isSavingParentRef.current = false;
               setIsSavingParent(false);
             }
           }}
@@ -1843,13 +1854,15 @@ export default function Proyectos() {
                 if (pendingParentSubmit && editParentGroup) {
                   const { data, toDelete } = pendingParentSubmit;
                   const selectedEmpresaIds = new Set<string>(data.empresa_links.map((l: any) => l.empresa_id));
-                  if (isSavingParent) return;
+                  if (isSavingParentRef.current) return;
+                  isSavingParentRef.current = true;
                   setIsSavingParent(true);
                   try {
                     await executeParentSubmit(data, data.sharedFields, editParentGroup, toDelete, selectedEmpresaIds);
                     setPendingParentSubmit(null);
                     setEditParentGroup(null);
                   } finally {
+                    isSavingParentRef.current = false;
                     setIsSavingParent(false);
                   }
                 }
@@ -1956,6 +1969,8 @@ export default function Proyectos() {
           }
           qc.invalidateQueries({ queryKey: ["proyectos"] });
           qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
+          // PROJ-004: ventas_proyecto_empresa depends on categoria data — invalidate it too
+          qc.invalidateQueries({ queryKey: ["ventas_proyecto_empresa"] });
         }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onUncomplete={(id, newDate) => {

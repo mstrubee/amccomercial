@@ -132,7 +132,12 @@ export function useCreateProyecto() {
       const { error: linkError } = await supabase
         .from("proyecto_empresas")
         .insert(links);
-      if (linkError) throw linkError;
+      if (linkError) {
+        // Compensatory delete: remove orphaned project rows to avoid data inconsistency
+        const createdIds = createdProjects!.map((p: any) => p.id);
+        await supabase.from("proyectos").delete().in("id", createdIds);
+        throw linkError;
+      }
 
       return createdProjects!;
     },

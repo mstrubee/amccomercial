@@ -46,6 +46,9 @@ export function useAuth() {
     if (rolesRes.data) setRoles(rolesRes.data.map((r) => r.role as AppRole));
     setPermissions(permsRes.data as UserPermissionsData | null);
     setCaptadorId((captadorRes.data as any)?.id ?? null);
+    // SEC-001: setLoading(false) moved here so roles/permissions are always
+    // available before the app renders protected routes for the first time.
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -67,9 +70,11 @@ export function useAuth() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
       if (session?.user) {
+        // fetchUserData calls setLoading(false) once roles/permissions resolve.
         fetchUserData(session.user.id);
+      } else {
+        setLoading(false);
       }
     });
 
