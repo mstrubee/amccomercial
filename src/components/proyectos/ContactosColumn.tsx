@@ -170,6 +170,19 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
     setSearch("");
   };
 
+  // Contactos del cliente elegido, deduplicados por nombre+email+teléfono
+  // (la fusión de clientes pudo dejar la misma persona repetida).
+  const pickContactos: any[] = pickCliente
+    ? Array.from(
+        new Map(
+          (pickCliente.contactos_cliente || []).map((ct: any) => [
+            `${(ct.contacto || "").trim().toLowerCase()}|${(ct.email || "").trim().toLowerCase()}|${(ct.telefono || "").trim().toLowerCase()}`,
+            ct,
+          ]),
+        ).values(),
+      )
+    : [];
+
   // Confirma el vínculo cliente→proyecto con (o sin) un contacto específico.
   const confirmarContacto = (contacto_id: string | null) => {
     const pid = proyectoIds[0];
@@ -338,10 +351,10 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
             <p className="text-[10px] text-muted-foreground">Elige la persona de contacto para este proyecto</p>
           </div>
           <div className="max-h-[160px] overflow-y-auto">
-            {(pickCliente.contactos_cliente || []).length === 0 ? (
+            {pickContactos.length === 0 ? (
               <div className="px-3 py-2 text-xs text-muted-foreground">Este cliente no tiene contactos cargados.</div>
             ) : (
-              (pickCliente.contactos_cliente || []).map((ct: any) => (
+              pickContactos.map((ct: any) => (
                 <button
                   key={ct.id}
                   type="button"
