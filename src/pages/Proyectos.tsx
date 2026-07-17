@@ -1344,7 +1344,13 @@ export default function Proyectos() {
             </thead>
             <tbody>
               {groupedRows.map(({ key, items }, groupIdx) => {
-                const isGroup = (fullGroupSizes[key] || items.length) > 1;
+                // Render EVERY project with its expandable parent header — even
+                // single-empresa projects (>= 1) — so the row shows the full
+                // project (alertas, repositorio, checklist, editar línea madre)
+                // and lets you expand its empresas. Previously a single-empresa
+                // project (e.g. "Casa OA" con solo HUNTER) fell back to a flat
+                // row that read as "just the empresa", with no parent header.
+                const isGroup = (fullGroupSizes[key] || items.length) >= 1;
                 const expanded = expandedGroups[key] ?? false;
                 const parentNum = groupIdx + 1;
                 const isEven = groupIdx % 2 === 1;
