@@ -5,11 +5,11 @@ import { toast } from "sonner";
 export function useLinkProyectoCliente() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ proyecto_id, cliente_id }: { proyecto_id: string; cliente_id: string }) => {
-      // upsert ignores duplicate (proyecto_id, cliente_id) silently
+    mutationFn: async ({ proyecto_id, cliente_id, contacto_id }: { proyecto_id: string; cliente_id: string; contacto_id?: string | null }) => {
+      // upsert: si el vínculo ya existe, actualiza el contacto elegido (nota #24 b)
       const { error } = await supabase
         .from("proyecto_clientes" as any)
-        .upsert({ proyecto_id, cliente_id }, { onConflict: "proyecto_id,cliente_id", ignoreDuplicates: true });
+        .upsert({ proyecto_id, cliente_id, contacto_id: contacto_id ?? null }, { onConflict: "proyecto_id,cliente_id", ignoreDuplicates: false });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["proyectos"] }); },

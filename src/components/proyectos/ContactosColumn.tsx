@@ -34,7 +34,9 @@ export default function ContactosColumn({ proyecto, groupItems }: Props) {
     for (const pc of (p.proyecto_clientes || [])) {
       if (pc.clientes) {
         const catLabel = catLabelMap.get(pc.clientes.categoria_id) || "";
-        const display = catLabel ? `${pc.clientes.nombre} (${catLabel})` : pc.clientes.nombre;
+        const base = catLabel ? `${pc.clientes.nombre} (${catLabel})` : pc.clientes.nombre;
+        // Nota #24 (b): mostrar el contacto elegido junto al cliente.
+        const display = pc.contacto?.contacto ? `${base} · ${pc.contacto.contacto}` : base;
         linkedClientes.set(pc.clientes.id, display);
       } else if (pc.cliente_id) {
         linkedClientes.set(pc.cliente_id, "(cliente sin datos)");
@@ -126,6 +128,8 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
   // "add" — shows search + scrollable list (activated by pressing the button).
   const [mode, setMode] = useState<Mode>("view");
   const [search, setSearch] = useState("");
+  // Nota #24 (b): tras elegir un cliente se elige uno de sus contactos antes de vincular.
+  const [pickCliente, setPickCliente] = useState<any | null>(null);
 
   const label    = type === "cliente" ? "Cliente" : "Captador";
   const allItems = (type === "cliente" ? (clientes || []) : (captadores || [])) as any[];
@@ -154,9 +158,24 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
   const handleLink = (id: string) => {
     const pid = proyectoIds[0];
     if (!pid) return;
-    if (type === "cliente") linkCliente.mutate({ proyecto_id: pid, cliente_id: id });
-    else                    linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
+    if (type === "cliente") {
+      // Paso 2: elegir el contacto del cliente antes de vincular (nota #24 b).
+      const cli = allItems.find((c: any) => c.id === id);
+      setPickCliente(cli || { id, nombre: "", contactos_cliente: [] });
+      return;
+    }
+    linkCaptador.mutate({ proyecto_id: pid, captador_id: id });
     // Return to view after linking
+    setMode("view");
+    setSearch("");
+  };
+
+  // Confirma el vínculo cliente→proyecto con (o sin) un contacto específico.
+  const confirmarContacto = (contacto_id: string | null) => {
+    const pid = proyectoIds[0];
+    if (!pid || !pickCliente) return;
+    linkCliente.mutate({ proyecto_id: pid, cliente_id: pickCliente.id, contacto_id });
+    setPickCliente(null);
     setMode("view");
     setSearch("");
   };
@@ -236,7 +255,7 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
       </div>
 
       {/* ── VIEW mode: just the "Crear nuevo" button ──────────────────────── */}
-      {mode === "view" && (
+      {mode === "view" && !pickCliente && (
         <div className="p-2">
           <Button
             type="button"
@@ -252,7 +271,7 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
       )}
 
       {/* ── ADD mode: search + scrollable list + optional create ──────────── */}
-      {mode === "add" && (
+      {mode === "add" && !pickCliente && (
         <>
           {/* Search input */}
           <div className="p-2 border-b border-border">
@@ -307,6 +326,43 @@ function ContactoPopoverContent({ type, proyectoIds, linkedItems, onClose }: {
                 Crear "{search.trim()}"
               </Button>
             )}
+          </div>
+        </>
+      )}
+
+      {/* ── PICK-CONTACT mode: elegir el contacto del cliente (nota #24 b) ──── */}
+      {pickCliente && (
+        <>
+          <div className="p-2 border-b border-border">
+            <p className="text-xs font-semibold text-foreground">Contacto de {pickCliente.nombre}</p>
+            <p className="text-[10px] text-muted-foreground">Elige la persona de contacto para este proyecto</p>
+          </div>
+          <div className="max-h-[160px] overflow-y-auto">
+            {(pickCliente.contactos_cliente || []).length === 0 ? (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Este cliente no tiene contactos cargados.</div>
+            ) : (
+              (pickCliente.contactos_cliente || []).map((ct: any) => (
+                <button
+                  key={ct.id}
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+                  onClick={() => confirmarContacto(ct.id)}
+                >
+                  <div className="font-medium text-popover-foreground">{ct.contacto || "(sin nombre)"}</div>
+                  {(ct.email || ct.telefono) && (
+                    <div className="text-[10px] text-muted-foreground">{[ct.email, ct.telefono].filter(Boolean).join(" · ")}</div>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+          <div className="border-t border-border p-2 flex gap-1">
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setPickCliente(null)}>
+              Volver
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs flex-1" onClick={() => confirmarContacto(null)}>
+              Vincular sin contacto
+            </Button>
           </div>
         </>
       )}
