@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown, AtSign } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, CheckCircle2, Circle, Loader2, AlertTriangle, Clock, CalendarDays, GitBranch, RotateCcw, ArrowUpDown, X, Search as SearchIcon, Copy, Tags, Check, ChevronsUpDown, AtSign, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -48,7 +48,7 @@ import { parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-type FilterTab = "todas" | "activas" | "7dias" | "30dias" | "vencidas";
+type FilterTab = "todas" | "activas" | "7dias" | "30dias" | "vencidas" | "sin_alerta";
 type SortDir = "asc" | "desc";
 
 export default function Alertas() {
@@ -159,6 +159,26 @@ export default function Alertas() {
     });
     return Array.from(seen.values()).sort((a, b) => a.numero - b.numero);
   }, [proyectosRaw]);
+
+  // Proyectos sin NINGUNA alerta (ni a nivel proyecto ni por empresa). Se agrupa
+  // por nombre — como cada empresa es una fila de proyecto, el grupo está "sin
+  // alerta" solo si ninguna de sus filas aparece como proyecto_id de una alerta.
+  const proyectosSinAlerta = useMemo(() => {
+    if (!proyectosRaw) return [] as { nombre: string; numero: number; empresas: string[]; firstId: string }[];
+    const conAlerta = new Set<string>();
+    (alertas || []).forEach((a) => { if (a.proyecto_id) conAlerta.add(a.proyecto_id); });
+    const groups = new Map<string, { nombre: string; numero: number; empresas: Set<string>; hasAlerta: boolean; firstId: string }>();
+    proyectosRaw.forEach((p) => {
+      let g = groups.get(p.nombre);
+      if (!g) { g = { nombre: p.nombre, numero: p.numero, empresas: new Set(), hasAlerta: false, firstId: p.id }; groups.set(p.nombre, g); }
+      if (conAlerta.has(p.id)) g.hasAlerta = true;
+      (p.proyecto_empresas || []).forEach((pe: any) => { if (pe.empresas?.nombre) g.empresas.add(pe.empresas.nombre); });
+    });
+    return Array.from(groups.values())
+      .filter((g) => !g.hasAlerta)
+      .map((g) => ({ nombre: g.nombre, numero: g.numero, empresas: Array.from(g.empresas), firstId: g.firstId }))
+      .sort((a, b) => a.numero - b.numero);
+  }, [proyectosRaw, alertas]);
 
   const stats = useMemo(() => {
     if (!alertas) return { total: 0, activas: 0, prox7: 0, prox30: 0, vencidas: 0 };
@@ -372,12 +392,13 @@ export default function Alertas() {
       }
 
       {/* KPIs — clickable filters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <KpiCard title="Total Alertas" value={String(stats.total)} icon={Bell} variant="default" delay={0} onClick={() => setActiveTab("todas")} active={activeTab === "todas"} />
         <KpiCard title="Activas" value={String(stats.activas)} icon={Circle} variant="info" delay={0.05} onClick={() => setActiveTab("activas")} active={activeTab === "activas"} />
         <KpiCard title="Próx. 7 días" value={String(stats.prox7)} icon={Clock} variant="warning" delay={0.1} onClick={() => setActiveTab("7dias")} active={activeTab === "7dias"} />
         <KpiCard title="Próx. 30 días" value={String(stats.prox30)} icon={CalendarDays} variant="success" delay={0.15} onClick={() => setActiveTab("30dias")} active={activeTab === "30dias"} />
         <KpiCard title="Vencidas" value={String(stats.vencidas)} icon={AlertTriangle} variant="warning" delay={0.2} onClick={() => setActiveTab("vencidas")} active={activeTab === "vencidas"} />
+        <KpiCard title="Proyectos sin alerta" value={String(proyectosSinAlerta.length)} icon={FolderKanban} variant="default" delay={0.25} onClick={() => setActiveTab("sin_alerta")} active={activeTab === "sin_alerta"} />
       </div>
 
       {/* Search + Filters */}
@@ -546,6 +567,9 @@ export default function Alertas() {
       </div>
 
       {/* Table */}
+      {activeTab === "sin_alerta" ? (
+        <ProyectosSinAlertaView proyectos={proyectosSinAlerta} onGoToProyecto={(id) => saveFiltersAndNavigate(id)} />
+      ) : (
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -682,6 +706,7 @@ export default function Alertas() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Form Dialog */}
       <AlertaFormDialog
@@ -815,4 +840,42 @@ export default function Alertas() {
       </Dialog>
     </div>);
 
+}
+
+/* ── Proyectos sin alerta view (Central de alertas) ── */
+function ProyectosSinAlertaView({ proyectos, onGoToProyecto }: {
+  proyectos: { nombre: string; numero: number; empresas: string[]; firstId: string }[];
+  onGoToProyecto: (id: string) => void;
+}) {
+  return (
+    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-secondary/30">
+              <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider w-16">N°</th>
+              <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Proyecto</th>
+              <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresas</th>
+              <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {proyectos.length === 0 &&
+              <tr><td colSpan={4} className="text-center py-12 text-muted-foreground">Todos los proyectos tienen al menos una alerta 🎉</td></tr>
+            }
+            {proyectos.map((p) => (
+              <tr key={p.firstId} className="hover:bg-secondary/20 transition-colors">
+                <td className="px-5 py-3 text-muted-foreground">{p.numero}</td>
+                <td className="px-5 py-3 font-medium text-card-foreground">{p.nombre}</td>
+                <td className="px-5 py-3 text-muted-foreground">{p.empresas.length > 0 ? p.empresas.join(", ") : "—"}</td>
+                <td className="px-5 py-3 text-right">
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => onGoToProyecto(p.firstId)}>Ver proyecto</Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }

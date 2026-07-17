@@ -16,6 +16,7 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useEstadosProyecto } from "@/hooks/useEstadosProyecto";
 import { useEstadosAmc } from "@/hooks/useEstadosAmc";
+import { useProyectosConArchivos } from "@/hooks/useDriveSync";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { getNextClasificacion } from "@/lib/clasificacion-utils";
@@ -212,6 +213,7 @@ export default function Proyectos() {
   const { data: clasificaciones } = useClasificaciones();
   const { data: estadosProyecto } = useEstadosProyecto();
   const { data: estadosAmc } = useEstadosAmc();
+  const { data: proyectosConArchivos } = useProyectosConArchivos();
   const { data: clasificacionesAlerta } = useClasificacionesAlerta();
   const { data: unreadMentions = 0 } = useMyMentionsUnreadCount(user?.id);
   const createProyecto = useCreateProyecto();
@@ -716,6 +718,7 @@ export default function Proyectos() {
     let obrasEjecucion = 0;
     let proyectosEnConstruccion = 0;
     let proyectosCotizados = 0;
+    let paraCaptar = 0;
     const OBRAS_LABEL = "Obra/Ejecución";
     Object.values(groupsAll).forEach(g => {
       if (g.some(p => p.adjudicado)) adjudicados++;
@@ -728,7 +731,9 @@ export default function Proyectos() {
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
       }))) obrasEjecucion++;
-      if (g.some(p => ESTADOS_CONSTRUCCION.includes(p.estado_obra))) proyectosEnConstruccion++;
+      // "En construcción" excluye proyectos Descartados o Terminados (nota #15)
+      if (g.some(p => ESTADOS_CONSTRUCCION.includes(p.estado_obra) && p.estado_amc !== "Descartado" && p.estado_amc !== "Terminado")) proyectosEnConstruccion++;
+      if (g.some(p => p.estado_amc === "Para Captar")) paraCaptar++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         const eff = statusByPe.get(pe.id);
         const catId = eff?.categoria?.id || (pe as any).categoria_id || "";
@@ -738,7 +743,7 @@ export default function Proyectos() {
     });
     const filteredGroups = groupedRows.length;
     const hasActiveFilters = !!(search || filterEstados.length || filterEmpresas.length || filterCategorias.length || filterEstadosObra.length || filterClasificaciones.length || filterBotones.length);
-    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, proyectosCotizados, filteredGroups, hasActiveFilters };
+    return { totalProyectos, adjudicados, vigentes, ganados, obrasEjecucion, proyectosEnConstruccion, proyectosCotizados, paraCaptar, filteredGroups, hasActiveFilters };
   }, [proyectos, categorias, groupedRows, search, filterEstados, filterEmpresas, filterCategorias, filterEstadosObra, filterClasificaciones, filterBotones, statusByPe]);
 
   const toggleGroup = (key: string) => {
@@ -1266,6 +1271,35 @@ export default function Proyectos() {
             }
           }}
           active={filterEstadosObra.length === ESTADOS_CONSTRUCCION.length && ESTADOS_CONSTRUCCION.every(e => filterEstadosObra.includes(e))}
+          badge={
+            <button
+              type="button"
+              title="Ver proyectos Para Captar"
+              onClick={(e) => {
+                e.stopPropagation();
+                const isActive = filterEstados.length === 1 && filterEstados[0] === "Para Captar";
+                if (isActive) {
+                  setFilterEstados([]);
+                } else {
+                  setFilterEstados(["Para Captar"]);
+                  setFilterEstadosObra([]);
+                  setFilterEmpresas([]);
+                  setFilterCategorias([]);
+                  setFilterClasificaciones([]);
+                  setFilterBotones([]);
+                  setSearch("");
+                }
+              }}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                filterEstados.length === 1 && filterEstados[0] === "Para Captar"
+                  ? "bg-amber-500 text-white"
+                  : "bg-amber-100 text-amber-700 hover:bg-amber-200",
+              )}
+            >
+              🎈 Para Captar · {kpiStats.paraCaptar}
+            </button>
+          }
         />
         <KpiCard
           title="Proyectos Cotizados"
@@ -1469,8 +1503,8 @@ export default function Proyectos() {
                           >
                             <MessageCircle className="w-3.5 h-3.5 text-chart-effective fill-chart-effective" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Repositorio" onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
-                            <Folder className="w-3.5 h-3.5 text-amber-500" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title={items.some(p => proyectosConArchivos?.has(p.id)) ? "Repositorio (con archivos)" : "Repositorio"} onClick={(e) => { e.stopPropagation(); setRepositorioTarget({ id: first.id, name: first.nombre }); }}>
+                            <Folder className={cn("w-3.5 h-3.5 text-amber-500", items.some(p => proyectosConArchivos?.has(p.id)) && "fill-amber-500")} />
                           </Button>
                           {isAdmin && (
                             <span onClick={(e) => e.stopPropagation()}>

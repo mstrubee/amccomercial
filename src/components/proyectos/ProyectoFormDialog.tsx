@@ -573,7 +573,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   return (
     <>
       <Dialog open={open} onOpenChange={handleRequestClose}>
-        <DialogContent className="max-w-2xl max-h-[85vh] w-[calc(100vw-2rem)] p-0 flex flex-col overflow-hidden">
+        <DialogContent className="max-w-5xl max-h-[92vh] w-[calc(100vw-2rem)] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle>{mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}</DialogTitle>
           </DialogHeader>

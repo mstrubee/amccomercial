@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface KpiCardProps {
@@ -11,6 +12,8 @@ interface KpiCardProps {
   delay?: number;
   onClick?: () => void;
   active?: boolean;
+  /** Optional small element rendered below the subtitle (e.g. a clickable badge). */
+  badge?: ReactNode;
 }
 
 const variantStyles = {
@@ -34,7 +37,7 @@ const iconStyles = {
   warning: "bg-warning/10 text-warning",
 };
 
-export default function KpiCard({ title, value, subtitle, icon: Icon, variant = "default", delay = 0, onClick, active }: KpiCardProps) {
+export default function KpiCard({ title, value, subtitle, icon: Icon, variant = "default", delay = 0, onClick, active, badge }: KpiCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -53,6 +56,7 @@ export default function KpiCard({ title, value, subtitle, icon: Icon, variant = 
           <p className="text-sm text-muted-foreground font-medium">{title}</p>
           <p className="text-2xl font-bold tracking-tight text-card-foreground">{value}</p>
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          {badge && <div className="mt-1.5">{badge}</div>}
         </div>
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", iconStyles[variant])}>
           <Icon className="w-5 h-5" />

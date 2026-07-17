@@ -205,6 +205,26 @@ export function useDriveFiles(projectFolderId: string | null) {
   });
 }
 
+/**
+ * Set of project IDs that have at least one file in their Drive repository.
+ * Used to show a filled folder icon on the project list (nota #21).
+ */
+export function useProyectosConArchivos() {
+  return useQuery({
+    queryKey: ["proyectos_con_archivos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from(untypedTable("project_folders"))
+        .select("project_id, drive_files!inner(id)");
+      if (error) throw error;
+      const set = new Set<string>();
+      (data || []).forEach((r: any) => { if (r?.project_id) set.add(r.project_id); });
+      return set;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 export function useDeleteDriveFile() {
   const qc = useQueryClient();
   return useMutation({
