@@ -14,6 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
+      _fusion_clientes_20260717: {
+        Row: {
+          categoria_id: string | null
+          contacto: string | null
+          created_at: string | null
+          email: string | null
+          id: string | null
+          nombre: string | null
+          telefono: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          categoria_id?: string | null
+          contacto?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          nombre?: string | null
+          telefono?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          categoria_id?: string | null
+          contacto?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          nombre?: string | null
+          telefono?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _fusion_contactos_20260717: {
+        Row: {
+          cliente_id: string | null
+          contacto: string | null
+          created_at: string | null
+          email: string | null
+          id: string | null
+          orden: number | null
+          telefono: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          contacto?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          orden?: number | null
+          telefono?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          contacto?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          orden?: number | null
+          telefono?: string | null
+        }
+        Relationships: []
+      }
+      _fusion_map_20260717: {
+        Row: {
+          canonico_id: string | null
+          categoria_id: string | null
+          cliente_id: string | null
+          es_duplicado: boolean | null
+          nombre: string | null
+        }
+        Insert: {
+          canonico_id?: string | null
+          categoria_id?: string | null
+          cliente_id?: string | null
+          es_duplicado?: boolean | null
+          nombre?: string | null
+        }
+        Update: {
+          canonico_id?: string | null
+          categoria_id?: string | null
+          cliente_id?: string | null
+          es_duplicado?: boolean | null
+          nombre?: string | null
+        }
+        Relationships: []
+      }
+      _fusion_vinculos_20260717: {
+        Row: {
+          cliente_id: string | null
+          created_at: string | null
+          id: string | null
+          proyecto_id: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          proyecto_id?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          proyecto_id?: string | null
+        }
+        Relationships: []
+      }
+      _fusion_vinculos_insertados_20260717: {
+        Row: {
+          id: string | null
+        }
+        Insert: {
+          id?: string | null
+        }
+        Update: {
+          id?: string | null
+        }
+        Relationships: []
+      }
+      _recup_clientes_backup_20260717: {
+        Row: {
+          creado_at: string | null
+          ref_id: string | null
+          registro_id: string
+          tipo: string | null
+        }
+        Insert: {
+          creado_at?: string | null
+          ref_id?: string | null
+          registro_id?: string
+          tipo?: string | null
+        }
+        Update: {
+          creado_at?: string | null
+          ref_id?: string | null
+          registro_id?: string
+          tipo?: string | null
+        }
+        Relationships: []
+      }
       activity_log: {
         Row: {
           action: string
@@ -2045,6 +2186,24 @@ export type Database = {
         Returns: boolean
       }
       unaccent: { Args: { "": string }; Returns: string }
+      update_captador_full: {
+        Args: {
+          p_categoria_id: string
+          p_contactos: Json
+          p_id: string
+          p_nombre: string
+        }
+        Returns: undefined
+      }
+      update_cliente_full: {
+        Args: {
+          p_categoria_id: string
+          p_contactos: Json
+          p_id: string
+          p_nombre: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "usuario_tipo_1" | "usuario_tipo_2"
