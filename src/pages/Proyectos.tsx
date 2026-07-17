@@ -19,6 +19,7 @@ import { useEstadosAmc } from "@/hooks/useEstadosAmc";
 import { useAlertas, useCreateAlerta, useUpdateAlerta, useDeleteAlerta, useToggleAlertaCompletada, AlertaWithRelations } from "@/hooks/useAlertas";
 import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { getNextClasificacion } from "@/lib/clasificacion-utils";
+import { parseLocalDate } from "@/lib/date-utils";
 import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -1383,12 +1384,12 @@ export default function Proyectos() {
                       <td className="px-5 py-3">
                         <ContactosColumn proyecto={first} groupItems={items} />
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground text-xs">{(first as any).fecha_ingreso ? new Date((first as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
+                      <td className="px-5 py-3 text-muted-foreground text-xs">{(first as any).fecha_ingreso ? parseLocalDate((first as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{first.comuna}</td>
                       <td className="px-5 py-3 text-muted-foreground">
                         <div>{first.estado_obra}</div>
                         {first.fecha_estado_obra && (
-                          <div className="text-[10px] text-muted-foreground/70">{new Date(first.fecha_estado_obra).toLocaleDateString("es-CL")}</div>
+                          <div className="text-[10px] text-muted-foreground/70">{parseLocalDate(first.fecha_estado_obra).toLocaleDateString("es-CL")}</div>
                         )}
                       </td>
                       <td className="px-5 py-3">
@@ -2066,7 +2067,7 @@ const ProjectRow = memo(function ProjectRow({ p, displayNum, isEven, onView, onE
         <td className="px-5 py-3 text-muted-foreground">{displayNum}</td>
         <td className="px-5 py-3 font-medium text-card-foreground cursor-pointer hover:underline" onClick={() => onView(p)}>{p.nombre}</td>
         <td className="px-5 py-3"><ContactosColumn proyecto={p} /></td>
-        <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? new Date((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
+        <td className="px-5 py-3 text-muted-foreground text-xs">{(p as any).fecha_ingreso ? parseLocalDate((p as any).fecha_ingreso).toLocaleDateString("es-CL") : "—"}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.comuna}</td>
         <td className="px-5 py-3 text-muted-foreground">{p.estado_obra}</td>
         <td className="px-5 py-3">
@@ -2405,7 +2406,7 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
             </div>
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Estado Obra</p>
-              <p className="text-card-foreground">{viewTarget.estado_obra || "—"} {viewTarget.fecha_estado_obra ? `— ${new Date(viewTarget.fecha_estado_obra).toLocaleDateString("es-CL")}` : ""}</p>
+              <p className="text-card-foreground">{viewTarget.estado_obra || "—"} {viewTarget.fecha_estado_obra ? `— ${parseLocalDate(viewTarget.fecha_estado_obra).toLocaleDateString("es-CL")}` : ""}</p>
             </div>
           </div>
 

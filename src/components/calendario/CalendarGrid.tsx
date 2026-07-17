@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
-import { safeFormatDate } from "@/lib/date-utils";
+import { safeFormatDate, parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import type { CalendarEvent } from "@/hooks/useGoogleCalendar";
 
@@ -27,7 +27,9 @@ export default function CalendarGrid({ currentMonth, events, onDayClick, onEvent
     return events.filter((ev) => {
       const evDate = ev.start.dateTime || ev.start.date;
       if (!evDate) return false;
-      return isSameDay(new Date(evDate), day);
+      // All-day events carry a date-only string; parseLocalDate keeps it on the
+      // named day instead of shifting to the day before in negative-UTC zones.
+      return isSameDay(parseLocalDate(evDate), day);
     });
   };
 

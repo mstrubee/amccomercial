@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isMissingRpc } from "@/lib/utils";
 
 export interface ContactoCaptador {
   id: string;
@@ -88,10 +89,26 @@ export function useUpdateCaptador() {
       contactos: { id?: string; contacto: string; email: string; telefono: string }[];
     }) => {
       const { id, categoria_id, nombre, contactos } = input;
+
+      // Atomic path (RPC single transaction); falls back to the legacy sequence
+      // if the RPC isn't deployed yet. The legacy delete previously ignored its
+      // error, so a silent delete failure duplicated contacts and a failed
+      // insert after a successful delete wiped them — both fixed by the RPC.
+      const { error: rpcErr } = await supabase.rpc("update_captador_full" as any, {
+        p_id: id,
+        p_categoria_id: categoria_id,
+        p_nombre: nombre,
+        p_contactos: contactos,
+      });
+      if (!rpcErr) return;
+      if (!isMissingRpc(rpcErr)) throw rpcErr;
+
+      // Fallback: RPC not present yet (pre-migration).
       const { error } = await supabase.from("captadores" as any).update({ categoria_id, nombre }).eq("id", id);
       if (error) throw error;
 
-      await supabase.from("contactos_captador" as any).delete().eq("captador_id", id);
+      const { error: delErr } = await supabase.from("contactos_captador" as any).delete().eq("captador_id", id);
+      if (delErr) throw delErr;
       if (contactos.length > 0) {
         const rows = contactos.map((c, i) => ({
           captador_id: id,

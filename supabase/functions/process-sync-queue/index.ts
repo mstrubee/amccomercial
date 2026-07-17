@@ -60,6 +60,34 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Auth: this function runs with service_role and previously had NO auth at
+    // all (verify_jwt=false), leaving privileged queue processing open to the
+    // internet. Require either an authenticated user (the app invokes it with
+    // the user's JWT) or a valid cron secret for scheduled runs.
+    const cronSecret = req.headers.get("x-cron-secret");
+    const expectedCronSecret = Deno.env.get("SYNC_QUEUE_CRON_SECRET");
+    let authorized = false;
+    if (expectedCronSecret && cronSecret === expectedCronSecret) {
+      authorized = true;
+    } else {
+      const authHeader = req.headers.get("Authorization");
+      if (authHeader?.startsWith("Bearer ")) {
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user) authorized = true;
+      }
+    }
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // Get pending items

@@ -231,6 +231,7 @@ export async function importTemplateFromExcel(
     isNew: boolean;
   };
   const pendings: Pending[] = [];
+  let idMatchCount = 0; // rows matched by the hidden __row_id (not by numbering)
 
   for (let i = 1; i < aoa.length; i++) {
     const line = aoa[i];
@@ -242,6 +243,7 @@ export async function importTemplateFromExcel(
     let matchedId: string | null = null;
     if (rowIdRaw && existingRowIds.has(rowIdRaw)) {
       matchedId = rowIdRaw;
+      idMatchCount += 1;
     } else if (numRaw && numberingToExistingId.has(numRaw)) {
       matchedId = numberingToExistingId.get(numRaw)!;
     }
@@ -253,6 +255,19 @@ export async function importTemplateFromExcel(
       numbering: numRaw,
       isNew: !matchedId,
     });
+  }
+
+  // Guard against importing a file that belongs to a *different* template.
+  // The numbering fallback (1, 1.1, …) collides across templates, so a mismatched
+  // file would match rows by number and then Pass 3 would permanently delete
+  // every unmatched row of THIS template. Exports always carry __row_id, so a
+  // legitimate export→edit→import always yields at least one id match. If this
+  // template already has rows and none of them are referenced by id, refuse.
+  if (existingRowIds.size > 0 && idMatchCount === 0) {
+    throw new Error(
+      "El archivo no corresponde a esta plantilla: ningún identificador de fila coincide. " +
+        "Exporta esta misma plantilla, edítala y vuelve a importarla.",
+    );
   }
 
   // Si hay numeración disponible, derivar parent por prefijo (ej "1.2.3" -> padre "1.2").

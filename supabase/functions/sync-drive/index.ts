@@ -575,6 +575,23 @@ Deno.serve(async (req) => {
     if (action === "delete_folder") {
       if (!reqDriveFolderId) throw new Error("drive_folder_id is required");
 
+      // Destructive: permanently deletes a Drive folder + its DB rows. Restrict
+      // to admins (any authenticated user could otherwise wipe arbitrary
+      // folders). Non-destructive actions (sync/reverse_sync) stay open to
+      // authenticated users so the automatic reconciliation keeps working.
+      const serviceRoleKeyForAuth = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const adminAuth = createClient(supabaseUrl, serviceRoleKeyForAuth);
+      const { data: callerRoles } = await adminAuth
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      if (!callerRoles?.some((r) => r.role === "admin")) {
+        return new Response(JSON.stringify({ error: "Solo administradores pueden eliminar carpetas" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const accessToken = await getAccessToken();
 
       // Delete folder from Drive (and all its contents)

@@ -487,11 +487,13 @@ export default function HitosEjecucionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit column */}
-      <EditColumnDialog col={editCol} onClose={() => setEditCol(null)} />
+      {/* Edit column — `key` remounts the dialog per column so its useState
+          seeds fresh from `col`; without it the state kept the first mount's
+          defaults (e.g. tipo="texto") and Guardar silently downgraded the column. */}
+      <EditColumnDialog key={editCol?.id ?? "none"} col={editCol} onClose={() => setEditCol(null)} />
 
       {/* Options dialog */}
-      <OptionsDialog col={optionsCol} onClose={() => setOptionsCol(null)} />
+      <OptionsDialog key={optionsCol?.id ?? "none"} col={optionsCol} onClose={() => setOptionsCol(null)} />
     </div>
   );
 }

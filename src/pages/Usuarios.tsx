@@ -776,14 +776,24 @@ function CaptadorLinkDialog({
   const available = captadores.filter(c => !c.user_id || c.user_id === user.id);
 
   const handleSave = async () => {
+    // No-op when the selection is unchanged. Previously the code unlinked the
+    // current captador first and only re-linked when selectedId !== linked.id,
+    // so pressing "Guardar" without changing anything left the user unlinked
+    // while still reporting success.
+    if (selectedId === (linked?.id || "")) {
+      onClose();
+      return;
+    }
     setSaving(true);
     try {
-      // Unlink previous if any
+      // Unlink the previous captador (if any) before linking the new one, so a
+      // UNIQUE(user_id) constraint can't reject the re-link mid-way.
       if (linked) {
-        await supabase.from("captadores" as any).update({ user_id: null }).eq("id", linked.id);
+        const { error } = await supabase.from("captadores" as any).update({ user_id: null }).eq("id", linked.id);
+        if (error) throw error;
       }
-      // Link new if selected
-      if (selectedId && selectedId !== linked?.id) {
+      // Link the newly selected captador (empty selection = just unlink).
+      if (selectedId) {
         const { error } = await supabase
           .from("captadores" as any)
           .update({ user_id: user.id })

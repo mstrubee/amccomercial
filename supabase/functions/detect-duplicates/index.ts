@@ -174,6 +174,8 @@ ${JSON.stringify(chunk, null, 2)}`;
     }
 
     // If not dry run, soft-delete the duplicates
+    let deleteErrors = 0;
+    let deletedCount = 0;
     if (!dryRun && duplicatesToDelete.length > 0) {
       const idsToDelete = duplicatesToDelete.map(d => d.id);
       // Process in batches of 50
@@ -183,7 +185,12 @@ ${JSON.stringify(chunk, null, 2)}`;
           .from("alertas")
           .update({ deleted: true, deleted_at: new Date().toISOString() })
           .in("id", batch);
-        if (error) console.error("Delete batch error:", error);
+        if (error) {
+          console.error("Delete batch error:", error);
+          deleteErrors++;
+        } else {
+          deletedCount += batch.length;
+        }
       }
     }
 
@@ -191,7 +198,11 @@ ${JSON.stringify(chunk, null, 2)}`;
       total_alertas: allAlertas.length,
       duplicates_found: duplicatesToDelete.length,
       duplicates: duplicatesToDelete,
-      applied: !dryRun,
+      // Report success only when every batch actually applied — previously a
+      // failed batch was swallowed and the caller still saw applied:true.
+      applied: !dryRun && deleteErrors === 0,
+      deleted_count: deletedCount,
+      delete_errors: deleteErrors,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

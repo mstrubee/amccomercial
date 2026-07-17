@@ -70,7 +70,8 @@ serve(async (req) => {
       if (createError) throw createError;
 
       if (role && newUser.user) {
-        await supabaseAdmin.from("user_roles").insert({ user_id: newUser.user.id, role });
+        const { error: roleErr } = await supabaseAdmin.from("user_roles").insert({ user_id: newUser.user.id, role });
+        if (roleErr) throw roleErr;
       }
 
       return new Response(JSON.stringify({ id: newUser.user?.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -94,9 +95,13 @@ serve(async (req) => {
       }
 
       if (role !== undefined) {
-        await supabaseAdmin.from("user_roles").delete().eq("user_id", user_id);
+        const { error: delRoleErr } = await supabaseAdmin.from("user_roles").delete().eq("user_id", user_id);
+        if (delRoleErr) throw delRoleErr;
         if (role) {
-          await supabaseAdmin.from("user_roles").insert({ user_id, role });
+          // If this insert fails after the delete succeeded, the user would be
+          // left with NO role. Surface the error instead of reporting success.
+          const { error: insRoleErr } = await supabaseAdmin.from("user_roles").insert({ user_id, role });
+          if (insRoleErr) throw insRoleErr;
         }
       }
 

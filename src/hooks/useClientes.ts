@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isMissingRpc } from "@/lib/utils";
 
 export interface CategoriaCliente {
   id: string;
@@ -151,6 +152,21 @@ export function useUpdateCliente() {
       contactos: { id?: string; contacto: string; email: string; telefono: string }[];
     }) => {
       const { id, categoria_id, nombre, contactos } = input;
+
+      // Atomic path: update + replace contactos in a single transaction (RPC),
+      // so a failed insert after the delete can't wipe the contacts. Falls back
+      // to the legacy sequence if the RPC isn't deployed yet, so the frontend
+      // can ship independently of the migration.
+      const { error: rpcErr } = await supabase.rpc("update_cliente_full" as any, {
+        p_id: id,
+        p_categoria_id: categoria_id,
+        p_nombre: nombre,
+        p_contactos: contactos,
+      });
+      if (!rpcErr) return;
+      if (!isMissingRpc(rpcErr)) throw rpcErr;
+
+      // Fallback: RPC not present yet (pre-migration).
       const { error } = await supabase.from("clientes").update({ categoria_id, nombre }).eq("id", id);
       if (error) throw error;
 

@@ -6,6 +6,7 @@ import { useCategorias } from "@/hooks/useCategorias";
 import { useClasificaciones } from "@/hooks/useClasificaciones";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { REGIONES_CHILE } from "@/data/chile-geo";
+import { todayLocalISO } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -987,7 +988,7 @@ export default function CargaMasiva() {
           {
             p_existing_proj_id:  existingProj?.id ?? null,
             p_nombre:            safeStr(d["Nombre Proyecto"]),
-            p_fecha_ingreso:     fechaIngreso || new Date().toISOString().split("T")[0],
+            p_fecha_ingreso:     fechaIngreso || todayLocalISO(),
             p_clasificacion_id:  clasificacion_id,
             p_estado_obra:       safeStr(d["Estado Obra"]),
             p_fecha_estado_obra: (fechaEstado && fechaEstado !== "null") ? fechaEstado : null,
@@ -1920,7 +1921,20 @@ function parseDateValue(val: string | number | undefined): string | null {
   }
   const s = String(val).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  // Accept d/m/yyyy (Chilean) and also 2-digit years (e.g. "7/16/26").
+  const m = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2}|\d{4})$/);
+  if (m) {
+    let day = parseInt(m[1], 10);
+    let month = parseInt(m[2], 10);
+    // Rescue US-formatted values (m/d/yyyy) that Excel-in-English produces:
+    // if the first field can't be a day but the second can, swap them instead
+    // of emitting an invalid "yyyy-31-12" that later crashes the RPC.
+    if (month > 12 && day <= 12) {
+      [day, month] = [month, day];
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const year = m[3].length === 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
   return null;
 }

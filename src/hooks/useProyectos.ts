@@ -163,11 +163,15 @@ export function useUpdateProyecto() {
         .eq("id", id);
       if (error) throw error;
 
-      // Get current links to find which to remove
-      const { data: currentLinks } = await supabase
+      // Get current links to find which to remove. Verify the error: if this
+      // SELECT silently fails, `toRemove` stays empty and empresas the user
+      // removed are never deleted — yet the mutation still reports success and
+      // the removed empresa reappears on the next refetch.
+      const { data: currentLinks, error: currentErr } = await supabase
         .from("proyecto_empresas")
         .select("empresa_id")
         .eq("proyecto_id", id);
+      if (currentErr) throw currentErr;
 
       const newEmpresaIds = new Set(empresa_links.map((el) => el.empresa_id));
       const toRemove = (currentLinks || [])

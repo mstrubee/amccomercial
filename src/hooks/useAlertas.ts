@@ -254,18 +254,26 @@ export function useUpdateAlerta() {
       if (!user) throw new Error("No autenticado");
       const { id, parent_alerta_id, clasificaciones, clasificacion_alerta_id, subclasificacion_alerta_id, categoria_proyecto_id, subcategoria_proyecto_id, ...rest } = input;
 
-      const firstClasif = clasificaciones?.[0];
+      const updatePayload: Record<string, unknown> = { ...rest, updated_by: user.id };
+
+      // Only write the classification/category columns when the caller actually
+      // provided them. A partial update — e.g. onUncomplete sending just a new
+      // fecha_seguimiento — must NOT null out the alert's existing clasificación
+      // and categoría. The form always sends these fields, so its behavior is
+      // unchanged.
+      if (clasificaciones !== undefined || clasificacion_alerta_id !== undefined || subclasificacion_alerta_id !== undefined) {
+        const firstClasif = clasificaciones?.[0];
+        updatePayload.clasificacion_alerta_id = firstClasif?.clasificacion_id || clasificacion_alerta_id || null;
+        updatePayload.subclasificacion_alerta_id = firstClasif?.subclasificacion_id || subclasificacion_alerta_id || null;
+      }
+      if (categoria_proyecto_id !== undefined || subcategoria_proyecto_id !== undefined) {
+        updatePayload.categoria_proyecto_id = categoria_proyecto_id || null;
+        updatePayload.subcategoria_proyecto_id = subcategoria_proyecto_id || null;
+      }
 
       const { error } = await supabase
         .from("alertas")
-        .update({
-          ...rest,
-          updated_by: user.id,
-          clasificacion_alerta_id: firstClasif?.clasificacion_id || clasificacion_alerta_id || null,
-          subclasificacion_alerta_id: firstClasif?.subclasificacion_id || subclasificacion_alerta_id || null,
-          categoria_proyecto_id: categoria_proyecto_id || null,
-          subcategoria_proyecto_id: subcategoria_proyecto_id || null,
-        } as any)
+        .update(updatePayload as any)
         .eq("id", id);
       if (error) throw error;
 

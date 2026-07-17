@@ -333,8 +333,11 @@ function CaptadoresTab({ categorias, captadores, canEdit, canDelete, isAdmin, on
         )}
       </div>
 
-      {/* Captador detail dialog (reusing same pattern as cliente) */}
-      <CaptadorDetailDialog open={!!detailTarget} onOpenChange={(v) => !v && setDetailTarget(null)} captador={detailTarget} canEdit={canEdit} canDelete={canDelete} />
+      {/* Captador detail dialog (reusing same pattern as cliente).
+          `key` remounts per captador so its form state seeds from the right
+          record — the dialog is always mounted, so without it the state stayed
+          on the first (null) mount and showed "Sin contactos"/stale data. */}
+      <CaptadorDetailDialog key={detailTarget?.id ?? "none"} open={!!detailTarget} onOpenChange={(v) => !v && setDetailTarget(null)} captador={detailTarget} canEdit={canEdit} canDelete={canDelete} />
 
       <ClienteFormDialog open={showForm} onOpenChange={setShowForm} categorias={categorias} isLoading={createPending} onSubmit={(data) => { onCreate(data).then(() => setShowForm(false)); }} entityLabel="Captador" hideCategoryPicker />
 
@@ -464,7 +467,14 @@ function CaptadorDetailDialog({ open, onOpenChange, captador, canEdit, canDelete
     setEditing(false);
   };
 
-  useState(() => { if (captador) resetForm(); });
+  // Seed the form from `captador` on mount. The parent remounts this dialog via
+  // `key` per captador, so this runs once with the correct record. (Previously
+  // this was a useState initializer, which never re-ran when `captador` changed
+  // from null to a real record, leaving nombre/contactos empty.)
+  useEffect(() => {
+    if (captador) resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!captador) return null;
 
@@ -552,6 +562,14 @@ function ClienteFormDialog({ open, onOpenChange, categorias, isLoading, onSubmit
     setNombre("");
     setContactos([{ contacto: "", email: "", telefono: "" }]);
   };
+
+  // Reset on open. This dialog is mounted permanently by the parent, so Radix
+  // never fires onOpenChange(true) and a reset placed there would keep the
+  // previous entry's values on the next "Nuevo".
+  useEffect(() => {
+    if (open) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (v) reset(); onOpenChange(v); }}>

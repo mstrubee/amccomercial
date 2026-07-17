@@ -15,6 +15,7 @@ import {
   CondicionRow,
 } from "@/hooks/useEmpresas";
 import { formatCLP } from "@/data/mock-data";
+import { parseLocalDate } from "@/lib/date-utils";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import CondicionFormDialog from "@/components/empresas/CondicionFormDialog";
 import EditCondicionDialog from "@/components/empresas/EditCondicionDialog";
@@ -106,7 +107,7 @@ export default function Empresas() {
                   <div className="min-w-0">
                     <h3 className="font-semibold text-card-foreground truncate">{empresa.nombre}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Desde {new Date(empresa.fecha_inicio_relacion).toLocaleDateString("es-CL")}
+                      Desde {parseLocalDate(empresa.fecha_inicio_relacion).toLocaleDateString("es-CL")}
                       {condicionActual && (
                         <> · Fee: {formatCLP(condicionActual.fee_fijo_mensual)} · Comisión: {condicionActual.esquema_comision}%</>
                       )}
@@ -171,7 +172,7 @@ export default function Empresas() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-muted-foreground">
-                                    Desde {new Date(cc.fecha_vigencia).toLocaleDateString("es-CL")}
+                                    Desde {parseLocalDate(cc.fecha_vigencia).toLocaleDateString("es-CL")}
                                   </span>
                                   {isCurrent && (
                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success font-medium">

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { todayLocalISO } from "@/lib/date-utils";
 import MontoInput from "./MontoInput";
 
 interface EmpresaFormData {
@@ -31,11 +32,31 @@ interface Props {
 export default function EmpresaFormDialog({ open, onOpenChange, onSubmit, isLoading, initialData, mode }: Props) {
   const [nombre, setNombre] = useState(initialData?.nombre || "");
   const [estado, setEstado] = useState(initialData?.estado || "Activa");
-  const [fechaInicio, setFechaInicio] = useState(initialData?.fecha_inicio_relacion || new Date().toISOString().split("T")[0]);
+  const [fechaInicio, setFechaInicio] = useState(initialData?.fecha_inicio_relacion || todayLocalISO());
   const [fee, setFee] = useState(0);
   const [comision, setComision] = useState(0);
   const [comisionDisplay, setComisionDisplay] = useState("");
   const [descripcion, setDescripcion] = useState("");
+
+  // Reset the form whenever the dialog opens. The `create` instance is mounted
+  // permanently (open toggled by the parent), so Radix never fires
+  // onOpenChange(true) and a reset placed there would never run — leaving the
+  // previous entry's values in the fields on the next "Nueva Empresa".
+  useEffect(() => {
+    if (open) {
+      setNombre(initialData?.nombre || "");
+      setEstado(initialData?.estado || "Activa");
+      setFechaInicio(initialData?.fecha_inicio_relacion || todayLocalISO());
+      setFee(0);
+      setComision(0);
+      setComisionDisplay("");
+      setDescripcion("");
+    }
+    // Intentionally keyed on `open` only: initialData is an inline object from
+    // the parent (new identity each render); depending on it would reset the
+    // form mid-edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,15 +72,6 @@ export default function EmpresaFormDialog({ open, onOpenChange, onSubmit, isLoad
   };
 
   const handleOpenChange = (val: boolean) => {
-    if (val) {
-      setNombre(initialData?.nombre || "");
-      setEstado(initialData?.estado || "Activa");
-      setFechaInicio(initialData?.fecha_inicio_relacion || new Date().toISOString().split("T")[0]);
-      setFee(0);
-      setComision(0);
-      setComisionDisplay("");
-      setDescripcion("");
-    }
     onOpenChange(val);
   };
 
