@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { todayLocalISO } from "@/lib/date-utils";
 import MontoInput from "./MontoInput";
 
 interface Props {
@@ -17,7 +18,7 @@ export default function CondicionFormDialog({ open, onOpenChange, onSubmit, isLo
   const [fee, setFee] = useState(0);
   const [comision, setComision] = useState(0);
   const [comisionDisplay, setComisionDisplay] = useState("");
-  const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [fecha, setFecha] = useState(todayLocalISO());
   const [descripcion, setDescripcion] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -30,7 +31,7 @@ export default function CondicionFormDialog({ open, onOpenChange, onSubmit, isLo
       setFee(0);
       setComision(0);
       setComisionDisplay("");
-      setFecha(new Date().toISOString().split("T")[0]);
+      setFecha(todayLocalISO());
       setDescripcion("");
     }
     onOpenChange(val);

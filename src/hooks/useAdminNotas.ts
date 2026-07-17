@@ -107,6 +107,7 @@ export function useEliminarNota() {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success("Nota movida a papelera");
     },
+    onError: () => toast.error("Error al mover la nota a papelera"),
   });
 }
 
@@ -121,6 +122,7 @@ export function useRestaurarNota() {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success("Nota restaurada");
     },
+    onError: () => toast.error("Error al restaurar la nota"),
   });
 }
 
@@ -135,6 +137,7 @@ export function usePurgarNota() {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success("Nota eliminada permanentemente");
     },
+    onError: () => toast.error("Error al eliminar la nota"),
   });
 }
 

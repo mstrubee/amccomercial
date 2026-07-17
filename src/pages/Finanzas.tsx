@@ -4,6 +4,7 @@ import { TrendingUp, DollarSign, BarChart3, Loader2 } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useEmpresas } from "@/hooks/useEmpresas";
+import { VALOR_UF } from "@/data/mock-data";
 import {
   BarChart,
   Bar,
@@ -52,11 +53,14 @@ export default function Finanzas() {
       });
     });
 
-    // Fees mensuales from active empresas (latest condicion)
+    // Fees mensuales from active empresas (latest condicion).
+    // fee_fijo_mensual is stored in CLP (see MontoInput), but this whole page
+    // reports and charts in UF, so convert before aggregating — otherwise the
+    // KPI and the chart bar mix CLP magnitudes into a UF axis.
     const activeEmpresas = empresas.filter((e) => e.estado === "Activa");
     const feesTotal = activeEmpresas.reduce((sum, e) => {
       const cc = e.condiciones_comerciales?.[e.condiciones_comerciales.length - 1];
-      return sum + (cc?.fee_fijo_mensual || 0);
+      return sum + (cc?.fee_fijo_mensual || 0) / VALOR_UF;
     }, 0);
 
     // Chart data per empresa
@@ -82,7 +86,7 @@ export default function Finanzas() {
 
       return {
         nombre: e.nombre.split(" ").slice(0, 2).join(" "),
-        fee: cc?.fee_fijo_mensual || 0,
+        fee: (cc?.fee_fijo_mensual || 0) / VALOR_UF, // CLP → UF (chart axis is UF)
         efectiva,
         potencial,
       };

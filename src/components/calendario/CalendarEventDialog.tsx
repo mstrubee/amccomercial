@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Trash2 } from "lucide-react";
 import type { CalendarEvent } from "@/hooks/useGoogleCalendar";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
+import { toast } from "sonner";
 
 interface Props {
   open: boolean;
@@ -36,12 +38,14 @@ export default function CalendarEventDialog({ open, onOpenChange, event, selecte
       const s = event.start.dateTime || event.start.date || "";
       const e = event.end.dateTime || event.end.date || "";
       if (s) {
-        const sd = new Date(s);
+        // All-day events carry a date-only string; parseLocalDate avoids the
+        // UTC off-by-one that would load (and later re-save) the previous day.
+        const sd = parseLocalDate(s);
         setStartDate(format(sd, "yyyy-MM-dd"));
         setStartTime(format(sd, "HH:mm"));
       }
       if (e) {
-        const ed = new Date(e);
+        const ed = parseLocalDate(e);
         setEndDate(format(ed, "yyyy-MM-dd"));
         setEndTime(format(ed, "HH:mm"));
       }
@@ -58,12 +62,25 @@ export default function CalendarEventDialog({ open, onOpenChange, event, selecte
 
   const handleSave = () => {
     if (!summary.trim()) return;
+    // Guard the date fields: a type=date input can be left empty, and
+    // `new Date("T09:00:00")` is Invalid Date whose .toISOString() throws
+    // RangeError, killing the save silently.
+    if (!startDate || !endDate) {
+      toast.error("Ingresa la fecha de inicio y de fin");
+      return;
+    }
+    const startISO = new Date(`${startDate}T${startTime || "00:00"}:00`);
+    const endISO = new Date(`${endDate}T${endTime || "00:00"}:00`);
+    if (isNaN(startISO.getTime()) || isNaN(endISO.getTime())) {
+      toast.error("Fecha u hora inválida");
+      return;
+    }
 
     const eventData = {
       summary: summary.trim(),
       description: description.trim(),
-      start: { dateTime: new Date(`${startDate}T${startTime}:00`).toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-      end: { dateTime: new Date(`${endDate}T${endTime}:00`).toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      start: { dateTime: startISO.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      end: { dateTime: endISO.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
     };
 
     if (isEditing && event) {

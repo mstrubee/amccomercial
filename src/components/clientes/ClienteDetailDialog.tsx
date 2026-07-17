@@ -67,6 +67,11 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
     if (hasComplemented.current === cliente.id) return;
     hasComplemented.current = cliente.id;
 
+    // If the dialog switches to another client (or closes) before this async
+    // complement resolves, the cleanup flips `cancelled` so its result is never
+    // applied to the now-current client's form.
+    let cancelled = false;
+
     const catNombre = categorias.find(c => c.id === cliente.categoria_id)?.nombre || "";
     const currentContactos = (cliente.contactos_cliente || []).map(c => ({
       contacto: c.contacto,
@@ -75,9 +80,9 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
     }));
 
     complementClienteFromProyectos(cliente.id, cliente.nombre, catNombre, currentContactos).then(async merged => {
-      // Only apply if the user hasn't started editing yet.
-      // If editing is already active, don't overwrite their changes.
-      if (!merged || editingRef.current) return;
+      // Only apply if the user hasn't started editing yet and the dialog is
+      // still showing this same client.
+      if (cancelled || !merged || editingRef.current) return;
 
       // 1. Update form state immediately so the user sees the data.
       setContactos(merged.map((c, i) => ({
@@ -116,12 +121,18 @@ export default function ClienteDetailDialog({ open, onOpenChange, cliente, categ
           dbChanged = true;
         }
       }
-      if (dbChanged) {
+      if (dbChanged && !cancelled) {
         // Refresh the clientes query so the persisted data is reflected in the
         // cache; `editingRef.current` is false here so resetForm() won't fire.
         qc.invalidateQueries({ queryKey: ["clientes"] });
       }
+    }).catch((err) => {
+      // The promise previously had no rejection handler — a failed complement
+      // surfaced as an unhandled rejection.
+      console.error("[ClienteDetail] complement failed:", err);
     });
+
+    return () => { cancelled = true; };
   }, [open, cliente, categorias]);
 
   const resetForm = () => {

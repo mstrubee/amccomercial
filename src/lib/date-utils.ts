@@ -15,7 +15,15 @@ export function safeFormatDate(
   fallback = "—",
 ): string {
   if (value == null || value === "") return fallback;
-  const d = value instanceof Date ? value : new Date(value);
+  // A date-only string ("YYYY-MM-DD") is parsed by `new Date()` as UTC midnight,
+  // which renders as the previous day in negative-UTC timezones (e.g. Chile).
+  // Route those through parseLocalDate so the calendar day is preserved.
+  const d =
+    value instanceof Date
+      ? value
+      : typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? parseLocalDate(value)
+        : new Date(value);
   if (isNaN(d.getTime())) return fallback;
   return format(d, fmt, options);
 }
