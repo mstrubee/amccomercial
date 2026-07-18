@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2, Copy, Building2, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Shield, UserCheck, Clock, Link2, Link2Off, Settings2, Copy, Building2, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { useUserPermissions, useSavePermissions, ALL_SECTIONS, ALL_DASHBOARD_WIDGETS } from "@/hooks/usePermissions";
 import DelegacionesDialog from "@/components/usuarios/DelegacionesDialog";
 import ActivityThresholdsDialog from "@/components/usuarios/ActivityThresholdsDialog";
+import IntegracionIADialog from "@/components/usuarios/IntegracionIADialog";
 import { useActivityThresholds, getActivityStatus, type ProfilePresence } from "@/hooks/useActivityThresholds";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showRoleLabels, setShowRoleLabels] = useState(false);
+  const [showIntegracionIA, setShowIntegracionIA] = useState(false);
   const [roleLabels, setRoleLabels] = useState<Record<string, string>>(ROLE_LABELS_DEFAULT);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
@@ -146,6 +148,9 @@ export default function Usuarios() {
           <p className="text-muted-foreground mt-1">Gestión de acceso al sistema</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowIntegracionIA(true)}>
+            <Sparkles className="w-3.5 h-3.5" /> Integración IA
+          </Button>
           <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setShowRoleLabels(true)}>
             <Settings2 className="w-3.5 h-3.5" /> Nombres de roles
           </Button>
@@ -293,6 +298,11 @@ export default function Usuarios() {
         onOpenChange={setShowRoleLabels}
         current={roleLabels}
         onSaved={(updated) => setRoleLabels(prev => ({ ...prev, ...updated }))}
+      />
+
+      <IntegracionIADialog
+        open={showIntegracionIA}
+        onOpenChange={setShowIntegracionIA}
       />
 
       <AlertDialog open={!!deleteUser} onOpenChange={(v) => !v && setDeleteUser(null)}>

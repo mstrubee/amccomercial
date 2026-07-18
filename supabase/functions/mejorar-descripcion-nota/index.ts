@@ -18,9 +18,6 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
@@ -49,18 +46,20 @@ serve(async (req) => {
       });
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `Eres un asistente que transforma descripciones informales de un problema de software (escritas por un usuario no técnico) en un prompt claro y accionable, listo para entregarle a un agente de IA que programa y arregla el código.
+    const { data: keyRow, error: keyError } = await supabaseAdmin
+      .from("ai_provider_keys")
+      .select("api_key")
+      .eq("provider", "gemini")
+      .maybeSingle();
+    if (keyError) throw keyError;
+    const geminiKey = keyRow?.api_key;
+    if (!geminiKey) {
+      return new Response(JSON.stringify({ error: "No hay una clave de Gemini configurada. Ve a Usuarios > Integración IA para configurarla." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const systemInstruction = `Eres un asistente que transforma descripciones informales de un problema de software (escritas por un usuario no técnico) en un prompt claro y accionable, listo para entregarle a un agente de IA que programa y arregla el código.
 
 Reglas:
 - Responde en español.
@@ -68,31 +67,38 @@ Reglas:
 - No inventes detalles técnicos, nombres de archivos, ni causas que el usuario no haya mencionado — solo reformula y clarifica lo que ya está en el texto.
 - Si el texto es ambiguo, mantenlo general en vez de suponer.
 - Sé conciso: unas pocas frases, no un ensayo.
-- Devuelve SOLO el texto del prompt reformulado, sin comillas, sin encabezados, sin explicaciones adicionales.`,
-          },
-          { role: "user", content: descripcion.trim() },
-        ],
-      }),
-    });
+- Devuelve SOLO el texto del prompt reformulado, sin comillas, sin encabezados, sin explicaciones adicionales.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: "user", parts: [{ text: descripcion.trim() }] }],
+        }),
+      },
+    );
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
+      console.error("Gemini API error:", response.status, errText);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de solicitudes excedido." }), {
+        return new Response(JSON.stringify({ error: "Límite de solicitudes de Gemini excedido." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (response.status === 400 || response.status === 403) {
+        return new Response(JSON.stringify({ error: "La clave de Gemini es inválida o no tiene permisos." }), {
+          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error("AI gateway error: " + response.status);
+      throw new Error("Gemini API error: " + response.status);
     }
 
     const data = await response.json();
-    const result = (data.choices?.[0]?.message?.content ?? "").trim();
+    const result = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
     if (!result) throw new Error("No content in AI response");
 
     return new Response(JSON.stringify({ result }), {
