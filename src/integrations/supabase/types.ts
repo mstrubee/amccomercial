@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      _dedup_contactos_backup_20260717: {
+        Row: {
+          cliente_id: string | null
+          contacto: string | null
+          created_at: string | null
+          email: string | null
+          id: string | null
+          orden: number | null
+          telefono: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          contacto?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          orden?: number | null
+          telefono?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          contacto?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          orden?: number | null
+          telefono?: string | null
+        }
+        Relationships: []
+      }
+      _dedup_contactos_map_20260717: {
+        Row: {
+          canonico_id: string | null
+          contacto_id: string | null
+        }
+        Insert: {
+          canonico_id?: string | null
+          contacto_id?: string | null
+        }
+        Update: {
+          canonico_id?: string | null
+          contacto_id?: string | null
+        }
+        Relationships: []
+      }
+      _dedup_vinculos_backup_20260717: {
+        Row: {
+          contacto_id: string | null
+          id: string | null
+        }
+        Insert: {
+          contacto_id?: string | null
+          id?: string | null
+        }
+        Update: {
+          contacto_id?: string | null
+          id?: string | null
+        }
+        Relationships: []
+      }
       _fusion_clientes_20260717: {
         Row: {
           categoria_id: string | null
@@ -1692,18 +1752,21 @@ export type Database = {
       proyecto_clientes: {
         Row: {
           cliente_id: string
+          contacto_id: string | null
           created_at: string
           id: string
           proyecto_id: string
         }
         Insert: {
           cliente_id: string
+          contacto_id?: string | null
           created_at?: string
           id?: string
           proyecto_id: string
         }
         Update: {
           cliente_id?: string
+          contacto_id?: string | null
           created_at?: string
           id?: string
           proyecto_id?: string
@@ -1714,6 +1777,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proyecto_clientes_contacto_id_fkey"
+            columns: ["contacto_id"]
+            isOneToOne: false
+            referencedRelation: "contactos_cliente"
             referencedColumns: ["id"]
           },
           {
