@@ -46,16 +46,10 @@ serve(async (req) => {
       });
     }
 
-    const { data: keyRow, error: keyError } = await supabaseAdmin
-      .from("ai_provider_keys")
-      .select("api_key")
-      .eq("provider", "gemini")
-      .maybeSingle();
-    if (keyError) throw keyError;
-    const geminiKey = keyRow?.api_key;
-    if (!geminiKey) {
-      return new Response(JSON.stringify({ error: "No hay una clave de Gemini configurada. Ve a Usuarios > Integración IA para configurarla." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableKey) {
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY no configurada." }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -69,36 +63,39 @@ Reglas:
 - Sé conciso: unas pocas frases, no un ensayo.
 - Devuelve SOLO el texto del prompt reformulado, sin comillas, sin encabezados, sin explicaciones adicionales.`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents: [{ role: "user", parts: [{ text: descripcion.trim() }] }],
-        }),
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${lovableKey}`,
       },
-    );
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: descripcion.trim() },
+        ],
+      }),
+    });
 
     if (!response.ok) {
       const errText = await response.text();
       console.error("Gemini API error:", response.status, errText);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de solicitudes de Gemini excedido." }), {
+        return new Response(JSON.stringify({ error: "Límite de solicitudes excedido. Intenta más tarde." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 400 || response.status === 403) {
-        return new Response(JSON.stringify({ error: "La clave de Gemini es inválida o no tiene permisos." }), {
-          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Créditos de IA agotados en el workspace." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error("Gemini API error: " + response.status);
+      throw new Error("AI Gateway error: " + response.status);
     }
 
     const data = await response.json();
-    const result = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+    const result = (data.choices?.[0]?.message?.content ?? "").trim();
     if (!result) throw new Error("No content in AI response");
 
     return new Response(JSON.stringify({ result }), {
