@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Upload, Loader2, MapPin } from "lucide-react";
+import { X, Upload, Loader2, MapPin, Sparkles, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AdminNota, Prioridad, EstadoNota,
@@ -13,6 +13,7 @@ import {
   useCrearNota, useActualizarNota, subirImagenNota,
 } from "@/hooks/useAdminNotas";
 import { ElementoCapturado } from "@/contexts/NotasModoContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface Props {
@@ -62,7 +63,34 @@ export default function NotaDialog({ open, onOpenChange, nota, elementoInicial, 
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [mejorando, setMejorando] = useState(false);
+  const [previoContenido, setPrevioContenido] = useState<string | null>(null);
+
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleMejorarIA = async () => {
+    if (!form.contenido.trim()) { toast.error("Escribe una descripción primero"); return; }
+    setMejorando(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mejorar-descripcion-nota", {
+        body: { descripcion: form.contenido },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPrevioContenido(form.contenido);
+      set("contenido", data.result);
+    } catch {
+      toast.error("No se pudo mejorar la descripción");
+    } finally {
+      setMejorando(false);
+    }
+  };
+
+  const handleDeshacer = () => {
+    if (previoContenido === null) return;
+    set("contenido", previoContenido);
+    setPrevioContenido(null);
+  };
 
   const handleImages = async (files: FileList) => {
     setUploading(true);
@@ -123,7 +151,21 @@ export default function NotaDialog({ open, onOpenChange, nota, elementoInicial, 
           </div>
 
           <div>
-            <Label>Descripción</Label>
+            <div className="flex items-center justify-between">
+              <Label>Descripción</Label>
+              <div className="flex items-center gap-1">
+                {previoContenido !== null && (
+                  <Button type="button" variant="ghost" size="sm" onClick={handleDeshacer} className="h-7 gap-1 text-xs text-muted-foreground">
+                    <Undo2 className="w-3.5 h-3.5" />
+                    Deshacer
+                  </Button>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={handleMejorarIA} disabled={mejorando} className="h-7 gap-1.5 text-xs">
+                  {mejorando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {mejorando ? "Mejorando..." : "Mejorar con IA"}
+                </Button>
+              </div>
+            </div>
             <Textarea value={form.contenido} onChange={(e) => set("contenido", e.target.value)} placeholder="Detalla el problema o mejora..." className="mt-1 min-h-[100px]" />
           </div>
 
