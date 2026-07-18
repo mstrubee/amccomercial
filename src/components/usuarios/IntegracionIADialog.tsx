@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { extractEdgeFunctionError } from "@/lib/edge-function-error";
 import { toast } from "sonner";
 
 interface Props {
@@ -23,8 +24,8 @@ export default function IntegracionIADialog({ open, onOpenChange }: Props) {
     setLoading(true);
     setShowKey(false);
     supabase.functions.invoke("manage-ai-provider-keys", { body: { action: "get", provider: "gemini" } })
-      .then(({ data, error }) => {
-        if (error) { toast.error("Error al cargar la configuración"); return; }
+      .then(async ({ data, error }) => {
+        if (error) { toast.error(await extractEdgeFunctionError(error, "Error al cargar la configuración")); return; }
         setApiKey(data?.apiKey || "");
       })
       .finally(() => setLoading(false));
@@ -34,15 +35,14 @@ export default function IntegracionIADialog({ open, onOpenChange }: Props) {
     if (!apiKey.trim()) { toast.error("Ingresa una clave"); return; }
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-ai-provider-keys", {
+      const { error } = await supabase.functions.invoke("manage-ai-provider-keys", {
         body: { action: "save", provider: "gemini", apiKey },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       toast.success("Clave de Gemini guardada");
       onOpenChange(false);
-    } catch {
-      toast.error("Error al guardar la clave");
+    } catch (err) {
+      toast.error(await extractEdgeFunctionError(err, "Error al guardar la clave"));
     } finally {
       setSaving(false);
     }

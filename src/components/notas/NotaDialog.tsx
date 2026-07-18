@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useAdminNotas";
 import { ElementoCapturado } from "@/contexts/NotasModoContext";
 import { supabase } from "@/integrations/supabase/client";
+import { extractEdgeFunctionError } from "@/lib/edge-function-error";
 import { toast } from "sonner";
 
 interface Props {
@@ -76,11 +77,10 @@ export default function NotaDialog({ open, onOpenChange, nota, elementoInicial, 
         body: { descripcion: form.contenido },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       setPrevioContenido(form.contenido);
       set("contenido", data.result);
-    } catch {
-      toast.error("No se pudo mejorar la descripción");
+    } catch (err) {
+      toast.error(await extractEdgeFunctionError(err, "No se pudo mejorar la descripción"));
     } finally {
       setMejorando(false);
     }
