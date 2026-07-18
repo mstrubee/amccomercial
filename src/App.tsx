@@ -145,7 +145,7 @@ function AppRoutes() {
           {isAdmin && <Route path="/notas" element={<AdminNotas />} />}
           {(isAdmin || isUsuarioTipo1 || isCaptador) && <Route path="/clientes" element={<Clientes />} />}
           {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
-          {canAccessSection("calendario") && <Route path="/calendario" element={<Calendario />} />}
+          <Route path="/calendario" element={<Calendario />} />
           {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}
           
           <Route path="*" element={<NotFound />} />
