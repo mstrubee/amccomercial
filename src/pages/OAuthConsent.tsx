@@ -18,6 +18,7 @@ export default function OAuthConsent() {
   const [details, setDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -34,7 +35,8 @@ export default function OAuthConsent() {
         } catch {
           /* ignore */
         }
-        return setError("Debes iniciar sesión en AMC antes de aprobar la conexión.");
+        setNeedsLogin(true);
+        return;
       }
       const { data, error } = await oauthApi.getAuthorizationDetails(authorizationId);
       if (!active) return;
@@ -68,12 +70,34 @@ export default function OAuthConsent() {
     window.location.href = target;
   }
 
+  if (needsLogin) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="max-w-md w-full bg-card border border-border rounded-xl p-6 space-y-4">
+          <h1 className="text-lg font-semibold text-foreground">Autorización</h1>
+          <p className="text-sm text-muted-foreground">
+            Debes iniciar sesión en AMC antes de aprobar la conexión. Te llevaremos de vuelta aquí al terminar.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={() => { window.location.href = "/"; }}>
+              Iniciar sesión
+            </Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
   if (error) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
         <div className="max-w-md w-full bg-card border border-border rounded-xl p-6 space-y-3">
           <h1 className="text-lg font-semibold text-foreground">Autorización</h1>
           <p className="text-sm text-muted-foreground">{error}</p>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => { window.location.href = "/"; }}>
+              Volver a AMC
+            </Button>
+          </div>
         </div>
       </main>
     );

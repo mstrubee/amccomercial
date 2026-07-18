@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -97,6 +97,19 @@ function AppRoutes() {
   const location = useLocation();
   usePresenceHeartbeat(user?.id);
 
+  // Consume any pending post-login redirect (e.g. saved by OAuthConsent
+  // when a signed-out user hit /.lovable/oauth/consent).
+  useEffect(() => {
+    if (!user) return;
+    let target: string | null = null;
+    try { target = sessionStorage.getItem("amc_post_login_redirect"); } catch { /* ignore */ }
+    if (!target) return;
+    try { sessionStorage.removeItem("amc_post_login_redirect"); } catch { /* ignore */ }
+    if (target.startsWith("/") && target !== location.pathname + location.search) {
+      window.location.replace(target);
+    }
+  }, [user, location.pathname, location.search]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -145,7 +158,7 @@ function AppRoutes() {
           {isAdmin && <Route path="/notas" element={<AdminNotas />} />}
           {(isAdmin || isUsuarioTipo1 || isCaptador) && <Route path="/clientes" element={<Clientes />} />}
           {isAdmin && <Route path="/reporteria" element={<Reporteria />} />}
-          {canAccessSection("calendario") && <Route path="/calendario" element={<Calendario />} />}
+          <Route path="/calendario" element={<Calendario />} />
           {(isAdmin || isUsuarioTipo1) && <Route path="/atencion-empresas" element={<ReunionesPage />} />}
           
           <Route path="*" element={<NotFound />} />

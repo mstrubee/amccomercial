@@ -69,7 +69,7 @@ export default function AppLayout({ children, isAdmin, isUsuarioTipo1, isCaptado
   ];
 
   const navItems = canAccessSection
-    ? allNavItems.filter(item => canAccessSection(item.key))
+    ? allNavItems.filter(item => item.key === "calendario" || canAccessSection(item.key))
     : allNavItems;
 
   const allAdminSubItems: { path: string; label: string; allowTipo1: boolean; icon: LucideIcon }[] = [
