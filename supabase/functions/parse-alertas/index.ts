@@ -45,8 +45,20 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // Read the admin-configured Gemini API key (service role bypasses RLS).
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: keyRow, error: keyError } = await supabaseAdmin
+      .from("ai_provider_keys").select("api_key").eq("provider", "gemini").maybeSingle();
+    if (keyError) throw keyError;
+    const geminiKey = keyRow?.api_key;
+    if (!geminiKey) {
+      return new Response(JSON.stringify({ error: "No hay una clave de Gemini configurada. Ve a Usuarios > Integración IA para configurarla." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const systemPrompt = `Eres un asistente que extrae alertas/notas individuales de un texto corrido de seguimiento comercial.
 
@@ -54,76 +66,54 @@ REGLAS:
 - Cada entrada generalmente comienza con una fecha en formato DD/MM, DD-MM, "DD mes" (ej: "30 ene", "23-1", "19/01", "12 sept").
 - Separa cada entrada individual por su fecha.
 - IMPORTANTE: Si hay fragmentos de texto que NO comienzan con una fecha (ej: "AM TERRENO ?", texto suelto al inicio o final), inclúyelos también como entradas con fecha null. Estos son "notas sin fecha".
-- Devuelve un array JSON de objetos con: { "fecha": "YYYY-MM-DD" o null, "texto": "contenido corregido de la nota" }
 - Para determinar el año: Enero y Febrero son 2026. Todos los demás meses son 2025. Si el texto indica explícitamente otro año (ej: "7-12-23", "15/8/06"), respétalo (2023, 2006, etc.).
 - CORRECCIÓN ORTOGRÁFICA: Corrige errores de tipeo y faltas ortográficas en el texto de cada nota. Ejemplos: "proyectandpo" → "proyectando", "esxcribi" → "escribí", "acyualizado" → "actualizado", "qe" → "que", "ppto" puede mantenerse como abreviatura, "seg." puede mantenerse. Agrega tildes donde corresponda.
 - Limpia espacios extra.
 - No inventes contenido, solo separa y corrige lo que existe.
-- Si hay múltiples entradas en una misma línea separadas por "/" o similar, sepáralas solo si tienen fechas distintas.`;
+- Si hay múltiples entradas en una misma línea separadas por "/" o similar, sepáralas solo si tienen fechas distintas.
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+FORMATO DE SALIDA: Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma exacta, sin markdown ni texto adicional:
+{"alertas":[{"fecha":"YYYY-MM-DD" o null,"texto":"contenido corregido de la nota"}]}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: `Extrae las alertas del siguiente texto:\n\n${texto}` }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
       },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Extrae las alertas del siguiente texto:\n\n${texto}` },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "return_alertas",
-            description: "Return parsed alertas from text",
-            parameters: {
-              type: "object",
-              properties: {
-                alertas: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      fecha: { type: "string", description: "YYYY-MM-DD or null" },
-                      texto: { type: "string", description: "Alert content text" },
-                    },
-                    required: ["fecha", "texto"],
-                    additionalProperties: false,
-                  },
-                },
-              },
-              required: ["alertas"],
-              additionalProperties: false,
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "return_alertas" } },
-      }),
-    });
+    );
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
+      console.error("Gemini API error:", response.status, errText);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de solicitudes excedido, intenta más tarde." }), {
+        return new Response(JSON.stringify({ error: "Límite de solicitudes de Gemini excedido, intenta más tarde." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (response.status === 400 || response.status === 403) {
+        return new Response(JSON.stringify({ error: "La clave de Gemini es inválida o no tiene permisos." }), {
+          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error("AI gateway error: " + response.status);
+      throw new Error("Gemini API error: " + response.status);
     }
 
     const aiData = await response.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in response");
-
-    const parsed = JSON.parse(toolCall.function.arguments);
+    const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      const match = content.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON in AI response");
+      parsed = JSON.parse(match[0]);
+    }
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

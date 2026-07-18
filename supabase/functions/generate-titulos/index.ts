@@ -18,9 +18,6 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
@@ -44,6 +41,17 @@ serve(async (req) => {
 
     const supabase = supabaseAdmin;
 
+    // Read the admin-configured Gemini API key (service role bypasses RLS).
+    const { data: keyRow, error: keyError } = await supabaseAdmin
+      .from("ai_provider_keys").select("api_key").eq("provider", "gemini").maybeSingle();
+    if (keyError) throw keyError;
+    const geminiKey = keyRow?.api_key;
+    if (!geminiKey) {
+      return new Response(JSON.stringify({ error: "No hay una clave de Gemini configurada. Ve a Usuarios > Integración IA para configurarla." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { batchSize = 20 } = await req.json().catch(() => ({}));
 
     // Fetch alerts with generic title "Seguimiento"
@@ -64,18 +72,7 @@ serve(async (req) => {
     // Build prompt with all texts
     const items = alertas.map((a, i) => `[${i}] ${a.texto}`).join("\n");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `Eres un asistente que genera títulos breves (máximo 5 palabras) para notas de seguimiento comercial.
+    const systemPrompt = `Eres un asistente que genera títulos breves (máximo 5 palabras) para notas de seguimiento comercial.
 Los títulos deben ser descriptivos y concisos, reflejando la acción principal. Ejemplos:
 - "WhatsApp a María José" → "Seguimiento WhatsApp"
 - "Se envía presupuesto actualizado Tecma" → "Envío presupuesto Tecma"
@@ -84,65 +81,51 @@ Los títulos deben ser descriptivos y concisos, reflejando la acción principal.
 - "Retomé con Claudia" → "Retomar contacto Claudia"
 - "Se traspasa a Tecma" → "Traspaso a Tecma"
 
-NO uses "Seguimiento" como título genérico. Sé específico.`,
-          },
-          {
-            role: "user",
-            content: `Genera un título breve para cada una de estas notas. Devuelve los resultados usando la función.\n\n${items}`,
-          },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "return_titulos",
-            description: "Return generated titles for each alert",
-            parameters: {
-              type: "object",
-              properties: {
-                titulos: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      index: { type: "number", description: "Index of the alert" },
-                      titulo: { type: "string", description: "Brief title (max 5 words)" },
-                    },
-                    required: ["index", "titulo"],
-                    additionalProperties: false,
-                  },
-                },
-              },
-              required: ["titulos"],
-              additionalProperties: false,
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "return_titulos" } },
-      }),
-    });
+NO uses "Seguimiento" como título genérico. Sé específico.
+
+FORMATO DE SALIDA: Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma exacta, sin markdown ni texto adicional. "index" es el número entre corchetes de cada nota:
+{"titulos":[{"index":0,"titulo":"..."}]}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: `Genera un título breve para cada una de estas notas.\n\n${items}` }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+      },
+    );
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
+      console.error("Gemini API error:", response.status, errText);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Límite de solicitudes excedido." }), {
+        return new Response(JSON.stringify({ error: "Límite de solicitudes de Gemini excedido." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (response.status === 400 || response.status === 403) {
+        return new Response(JSON.stringify({ error: "La clave de Gemini es inválida o no tiene permisos." }), {
+          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error("AI gateway error: " + response.status);
+      throw new Error("Gemini API error: " + response.status);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in response");
-
-    const parsed = JSON.parse(toolCall.function.arguments);
-    const titulos: { index: number; titulo: string }[] = parsed.titulos || [];
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    let parsedResult: { titulos?: { index: number; titulo: string }[] };
+    try {
+      parsedResult = JSON.parse(content);
+    } catch {
+      const match = content.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON in AI response");
+      parsedResult = JSON.parse(match[0]);
+    }
+    const titulos: { index: number; titulo: string }[] = parsedResult.titulos || [];
 
     // Update each alert with its generated title
     let updated = 0;

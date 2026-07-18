@@ -39,8 +39,16 @@ serve(async (req) => {
       });
     }
 
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
+    // Read the admin-configured Gemini API key (service role bypasses RLS).
+    const { data: keyRow, error: keyError } = await supabaseAdmin
+      .from("ai_provider_keys").select("api_key").eq("provider", "gemini").maybeSingle();
+    if (keyError) throw keyError;
+    const geminiKey = keyRow?.api_key;
+    if (!geminiKey) {
+      return new Response(JSON.stringify({ error: "No hay una clave de Gemini configurada. Ve a Usuarios > Integración IA para configurarla." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabase = supabaseAdmin;
     const { dryRun = true } = await req.json().catch(() => ({}));
@@ -112,20 +120,18 @@ IMPORTANTE:
 Alertas:
 ${JSON.stringify(chunk, null, 2)}`;
 
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${lovableKey}`,
-            "Content-Type": "application/json",
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: "Eres un analista de datos. Respondes SOLO con JSON válido, sin markdown ni explicaciones adicionales." }] },
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: "application/json" },
+            }),
           },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: "Eres un analista de datos. Respondes SOLO con JSON válido, sin markdown ni explicaciones adicionales." },
-              { role: "user", content: prompt },
-            ],
-          }),
-        });
+        );
 
         if (!response.ok) {
           if (response.status === 429) {
@@ -133,12 +139,12 @@ ${JSON.stringify(chunk, null, 2)}`;
             await new Promise(r => setTimeout(r, 10000));
             continue;
           }
-          console.error("AI error:", response.status, await response.text());
+          console.error("Gemini API error:", response.status, await response.text());
           continue;
         }
 
         const result = await response.json();
-        const content = result.choices?.[0]?.message?.content || "";
+        const content = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         // Extract JSON from response
         let parsed: any[] = [];
