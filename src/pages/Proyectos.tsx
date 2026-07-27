@@ -168,6 +168,7 @@ interface CascadeCtx {
   filterCaptadores: string[];
   visibleNames: Set<string> | null | undefined;
   statusByPe: Map<string, any>;
+  currentStatusByGroup: Map<string, Map<string, { peId: string; catId: string; subId: string }>>;
 }
 
 /** Evalúa si `p` pasa TODOS los filtros activos excepto el indicado en `skip`. */
@@ -176,7 +177,7 @@ function matchAllExcept(p: ProyectoWithEmpresas, skip: string, ctx: CascadeCtx):
     searchLower, searchIndex,
     filterEstados, filterEstadosObra, filterEmpresas, filterCategorias,
     filterClasificaciones, filterBotones, filterCaptadores,
-    visibleNames, statusByPe,
+    visibleNames, currentStatusByGroup,
   } = ctx;
 
   if (skip !== "search" && searchLower) {
@@ -184,22 +185,22 @@ function matchAllExcept(p: ProyectoWithEmpresas, skip: string, ctx: CascadeCtx):
   }
   if (skip !== "estados" && filterEstados.length > 0 && !filterEstados.includes(p.estado_amc)) return false;
   if (skip !== "estadoObra" && filterEstadosObra.length > 0 && !filterEstadosObra.includes(p.estado_obra)) return false;
-  // Empresa + Estatus deben cumplirse en la MISMA fila proyecto-empresa (ver
-  // nota en `filtered`). Cuando ambos filtros están activos (y no se están
-  // saltando), se exige que un mismo `pe` cumpla los dos.
+  // Empresa + Estatus se evalúan contra el estatus VIGENTE de cada empresa del
+  // grupo (ver nota en `filtered`). Cuando ambos filtros están activos (y no se
+  // están saltando), se exige que una MISMA empresa cumpla los dos.
   const empresaActive = skip !== "empresa" && filterEmpresas.length > 0;
   const categoriaActive = skip !== "categoria" && filterCategorias.length > 0;
   if (empresaActive || categoriaActive) {
-    const ok = (p.proyecto_empresas || []).some((pe: any) => {
-      if (empresaActive && !filterEmpresas.includes(pe.empresa_id)) return false;
-      if (categoriaActive) {
-        const eff = statusByPe.get(pe.id);
-        const catId = eff?.categoria?.id || pe.categoria_id || "";
-        const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
-        if (!(filterCategorias.includes(catId) || filterCategorias.includes(subId))) return false;
+    const empMap = currentStatusByGroup.get(p.nombre.trim().toLowerCase());
+    let ok = false;
+    if (empMap) {
+      for (const [empId, st] of empMap) {
+        if (empresaActive && !filterEmpresas.includes(empId)) continue;
+        if (categoriaActive && !(filterCategorias.includes(st.catId) || filterCategorias.includes(st.subId))) continue;
+        ok = true;
+        break;
       }
-      return true;
-    });
+    }
     if (!ok) return false;
   }
   if (skip !== "clasificacion" && filterClasificaciones.length > 0 && !filterClasificaciones.includes(p.clasificacion_id || "")) return false;
@@ -547,27 +548,69 @@ export default function Proyectos() {
     return visible;
   }, [proyectos, filterCaptadores]);
 
+  // Estatus VIGENTE por (grupo, empresa). Una "línea madre" agrupa varias filas
+  // de proyecto con el mismo nombre; la misma empresa puede aparecer en varias
+  // de ellas con estatus distintos. El vigente es el de la fila con fecha más
+  // reciente. Se usa tanto para mostrar el badge como para filtrar, de modo que
+  // el resultado no dependa de qué fila sobrevivió al filtro.
+  const currentStatusByGroup = useMemo(() => {
+    type Cur = { peId: string; catId: string; subId: string };
+    const best = new Map<string, Map<string, Cur & { fecha: string }>>();
+    for (const p of (proyectos || [])) {
+      const key = p.nombre.trim().toLowerCase();
+      let g = best.get(key);
+      if (!g) { g = new Map(); best.set(key, g); }
+      for (const pe of (p.proyecto_empresas || [])) {
+        if (!pe.empresa_id) continue;
+        const eff = statusByPe.get(pe.id);
+        const fecha = eff?.fecha || "";
+        const existing = g.get(pe.empresa_id);
+        if (existing && fecha <= existing.fecha) continue;
+        g.set(pe.empresa_id, {
+          peId: pe.id,
+          catId: eff?.categoria?.id || pe.categoria_id || "",
+          subId: eff?.subcategoria?.id || pe.subcategoria_id || "",
+          fecha,
+        });
+      }
+    }
+    const result = new Map<string, Map<string, Cur>>();
+    for (const [key, g] of best) {
+      const m = new Map<string, Cur>();
+      for (const [empId, v] of g) m.set(empId, { peId: v.peId, catId: v.catId, subId: v.subId });
+      result.set(key, m);
+    }
+    return result;
+  }, [proyectos, statusByPe]);
+
+  // Nombres de grupo (línea madre) que califican para el filtro empresa+estatus,
+  // evaluado contra el estatus VIGENTE de cada empresa. Ambos filtros deben
+  // cumplirse en la MISMA empresa. Todas las filas del grupo pasan juntas.
+  const visibleGroupNamesByEmpresaEstatus = useMemo(() => {
+    if (filterEmpresas.length === 0 && filterCategorias.length === 0) return null;
+    const visible = new Set<string>();
+    for (const [key, empMap] of currentStatusByGroup) {
+      for (const [empId, st] of empMap) {
+        if (filterEmpresas.length > 0 && !filterEmpresas.includes(empId)) continue;
+        if (filterCategorias.length > 0 && !(filterCategorias.includes(st.catId) || filterCategorias.includes(st.subId))) continue;
+        visible.add(key);
+        break;
+      }
+    }
+    return visible;
+  }, [currentStatusByGroup, filterEmpresas, filterCategorias]);
+
   const filtered = useMemo(() => (proyectos || []).filter((p) => {
     const searchLower = deferredSearch.trim().toLowerCase();
     const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
     const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
     const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
-    // Empresa + Estatus (x Empresa) deben cumplirse en la MISMA fila proyecto-empresa.
-    // Evaluarlos como dos .some() independientes dejaba pasar un proyecto cuando una
-    // empresa cumplía el filtro de empresa y OTRA empresa distinta cumplía el de
-    // estatus, mostrando el estatus equivocado para la empresa filtrada.
-    const empresaFilterActive = filterEmpresas.length > 0;
-    const categoriaFilterActive = filterCategorias.length > 0;
-    const matchEmpresaCategoria =
-      (!empresaFilterActive && !categoriaFilterActive) ||
-      (p.proyecto_empresas || []).some((pe) => {
-        if (empresaFilterActive && !filterEmpresas.includes(pe.empresa_id)) return false;
-        if (!categoriaFilterActive) return true;
-        const eff = statusByPe.get(pe.id);
-        const catId = eff?.categoria?.id || pe.categoria_id || "";
-        const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
-        return filterCategorias.includes(catId) || filterCategorias.includes(subId);
-      });
+    // Empresa + Estatus (x Empresa): se evalúa a nivel de grupo contra el estatus
+    // VIGENTE de cada empresa (ver visibleGroupNamesByEmpresaEstatus). Todas las
+    // filas de un grupo que califica pasan juntas.
+    const matchEmpresaEstatus =
+      (filterEmpresas.length === 0 && filterCategorias.length === 0) ||
+      (visibleGroupNamesByEmpresaEstatus?.has(p.nombre.trim().toLowerCase()) ?? false);
     const matchClasificacion =
       filterClasificaciones.length === 0 || filterClasificaciones.includes(p.clasificacion_id || "");
     const matchBoton = filterBotones.length === 0 || p.proyecto_empresas?.some((pe) => {
@@ -576,8 +619,8 @@ export default function Proyectos() {
     // matchCaptador: uses pre-computed set — all rows of a visible project pass together
     const matchCaptador = filterCaptadores.length === 0 ||
       (visibleProyectoNamesByCaptador?.has(p.nombre.trim().toLowerCase()) ?? false);
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresaCategoria && matchClasificacion && matchBoton && matchCaptador;
-  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresaEstatus && matchClasificacion && matchBoton && matchCaptador;
+  }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, visibleGroupNamesByEmpresaEstatus, buttonLabelsByLink, statusByPe]);
 
   // ── Contexto para filtros en cascada ──────────────────────────────────────
   const cascadeCtx = useMemo((): CascadeCtx => ({
@@ -585,9 +628,10 @@ export default function Proyectos() {
     searchIndex: projectSearchIndex, filterEstados, filterEstadosObra,
     filterEmpresas, filterCategorias, filterClasificaciones, filterBotones,
     filterCaptadores, visibleNames: visibleProyectoNamesByCaptador, statusByPe,
+    currentStatusByGroup,
   }), [deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra,
       filterEmpresas, filterCategorias, filterClasificaciones, filterBotones,
-      filterCaptadores, visibleProyectoNamesByCaptador, statusByPe]);
+      filterCaptadores, visibleProyectoNamesByCaptador, statusByPe, currentStatusByGroup]);
 
   // Opciones disponibles para cada filtro (solo las que existen dado el resto de filtros activos)
   // Incluye siempre los valores ya seleccionados para que el usuario pueda deseleccionarlos.
@@ -607,11 +651,17 @@ export default function Proyectos() {
     const set = new Set(filterEmpresas);
     (proyectos || []).forEach(p => {
       if (matchAllExcept(p, "empresa", cascadeCtx)) {
-        (p.proyecto_empresas || []).forEach((pe: any) => set.add(pe.empresa_id));
+        // Ofrecer solo empresas cuyo estatus VIGENTE cumpla el filtro de estatus
+        // activo (consistente con el filtrado real, que usa el estatus vigente).
+        const empMap = currentStatusByGroup.get(p.nombre.trim().toLowerCase());
+        if (empMap) for (const [empId, st] of empMap) {
+          if (filterCategorias.length > 0 && !(filterCategorias.includes(st.catId) || filterCategorias.includes(st.subId))) continue;
+          set.add(empId);
+        }
       }
     });
     return set;
-  }, [proyectos, cascadeCtx, filterEmpresas]);
+  }, [proyectos, cascadeCtx, filterEmpresas, filterCategorias, currentStatusByGroup]);
 
   const availableClasificacionesSet = useMemo(() => {
     const set = new Set(filterClasificaciones);
@@ -633,17 +683,18 @@ export default function Proyectos() {
     const set = new Set(filterCategorias);
     (proyectos || []).forEach(p => {
       if (matchAllExcept(p, "categoria", cascadeCtx)) {
-        (p.proyecto_empresas || []).forEach((pe: any) => {
-          const eff = statusByPe.get(pe.id);
-          const catId = eff?.categoria?.id || pe.categoria_id;
-          const subId = eff?.subcategoria?.id || pe.subcategoria_id;
-          if (catId) set.add(catId);
-          if (subId) set.add(subId);
-        });
+        // Ofrecer solo estatus vigentes de empresas que además cumplan el
+        // filtro de empresa activo (misma empresa para ambos filtros).
+        const empMap = currentStatusByGroup.get(p.nombre.trim().toLowerCase());
+        if (empMap) for (const [empId, st] of empMap) {
+          if (filterEmpresas.length > 0 && !filterEmpresas.includes(empId)) continue;
+          if (st.catId) set.add(st.catId);
+          if (st.subId) set.add(st.subId);
+        }
       }
     });
     return set;
-  }, [proyectos, cascadeCtx, filterCategorias, statusByPe]);
+  }, [proyectos, cascadeCtx, filterCategorias, filterEmpresas, currentStatusByGroup]);
 
   // Full (unfiltered) group sizes — used to keep parent-line rendering even when filter reduces items to 1
   const fullGroupSizes = useMemo(() => {
@@ -1449,7 +1500,7 @@ export default function Proyectos() {
                         <StatusBadge status={first.estado_amc} color={(estadosAmc || []).find(ea => ea.nombre === first.estado_amc)?.color} />
                       </td>
                       <td className="px-5 py-3">
-                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} />
+                        <GroupEmpresasCell items={items} filterEmpresas={filterEmpresas} ventasMap={ventasMap} statusByPe={statusByPe} currentByEmpresa={currentStatusByGroup.get(key)} />
                       </td>
                       <td className="px-5 py-3"></td>
                       <td className="px-5 py-3 text-right">
@@ -1593,7 +1644,7 @@ export default function Proyectos() {
                                   <AlertasCollapsible alertas={childAlertas} allAlertas={alertas} onEdit={(a) => setAlertaEditTarget(a)} onDelete={(id) => setAlertaDeleteTarget(id)} onComplete={(a) => setAlertaCompleteTarget(a)} onShowTree={handleShowTree} onCreateDependent={(a) => setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id })} />
                                 </td>
                                 <td className="px-5 py-2 align-top">
-                                  <EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} statusByPe={statusByPe} />
+                                  <EmpresasCell proyectoEmpresas={[pe]} ventasMap={ventasMap} statusByPe={statusByPe} currentByEmpresa={currentStatusByGroup.get(key)} />
                                 </td>
                                 <td className="px-5 py-2 align-top text-center">
                                   {/* Estado AMC per empresa */}
@@ -2167,7 +2218,7 @@ ProjectRow.displayName = "ProjectRow";
 const EMPRESA_ORDER = ["Tecma", "Jacima", "Hunter", "Endemik"];
 
 /* ── Empresas cell component ── */
-const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap, statusByPe }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
+const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpresas = [], ventasMap, statusByPe, currentByEmpresa }: { proyectoEmpresas: ProyectoWithEmpresas["proyecto_empresas"]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any>; currentByEmpresa?: Map<string, { peId: string }> }) {
   const orderedEmpresas = useMemo(() => {
     if (!proyectoEmpresas) return [];
     const unique = proyectoEmpresas.filter((pe, i, arr) => pe.empresas && arr.findIndex(x => x.empresa_id === pe.empresa_id) === i && (filterEmpresas.length === 0 || filterEmpresas.includes(pe.empresa_id)));
@@ -2191,7 +2242,9 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
     <div className="space-y-1">
       {orderedEmpresas.map((pe) => {
         const totalVentas = ventasMap?.get(pe.id) || 0;
-        const eff = statusByPe?.get(pe.id);
+        // Estatus VIGENTE de la empresa en el grupo (puede vivir en otra fila).
+        const statusPeId = currentByEmpresa?.get(pe.empresa_id)?.peId ?? pe.id;
+        const eff = statusByPe?.get(statusPeId);
         const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
         const cat = eff?.categoria || (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
@@ -2242,7 +2295,7 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
 
 /* ── Group header empresas cell (name + category + monto) ── */
 
-const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap, statusByPe }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any> }) {
+const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresas = [], ventasMap, statusByPe, currentByEmpresa }: { items: ProyectoWithEmpresas[]; filterEmpresas?: string[]; ventasMap?: Map<string, number>; statusByPe?: Map<string, any>; currentByEmpresa?: Map<string, { peId: string }> }) {
   const allEmpresasRaw = useMemo(() => items.flatMap((p) => p.proyecto_empresas || []), [items]);
   const allEmpresas = useMemo(() => {
     const seen = new Set<string>();
@@ -2281,7 +2334,9 @@ const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresa
     <div className="space-y-1">
       {allEmpresas.map((pe) => {
         if (!pe.empresas) return null;
-        const eff = statusByPe?.get(pe.id);
+        // Estatus VIGENTE de la empresa en el grupo (puede vivir en otra fila).
+        const statusPeId = currentByEmpresa?.get(pe.empresa_id)?.peId ?? pe.id;
+        const eff = statusByPe?.get(statusPeId);
         const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
         const cat = eff?.categoria || (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
