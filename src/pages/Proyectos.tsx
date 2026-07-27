@@ -483,10 +483,20 @@ export default function Proyectos() {
     const map = new Map<string, HistorialEstatusRow>();
     for (const h of (allHistorialData || [])) {
       const existing = map.get(h.proyecto_empresa_id);
-      if (!existing) { map.set(h.proyecto_empresa_id, h); continue; }
-      const a = `${h.fecha}|${h.created_at}`;
-      const b = `${existing.fecha}|${existing.created_at}`;
-      if (a > b) map.set(h.proyecto_empresa_id, h);
+      // El vigente es el ÚLTIMO INGRESADO (created_at), no el de fecha mayor:
+      // un estatus puede registrarse con fecha retroactiva y aun así ser el actual.
+      if (!existing || `${h.created_at}` > `${existing.created_at}`) map.set(h.proyecto_empresa_id, h);
+    }
+    return map;
+  }, [allHistorialData]);
+
+  // Todas las entradas de historial por proyecto_empresa (para buscar la fecha
+  // asociada al estatus guardado en proyecto_empresas).
+  const historialByPe = useMemo(() => {
+    const map = new Map<string, HistorialEstatusRow[]>();
+    for (const h of (allHistorialData || [])) {
+      const arr = map.get(h.proyecto_empresa_id);
+      if (arr) arr.push(h); else map.set(h.proyecto_empresa_id, [h]);
     }
     return map;
   }, [allHistorialData]);
@@ -513,10 +523,22 @@ export default function Proyectos() {
     }
     for (const p of proyectos) {
       for (const pe of (p.proyecto_empresas || [])) {
-        const latest = latestHistorialByPe.get(pe.id);
         let categoria: EffectiveStatus["categoria"] = null;
         let subcategoria: EffectiveStatus["subcategoria"] = null;
         let fecha: string | null = null;
+        // Fuente de verdad: el estatus guardado en proyecto_empresas (lo que se
+        // ingresa al editar el proyecto). El historial solo aporta la fecha.
+        if (pe.categoria_id || pe.subcategoria_id) {
+          if (pe.subcategoria_id) subcategoria = subById.get(pe.subcategoria_id) || null;
+          if (pe.categoria_id) categoria = catById.get(pe.categoria_id) || null;
+          const entries = (historialByPe.get(pe.id) || []).filter((h) =>
+            (h.categoria_id || null) === (pe.categoria_id || null) &&
+            (h.subcategoria_id || null) === (pe.subcategoria_id || null));
+          let match: HistorialEstatusRow | null = null;
+          for (const h of entries) if (!match || `${h.created_at}` > `${match.created_at}`) match = h;
+          fecha = match?.fecha || (pe as any).fecha_categoria || null;
+        } else {
+        const latest = latestHistorialByPe.get(pe.id);
         if (latest) {
           if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
           if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
@@ -528,11 +550,12 @@ export default function Proyectos() {
           if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
           fecha = (pe as any).fecha_categoria || null;
         }
+        }
         map.set(pe.id, { categoria, subcategoria, fecha });
       }
     }
     return map;
-  }, [proyectos, categorias, latestHistorialByPe]);
+  }, [proyectos, categorias, latestHistorialByPe, historialByPe]);
 
   // Pre-compute visible project names for captador filter.
   // A project is visible if ANY of its rows passes the captador check.
