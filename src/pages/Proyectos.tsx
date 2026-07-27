@@ -325,6 +325,21 @@ export default function Proyectos() {
   });
 
   const { data: alertas } = useAlertas();
+
+  // Índice de alertas por proyecto_id. El listado renderiza una fila por cada
+  // línea madre (y una por empresa expandida); sin este índice, cada fila
+  // filtraba el array COMPLETO de alertas (O(filas × alertas)), lo que volvía
+  // la escritura en el buscador errática/lenta al recomputar toda la tabla en
+  // cada commit del debounce.
+  const alertasByProyectoId = useMemo(() => {
+    const map = new Map<string, AlertaWithRelations[]>();
+    for (const a of (alertas || [])) {
+      const arr = map.get(a.proyecto_id);
+      if (arr) arr.push(a); else map.set(a.proyecto_id, [a]);
+    }
+    return map;
+  }, [alertas]);
+
   const { data: categorias } = useCategorias();
   const createAlerta = useCreateAlerta();
   const updateAlerta = useUpdateAlerta();
@@ -1529,8 +1544,12 @@ export default function Proyectos() {
                       <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-1">
                           {(() => {
-                            const groupIds2 = new Set(items.map(i => i.id));
-                            const childEmpresaAlertas = (alertas || []).filter(a => groupIds2.has(a.proyecto_id) && a.empresa_id && !a.completada && !a.deleted);
+                            const childEmpresaAlertas: AlertaWithRelations[] = [];
+                            for (const it of items) {
+                              const arr = alertasByProyectoId.get(it.id);
+                              if (!arr) continue;
+                              for (const a of arr) if (a.empresa_id && !a.completada && !a.deleted) childEmpresaAlertas.push(a);
+                            }
                             if (childEmpresaAlertas.length === 0) return null;
                             return (
                               <Button
@@ -1545,8 +1564,12 @@ export default function Proyectos() {
                             );
                           })()}
                           {(() => {
-                            const groupIds = new Set(items.map(i => i.id));
-                            const parentAlertasRaw = (alertas || []).filter(a => groupIds.has(a.proyecto_id) && !a.empresa_id);
+                            const parentAlertasRaw: AlertaWithRelations[] = [];
+                            for (const it of items) {
+                              const arr = alertasByProyectoId.get(it.id);
+                              if (!arr) continue;
+                              for (const a of arr) if (!a.empresa_id) parentAlertasRaw.push(a);
+                            }
                             const parentAlertas = deduplicateAlertas(parentAlertasRaw);
                             const activeCount = parentAlertas.filter(a => !a.completada && !a.deleted).length;
                             return (
@@ -1641,13 +1664,24 @@ export default function Proyectos() {
                             }
                           }
                         }
-                        const groupChildIds = new Set(items.map(i => i.id));
                         const childBg   = isEven ? "bg-[var(--row-par)]" : "bg-[var(--row-impar)]";
                         const childHover = isEven ? "hover:bg-[var(--row-par-hover)]" : "hover:bg-[var(--row-impar-hover)]";
+                        // Alertas del grupo agrupadas por empresa (una sola pasada sobre
+                        // los items del grupo, no sobre TODAS las alertas por cada fila).
+                        const alertasByEmpresaInGroup = new Map<string, AlertaWithRelations[]>();
+                        for (const it of items) {
+                          const arr = alertasByProyectoId.get(it.id);
+                          if (!arr) continue;
+                          for (const a of arr) {
+                            if (!a.empresa_id) continue;
+                            const list = alertasByEmpresaInGroup.get(a.empresa_id);
+                            if (list) list.push(a); else alertasByEmpresaInGroup.set(a.empresa_id, [a]);
+                          }
+                        }
 
                         return childRows.map(({ p, pe }, childIdx) => {
                           const empresaId = pe.empresa_id;
-                          const childAlertasRaw = (alertas || []).filter(a => groupChildIds.has(a.proyecto_id) && a.empresa_id === empresaId);
+                          const childAlertasRaw = alertasByEmpresaInGroup.get(empresaId) || [];
                           const childAlertas = deduplicateAlertas(childAlertasRaw);
                           return (
                             <Fragment key={`${p.id}-${empresaId}`}>
