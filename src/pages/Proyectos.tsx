@@ -184,16 +184,23 @@ function matchAllExcept(p: ProyectoWithEmpresas, skip: string, ctx: CascadeCtx):
   }
   if (skip !== "estados" && filterEstados.length > 0 && !filterEstados.includes(p.estado_amc)) return false;
   if (skip !== "estadoObra" && filterEstadosObra.length > 0 && !filterEstadosObra.includes(p.estado_obra)) return false;
-  if (skip !== "empresa" && filterEmpresas.length > 0) {
-    if (!(p.proyecto_empresas || []).some((pe: any) => filterEmpresas.includes(pe.empresa_id))) return false;
-  }
-  if (skip !== "categoria" && filterCategorias.length > 0) {
-    if (!(p.proyecto_empresas || []).some((pe: any) => {
-      const eff = statusByPe.get(pe.id);
-      const catId = eff?.categoria?.id || pe.categoria_id || "";
-      const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
-      return filterCategorias.includes(catId) || filterCategorias.includes(subId);
-    })) return false;
+  // Empresa + Estatus deben cumplirse en la MISMA fila proyecto-empresa (ver
+  // nota en `filtered`). Cuando ambos filtros están activos (y no se están
+  // saltando), se exige que un mismo `pe` cumpla los dos.
+  const empresaActive = skip !== "empresa" && filterEmpresas.length > 0;
+  const categoriaActive = skip !== "categoria" && filterCategorias.length > 0;
+  if (empresaActive || categoriaActive) {
+    const ok = (p.proyecto_empresas || []).some((pe: any) => {
+      if (empresaActive && !filterEmpresas.includes(pe.empresa_id)) return false;
+      if (categoriaActive) {
+        const eff = statusByPe.get(pe.id);
+        const catId = eff?.categoria?.id || pe.categoria_id || "";
+        const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
+        if (!(filterCategorias.includes(catId) || filterCategorias.includes(subId))) return false;
+      }
+      return true;
+    });
+    if (!ok) return false;
   }
   if (skip !== "clasificacion" && filterClasificaciones.length > 0 && !filterClasificaciones.includes(p.clasificacion_id || "")) return false;
   if (skip !== "boton" && filterBotones.length > 0) {
@@ -545,12 +552,17 @@ export default function Proyectos() {
     const matchSearch = !searchLower || (projectSearchIndex.get(p.id)?.includes(searchLower) ?? false);
     const matchEstado = filterEstados.length === 0 || filterEstados.includes(p.estado_amc);
     const matchEstadoObra = filterEstadosObra.length === 0 || filterEstadosObra.includes(p.estado_obra);
-    const matchEmpresa =
-      filterEmpresas.length === 0 ||
-      p.proyecto_empresas?.some((pe) => filterEmpresas.includes(pe.empresa_id));
-    const matchCategoria =
-      filterCategorias.length === 0 ||
-      p.proyecto_empresas?.some((pe) => {
+    // Empresa + Estatus (x Empresa) deben cumplirse en la MISMA fila proyecto-empresa.
+    // Evaluarlos como dos .some() independientes dejaba pasar un proyecto cuando una
+    // empresa cumplía el filtro de empresa y OTRA empresa distinta cumplía el de
+    // estatus, mostrando el estatus equivocado para la empresa filtrada.
+    const empresaFilterActive = filterEmpresas.length > 0;
+    const categoriaFilterActive = filterCategorias.length > 0;
+    const matchEmpresaCategoria =
+      (!empresaFilterActive && !categoriaFilterActive) ||
+      (p.proyecto_empresas || []).some((pe) => {
+        if (empresaFilterActive && !filterEmpresas.includes(pe.empresa_id)) return false;
+        if (!categoriaFilterActive) return true;
         const eff = statusByPe.get(pe.id);
         const catId = eff?.categoria?.id || pe.categoria_id || "";
         const subId = eff?.subcategoria?.id || pe.subcategoria_id || "";
@@ -564,7 +576,7 @@ export default function Proyectos() {
     // matchCaptador: uses pre-computed set — all rows of a visible project pass together
     const matchCaptador = filterCaptadores.length === 0 ||
       (visibleProyectoNamesByCaptador?.has(p.nombre.trim().toLowerCase()) ?? false);
-    return matchSearch && matchEstado && matchEstadoObra && matchEmpresa && matchCategoria && matchClasificacion && matchBoton && matchCaptador;
+    return matchSearch && matchEstado && matchEstadoObra && matchEmpresaCategoria && matchClasificacion && matchBoton && matchCaptador;
   }), [proyectos, deferredSearch, projectSearchIndex, filterEstados, filterEstadosObra, filterEmpresas, filterCategorias, filterClasificaciones, filterBotones, filterCaptadores, visibleProyectoNamesByCaptador, buttonLabelsByLink, statusByPe]);
 
   // ── Contexto para filtros en cascada ──────────────────────────────────────
