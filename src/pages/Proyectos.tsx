@@ -505,17 +505,6 @@ export default function Proyectos() {
     return map;
   }, [allHistorialData]);
 
-  // Todas las entradas de historial por proyecto_empresa (para buscar la fecha
-  // asociada al estatus guardado en proyecto_empresas).
-  const historialByPe = useMemo(() => {
-    const map = new Map<string, HistorialEstatusRow[]>();
-    for (const h of (allHistorialData || [])) {
-      const arr = map.get(h.proyecto_empresa_id);
-      if (arr) arr.push(h); else map.set(h.proyecto_empresa_id, [h]);
-    }
-    return map;
-  }, [allHistorialData]);
-
   /**
    * Effective status per proyecto_empresa_id, using the latest historial entry
    * as the source of truth (falling back to proyecto_empresas if no historial).
@@ -541,23 +530,19 @@ export default function Proyectos() {
         let categoria: EffectiveStatus["categoria"] = null;
         let subcategoria: EffectiveStatus["subcategoria"] = null;
         let fecha: string | null = null;
-        // Fuente de verdad: el estatus guardado en proyecto_empresas (lo que se
-        // ingresa al editar el proyecto). El historial solo aporta la fecha.
-        if (pe.categoria_id || pe.subcategoria_id) {
-          if (pe.subcategoria_id) subcategoria = subById.get(pe.subcategoria_id) || null;
-          if (pe.categoria_id) categoria = catById.get(pe.categoria_id) || null;
-          const entries = (historialByPe.get(pe.id) || []).filter((h) =>
-            (h.categoria_id || null) === (pe.categoria_id || null) &&
-            (h.subcategoria_id || null) === (pe.subcategoria_id || null));
-          let match: HistorialEstatusRow | null = null;
-          for (const h of entries) if (!match || `${h.created_at}` > `${match.created_at}`) match = h;
-          fecha = match?.fecha || (pe as any).fecha_categoria || null;
-        } else {
+        // Fuente de verdad: el último historial registrado (created_at). El campo
+        // categoria_id/subcategoria_id en proyecto_empresas puede quedar desactualizado
+        // si algún flujo de guardado escribe en el historial sin sincronizarlo (ver
+        // notas "ERROR CONDOMINIO LA POSADA" / "SE MUESTRA OTRO ESTATUS casa Nazer").
         const latest = latestHistorialByPe.get(pe.id);
         if (latest) {
           if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
           if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
           fecha = latest.fecha || null;
+        } else if (pe.categoria_id || pe.subcategoria_id) {
+          if (pe.subcategoria_id) subcategoria = subById.get(pe.subcategoria_id) || null;
+          if (pe.categoria_id) categoria = catById.get(pe.categoria_id) || null;
+          fecha = (pe as any).fecha_categoria || null;
         } else {
           const cat = (pe as any).categorias_proyecto;
           const sub = (pe as any).subcategorias_proyecto;
@@ -565,12 +550,11 @@ export default function Proyectos() {
           if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
           fecha = (pe as any).fecha_categoria || null;
         }
-        }
         map.set(pe.id, { categoria, subcategoria, fecha });
       }
     }
     return map;
-  }, [proyectos, categorias, latestHistorialByPe, historialByPe]);
+  }, [proyectos, categorias, latestHistorialByPe]);
 
   // Pre-compute visible project names for captador filter.
   // A project is visible if ANY of its rows passes the captador check.
@@ -606,8 +590,8 @@ export default function Proyectos() {
         if (existing && fecha <= existing.fecha) continue;
         g.set(pe.empresa_id, {
           peId: pe.id,
-          catId: eff?.categoria?.id || pe.categoria_id || "",
-          subId: eff?.subcategoria?.id || pe.subcategoria_id || "",
+          catId: (eff ? eff.categoria?.id : pe.categoria_id) || "",
+          subId: (eff ? eff.subcategoria?.id : pe.subcategoria_id) || "",
           fecha,
         });
       }
@@ -827,7 +811,7 @@ export default function Proyectos() {
       if (g.some(p => p.estado_amc === "Vigente")) vigentes++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         const eff = statusByPe.get(pe.id);
-        return (eff?.subcategoria?.id || pe.subcategoria_id) === GANADO_SUBCATEGORIA_ID;
+        return (eff ? eff.subcategoria?.id : pe.subcategoria_id) === GANADO_SUBCATEGORIA_ID;
       }))) ganados++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         return ((pe as any).estado_amc || "Vigente") === OBRAS_LABEL;
@@ -837,8 +821,8 @@ export default function Proyectos() {
       if (g.some(p => p.estado_amc === "Para Captar")) paraCaptar++;
       if (g.some(p => p.proyecto_empresas?.some(pe => {
         const eff = statusByPe.get(pe.id);
-        const catId = eff?.categoria?.id || (pe as any).categoria_id || "";
-        const subId = eff?.subcategoria?.id || (pe as any).subcategoria_id || "";
+        const catId = (eff ? eff.categoria?.id : (pe as any).categoria_id) || "";
+        const subId = (eff ? eff.subcategoria?.id : (pe as any).subcategoria_id) || "";
         return COTIZACION_TARGET_IDS.includes(catId) || COTIZACION_TARGET_IDS.includes(subId);
       }))) proyectosCotizados++;
     });
@@ -2302,8 +2286,8 @@ const EmpresasCell = memo(function EmpresasCell({ proyectoEmpresas, filterEmpres
         // Estatus VIGENTE de la empresa en el grupo (puede vivir en otra fila).
         const statusPeId = currentByEmpresa?.get(pe.empresa_id)?.peId ?? pe.id;
         const eff = statusByPe?.get(statusPeId);
-        const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
-        const cat = eff?.categoria || (pe as any).categorias_proyecto;
+        const sub = eff ? eff.subcategoria : (pe as any).subcategorias_proyecto;
+        const cat = eff ? eff.categoria : (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
@@ -2394,8 +2378,8 @@ const GroupEmpresasCell = memo(function GroupEmpresasCell({ items, filterEmpresa
         // Estatus VIGENTE de la empresa en el grupo (puede vivir en otra fila).
         const statusPeId = currentByEmpresa?.get(pe.empresa_id)?.peId ?? pe.id;
         const eff = statusByPe?.get(statusPeId);
-        const sub = eff?.subcategoria || (pe as any).subcategorias_proyecto;
-        const cat = eff?.categoria || (pe as any).categorias_proyecto;
+        const sub = eff ? eff.subcategoria : (pe as any).subcategorias_proyecto;
+        const cat = eff ? eff.categoria : (pe as any).categorias_proyecto;
         const statusColor = sub?.color || cat?.color || null;
         const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;
         const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
