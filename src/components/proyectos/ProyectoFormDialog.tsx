@@ -38,7 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: ProyectoInput) => void;
+  onSubmit: (data: ProyectoInput) => void | Promise<void>;
   onCreateAlertaFromCategoria?: (context: { proyecto_id: string; empresa_id: string; fecha: string }) => void;
   onCompleteAlerta?: (alerta: AlertaWithRelations) => void;
   isLoading?: boolean;
@@ -473,7 +473,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     }
     return historialEstatus.filter((h) => peIds.has(h.proyecto_empresa_id));
   };
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
 
@@ -537,23 +537,35 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       }
     }
 
-    onSubmit({
-      nombre: nombre.trim(),
-      region, direccion, comuna, estado_obra: estadoObra,
-      fecha_estado_obra: fechaEstadoObra || null,
-      estado_amc: estadoAmc,
-      monto_estimado: null,
-      notas,
-      fecha_ingreso: fechaIngreso,
-      clasificacion_id: clasificacionId,
-      arq_nombre: arqNombre, arq_contacto: arqContacto, arq_mail: arqMail, arq_telefono: arqTelefono,
-      const_nombre: constNombre, const_contacto: constContacto, const_mail: constMail, const_telefono: constTelefono,
-      ito_nombre: itoNombre, ito_contacto: itoContacto, ito_mail: itoMail, ito_telefono: itoTelefono,
-      duenos_nombre: duenosNombre, duenos_contacto: duenosContacto, duenos_mail: duenosMail, duenos_telefono: duenosTelefono,
-      empresa_links,
-    });
+    try {
+      // Awaited: the historial entry below must only be written once the
+      // categoria_id/subcategoria_id it describes is actually persisted on
+      // proyecto_empresas. Firing both in parallel let one succeed while the
+      // other silently failed, leaving the listing (which trusts the latest
+      // historial entry) out of sync with proyecto_empresas — see notas
+      // "ERROR CONDOMINIO LA POSADA" / "SE MUESTRA OTRO ESTATUS casa Nazer".
+      await onSubmit({
+        nombre: nombre.trim(),
+        region, direccion, comuna, estado_obra: estadoObra,
+        fecha_estado_obra: fechaEstadoObra || null,
+        estado_amc: estadoAmc,
+        monto_estimado: null,
+        notas,
+        fecha_ingreso: fechaIngreso,
+        clasificacion_id: clasificacionId,
+        arq_nombre: arqNombre, arq_contacto: arqContacto, arq_mail: arqMail, arq_telefono: arqTelefono,
+        const_nombre: constNombre, const_contacto: constContacto, const_mail: constMail, const_telefono: constTelefono,
+        ito_nombre: itoNombre, ito_contacto: itoContacto, ito_mail: itoMail, ito_telefono: itoTelefono,
+        duenos_nombre: duenosNombre, duenos_contacto: duenosContacto, duenos_mail: duenosMail, duenos_telefono: duenosTelefono,
+        empresa_links,
+      });
+    } catch {
+      // The mutation's own onError already surfaced a toast. Skip the
+      // historial flush so it doesn't record a status that never saved.
+      return;
+    }
 
-    // Flush pending historial entries now that the form is being saved.
+    // Flush pending historial entries now that the main save has succeeded.
     if (pendingHistorial.size > 0) {
       for (const [empresaId, entry] of pendingHistorial.entries()) {
         const peId = getProyectoEmpresaId(empresaId);

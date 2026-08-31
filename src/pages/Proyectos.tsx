@@ -1863,8 +1863,12 @@ export default function Proyectos() {
           onCreateAlertaFromCategoria={(ctx) => {
             setAlertaCreateContext({ proyecto_id: ctx.proyecto_id, empresa_id: ctx.empresa_id, defaultTexto: `Seguimiento categoría` });
           }}
-          onSubmit={(data) => {
-            updateProyecto.mutate({ ...data, id: editTarget.id }, { onSuccess: () => setEditTarget(null) });
+          onSubmit={async (data) => {
+            // Awaited (not fire-and-forget): ProyectoFormDialog only writes the
+            // historial_estatus_empresa entry for the new estatus after this
+            // resolves, so the two never diverge if this save fails.
+            await updateProyecto.mutateAsync({ ...data, id: editTarget.id });
+            setEditTarget(null);
           }}
         />
       )}
@@ -1902,7 +1906,10 @@ export default function Proyectos() {
 
             if (toDelete.length > 0) {
               setPendingParentSubmit({ data: { ...data, sharedFields }, toDelete });
-              return;
+              // Nothing is saved yet — the actual write happens later from the
+              // confirmation dialog. Reject so ProyectoFormDialog doesn't flush
+              // its pending historial entries for a save that hasn't happened.
+              throw new Error("PENDING_DELETE_CONFIRMATION");
             }
 
             // PROJ-003: ref check prevents double-submit race between concurrent callbacks
