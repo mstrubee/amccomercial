@@ -57,35 +57,37 @@ export default function ReunionesPage() {
     return map;
   }, [allHistorialData]);
 
-  // Build groups: proyecto -> empresa -> items
+  // Build groups: one row per proyecto+empresa link, whether or not it has
+  // notes yet — a project matching the filters must never be missing here
+  // just because nobody has added a note to it (previously it was invisible
+  // in that case; see the request that added the empty-items case below).
   const groups = useMemo(() => {
     const result: { proyectoId: string; proyectoName: string; empresaId: string; empresaName: string; items: ChecklistItem[]; categoriaId: string | null; subcategoriaId: string | null }[] = [];
 
-    // Get unique proyecto+empresa combos from items
-    const combos = new Map<string, { proyectoId: string; empresaId: string; items: ChecklistItem[] }>();
+    const itemsByCombo = new Map<string, ChecklistItem[]>();
     allItems.forEach(item => {
       if (!item.proyecto_id || !item.empresa_id) return;
       const key = `${item.proyecto_id}|${item.empresa_id}`;
-      if (!combos.has(key)) combos.set(key, { proyectoId: item.proyecto_id, empresaId: item.empresa_id, items: [] });
-      combos.get(key)!.items.push(item);
+      const arr = itemsByCombo.get(key);
+      if (arr) arr.push(item); else itemsByCombo.set(key, [item]);
     });
 
-    combos.forEach(({ proyectoId, empresaId, items }) => {
-      const proy = proyectos.find(p => p.id === proyectoId);
-      const emp = empresas.find(e => e.id === empresaId);
-      if (!proy || !emp) return;
-      const pe = (proy as any).proyecto_empresas?.find((x: any) => x.empresa_id === empresaId);
-      const latest = pe ? latestHistorialByPe.get(pe.id) : undefined;
-      result.push({
-        proyectoId,
-        proyectoName: proy.nombre,
-        empresaId,
-        empresaName: emp.nombre,
-        items,
-        categoriaId: (latest ? latest.categoria_id : pe?.categoria_id) ?? null,
-        subcategoriaId: (latest ? latest.subcategoria_id : pe?.subcategoria_id) ?? null,
-      });
-    });
+    for (const proy of proyectos) {
+      for (const pe of ((proy as any).proyecto_empresas || [])) {
+        const emp = empresas.find(e => e.id === pe.empresa_id);
+        if (!emp) continue;
+        const latest = latestHistorialByPe.get(pe.id);
+        result.push({
+          proyectoId: proy.id,
+          proyectoName: proy.nombre,
+          empresaId: pe.empresa_id,
+          empresaName: emp.nombre,
+          items: itemsByCombo.get(`${proy.id}|${pe.empresa_id}`) || [],
+          categoriaId: (latest ? latest.categoria_id : pe.categoria_id) ?? null,
+          subcategoriaId: (latest ? latest.subcategoria_id : pe.subcategoria_id) ?? null,
+        });
+      }
+    }
 
     return result.sort((a, b) => a.proyectoName.localeCompare(b.proyectoName));
   }, [allItems, proyectos, empresas, latestHistorialByPe]);
