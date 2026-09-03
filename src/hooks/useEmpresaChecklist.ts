@@ -39,12 +39,24 @@ export function useAllChecklistItems() {
   return useQuery({
     queryKey: ["empresa-checklist-all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("empresa_checklist_items")
-        .select("*")
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data as ChecklistItem[];
+      // Fetch ALL rows via pagination — a plain .select("*") silently caps at
+      // Supabase's 1000-row default, so any item created after the 1000th
+      // (ordered by created_at) was invisible on the Reuniones page even
+      // though it exists.
+      const pageSize = 1000;
+      const all: ChecklistItem[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("empresa_checklist_items")
+          .select("*")
+          .order("created_at", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = (data || []) as ChecklistItem[];
+        all.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+      return all;
     },
   });
 }

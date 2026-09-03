@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAllChecklistItems, ChecklistItem } from "@/hooks/useEmpresaChecklist";
+import { useHistorialEstatusByIds, HistorialEstatusRow } from "@/hooks/useHistorialEstatus";
 import { useCategorias } from "@/hooks/useCategorias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,28 @@ export default function ReunionesPage() {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
   const [selectedKeys, setSelectedKeys] = useState<Record<string, boolean>>({});
 
+  const allPeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const p of proyectos) {
+      for (const pe of ((p as any).proyecto_empresas || [])) ids.push(pe.id);
+    }
+    return ids;
+  }, [proyectos]);
+  const { data: allHistorialData } = useHistorialEstatusByIds(allPeIds);
+
+  // Latest historial entry per proyecto_empresa_id — same "current status"
+  // source of truth as the Proyectos listing, so filtering here matches it.
+  // proyecto_empresas.categoria_id can lag behind (see nota "ERROR CONDOMINIO
+  // LA POSADA"), so it's only a fallback for when there's no historial yet.
+  const latestHistorialByPe = useMemo(() => {
+    const map = new Map<string, HistorialEstatusRow>();
+    for (const h of (allHistorialData || [])) {
+      const existing = map.get(h.proyecto_empresa_id);
+      if (!existing || `${h.created_at}` > `${existing.created_at}`) map.set(h.proyecto_empresa_id, h);
+    }
+    return map;
+  }, [allHistorialData]);
+
   // Build groups: proyecto -> empresa -> items
   const groups = useMemo(() => {
     const result: { proyectoId: string; proyectoName: string; empresaId: string; empresaName: string; items: ChecklistItem[]; categoriaId: string | null; subcategoriaId: string | null }[] = [];
@@ -52,19 +75,20 @@ export default function ReunionesPage() {
       const emp = empresas.find(e => e.id === empresaId);
       if (!proy || !emp) return;
       const pe = (proy as any).proyecto_empresas?.find((x: any) => x.empresa_id === empresaId);
+      const latest = pe ? latestHistorialByPe.get(pe.id) : undefined;
       result.push({
         proyectoId,
         proyectoName: proy.nombre,
         empresaId,
         empresaName: emp.nombre,
         items,
-        categoriaId: pe?.categoria_id ?? null,
-        subcategoriaId: pe?.subcategoria_id ?? null,
+        categoriaId: (latest ? latest.categoria_id : pe?.categoria_id) ?? null,
+        subcategoriaId: (latest ? latest.subcategoria_id : pe?.subcategoria_id) ?? null,
       });
     });
 
     return result.sort((a, b) => a.proyectoName.localeCompare(b.proyectoName));
-  }, [allItems, proyectos, empresas]);
+  }, [allItems, proyectos, empresas, latestHistorialByPe]);
 
   // Apply filters
   const filtered = useMemo(() => {
