@@ -433,20 +433,25 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     updateEmpresaRow(empresa_id, { ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
   };
 
+  // Fuente de verdad: el campo guardado en la fila (lo que el usuario eligió
+  // la última vez que guardó). El historial es solo respaldo para cuando la
+  // empresa nunca tuvo categoría asignada — hay vías de guardado (Carga
+  // Masiva) que actualizan el campo sin dejar rastro en el historial, así
+  // que un historial "más reciente" no es necesariamente el estatus real.
   const getSelectValue = (row: EmpresaRow): string => {
     const pending = pendingHistorial.get(row.empresa_id);
     if (pending) {
       if (pending.subcategoria_id) return `sub:${pending.subcategoria_id}`;
       if (pending.categoria_id) return `cat:${pending.categoria_id}`;
     }
+    if (row.subcategoria_id) return `sub:${row.subcategoria_id}`;
+    if (row.categoria_id) return `cat:${row.categoria_id}`;
     const historial = getHistorialForEmpresa(row.empresa_id);
     const latest = historial[0];
     if (latest) {
       if (latest.subcategoria_id) return `sub:${latest.subcategoria_id}`;
       if (latest.categoria_id) return `cat:${latest.categoria_id}`;
     }
-    if (row.subcategoria_id) return `sub:${row.subcategoria_id}`;
-    if (row.categoria_id) return `cat:${row.categoria_id}`;
     return "none";
   };
 

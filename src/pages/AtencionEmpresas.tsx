@@ -44,10 +44,12 @@ export default function ReunionesPage() {
   }, [proyectos]);
   const { data: allHistorialData } = useHistorialEstatusByIds(allPeIds);
 
-  // Latest historial entry per proyecto_empresa_id — same "current status"
-  // source of truth as the Proyectos listing, so filtering here matches it.
-  // proyecto_empresas.categoria_id can lag behind (see nota "ERROR CONDOMINIO
-  // LA POSADA"), so it's only a fallback for when there's no historial yet.
+  // Latest historial entry per proyecto_empresa_id — used ONLY as a fallback
+  // for empresas that never got a categoría assigned. proyecto_empresas.
+  // categoria_id is the real source of truth (it's what the user explicitly
+  // picks when editing the project); trusting historial over it broke for
+  // rows updated via Carga Masiva, which never writes to historial — see
+  // "Casa GZ, va con MZ" / "Casa Coliumo".
   const latestHistorialByPe = useMemo(() => {
     const map = new Map<string, HistorialEstatusRow>();
     for (const h of (allHistorialData || [])) {
@@ -76,15 +78,16 @@ export default function ReunionesPage() {
       for (const pe of ((proy as any).proyecto_empresas || [])) {
         const emp = empresas.find(e => e.id === pe.empresa_id);
         if (!emp) continue;
-        const latest = latestHistorialByPe.get(pe.id);
+        const hasCategoria = !!(pe.categoria_id || pe.subcategoria_id);
+        const latest = hasCategoria ? undefined : latestHistorialByPe.get(pe.id);
         result.push({
           proyectoId: proy.id,
           proyectoName: proy.nombre,
           empresaId: pe.empresa_id,
           empresaName: emp.nombre,
           items: itemsByCombo.get(`${proy.id}|${pe.empresa_id}`) || [],
-          categoriaId: (latest ? latest.categoria_id : pe.categoria_id) ?? null,
-          subcategoriaId: (latest ? latest.subcategoria_id : pe.subcategoria_id) ?? null,
+          categoriaId: (hasCategoria ? pe.categoria_id : latest?.categoria_id) ?? null,
+          subcategoriaId: (hasCategoria ? pe.subcategoria_id : latest?.subcategoria_id) ?? null,
         });
       }
     }

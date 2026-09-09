@@ -505,9 +505,28 @@ export default function Proyectos() {
     return map;
   }, [allHistorialData]);
 
+  // Todas las entradas de historial por proyecto_empresa (para buscar la fecha
+  // asociada al estatus guardado en proyecto_empresas).
+  const historialByPe = useMemo(() => {
+    const map = new Map<string, HistorialEstatusRow[]>();
+    for (const h of (allHistorialData || [])) {
+      const arr = map.get(h.proyecto_empresa_id);
+      if (arr) arr.push(h); else map.set(h.proyecto_empresa_id, [h]);
+    }
+    return map;
+  }, [allHistorialData]);
+
   /**
-   * Effective status per proyecto_empresa_id, using the latest historial entry
-   * as the source of truth (falling back to proyecto_empresas if no historial).
+   * Effective status per proyecto_empresa_id. Fuente de verdad: el estatus
+   * guardado en proyecto_empresas — es el que el usuario elige explícitamente
+   * al editar el proyecto, y por lo tanto el único que nunca debe estar mal.
+   * El historial solo se usa (a) para completar la fecha mostrada junto al
+   * badge, buscando la entrada que coincide con el estatus guardado, y (b)
+   * como respaldo cuando esta empresa todavía no tiene categoría asignada.
+   * No se usa como fuente preferida sobre el campo guardado: hay vías de
+   * escritura (ej. Carga Masiva) que actualizan proyecto_empresas sin dejar
+   * rastro en el historial, así que un historial "más reciente" no implica
+   * que sea el estatus real vigente — ver el caso "Casa GZ, va con MZ".
    */
   type EffectiveStatus = {
     categoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
@@ -530,31 +549,34 @@ export default function Proyectos() {
         let categoria: EffectiveStatus["categoria"] = null;
         let subcategoria: EffectiveStatus["subcategoria"] = null;
         let fecha: string | null = null;
-        // Fuente de verdad: el último historial registrado (created_at). El campo
-        // categoria_id/subcategoria_id en proyecto_empresas puede quedar desactualizado
-        // si algún flujo de guardado escribe en el historial sin sincronizarlo (ver
-        // notas "ERROR CONDOMINIO LA POSADA" / "SE MUESTRA OTRO ESTATUS casa Nazer").
-        const latest = latestHistorialByPe.get(pe.id);
-        if (latest) {
-          if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
-          if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
-          fecha = latest.fecha || null;
-        } else if (pe.categoria_id || pe.subcategoria_id) {
+        if (pe.categoria_id || pe.subcategoria_id) {
           if (pe.subcategoria_id) subcategoria = subById.get(pe.subcategoria_id) || null;
           if (pe.categoria_id) categoria = catById.get(pe.categoria_id) || null;
-          fecha = (pe as any).fecha_categoria || null;
+          const entries = (historialByPe.get(pe.id) || []).filter((h) =>
+            (h.categoria_id || null) === (pe.categoria_id || null) &&
+            (h.subcategoria_id || null) === (pe.subcategoria_id || null));
+          let match: HistorialEstatusRow | null = null;
+          for (const h of entries) if (!match || `${h.created_at}` > `${match.created_at}`) match = h;
+          fecha = match?.fecha || (pe as any).fecha_categoria || null;
         } else {
-          const cat = (pe as any).categorias_proyecto;
-          const sub = (pe as any).subcategorias_proyecto;
-          if (cat) categoria = { id: cat.id, nombre: cat.nombre, color: cat.color, es_adjudicado: cat.es_adjudicado };
-          if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
-          fecha = (pe as any).fecha_categoria || null;
+          const latest = latestHistorialByPe.get(pe.id);
+          if (latest) {
+            if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
+            if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
+            fecha = latest.fecha || null;
+          } else {
+            const cat = (pe as any).categorias_proyecto;
+            const sub = (pe as any).subcategorias_proyecto;
+            if (cat) categoria = { id: cat.id, nombre: cat.nombre, color: cat.color, es_adjudicado: cat.es_adjudicado };
+            if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
+            fecha = (pe as any).fecha_categoria || null;
+          }
         }
         map.set(pe.id, { categoria, subcategoria, fecha });
       }
     }
     return map;
-  }, [proyectos, categorias, latestHistorialByPe]);
+  }, [proyectos, categorias, latestHistorialByPe, historialByPe]);
 
   // Pre-compute visible project names for captador filter.
   // A project is visible if ANY of its rows passes the captador check.
