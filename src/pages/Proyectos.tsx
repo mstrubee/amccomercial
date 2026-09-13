@@ -270,10 +270,19 @@ export default function Proyectos() {
   const [viewTarget, setViewTarget] = useState<ProyectoWithEmpresas | null>(null);
   const [templateSource, setTemplateSource] = useState<ProyectoWithEmpresas | null>(null);
   const [editParentGroup, setEditParentGroup] = useState<ProyectoWithEmpresas[] | null>(null);
-  const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[] } | null>(null);
+  // resolve/reject keep the ProyectoFormDialog's `await onSubmit(...)` pending
+  // while the deletion-confirmation dialog is up, so its historial flush waits
+  // for the actual save instead of running (or being skipped) prematurely.
+  const [pendingParentSubmit, setPendingParentSubmit] = useState<{ data: any; toDelete: ProyectoWithEmpresas[]; resolve: () => void; reject: (e: unknown) => void } | null>(null);
   // PROJ-003: ref instead of state avoids stale closure race between the two
   // submit handlers that both check isSavingParent before setting it to true.
   const isSavingParentRef = useRef(false);
+  // AlertDialogAction closes its dialog automatically on click, firing
+  // onOpenChange(false) as part of the SAME click before the async confirm
+  // handler below even awaits — without this flag that auto-close reads as
+  // "cancelled" and rejects the pending onSubmit promise out from under the
+  // confirm handler's own (later) resolve().
+  const confirmingDeleteRef = useRef(false);
   const [isSavingParent, setIsSavingParent] = useState(false);
   const [repositorioTarget, setRepositorioTarget] = useState<{ id: string; name: string; empresaName?: string } | null>(null);
   const [hitosTarget, setHitosTarget] = useState<{ proyectoEmpresaId: string; empresaName?: string | null; proyectoNombre: string } | null>(null);
@@ -552,12 +561,22 @@ export default function Proyectos() {
         if (pe.categoria_id || pe.subcategoria_id) {
           if (pe.subcategoria_id) subcategoria = subById.get(pe.subcategoria_id) || null;
           if (pe.categoria_id) categoria = catById.get(pe.categoria_id) || null;
-          const entries = (historialByPe.get(pe.id) || []).filter((h) =>
-            (h.categoria_id || null) === (pe.categoria_id || null) &&
-            (h.subcategoria_id || null) === (pe.subcategoria_id || null));
-          let match: HistorialEstatusRow | null = null;
-          for (const h of entries) if (!match || `${h.created_at}` > `${match.created_at}`) match = h;
-          fecha = match?.fecha || (pe as any).fecha_categoria || null;
+          // Fuente de verdad para la fecha: el campo guardado en la fila — es
+          // editable directamente (input de fecha en el formulario) sin pasar
+          // por el historial, así que un cambio de fecha por sí solo (sin
+          // cambiar el estatus) nunca crea una nueva entrada de historial. Si
+          // se usara la fecha del historial como preferida, esa edición nunca
+          // se reflejaría en el listado.
+          if ((pe as any).fecha_categoria) {
+            fecha = (pe as any).fecha_categoria;
+          } else {
+            const entries = (historialByPe.get(pe.id) || []).filter((h) =>
+              (h.categoria_id || null) === (pe.categoria_id || null) &&
+              (h.subcategoria_id || null) === (pe.subcategoria_id || null));
+            let match: HistorialEstatusRow | null = null;
+            for (const h of entries) if (!match || `${h.created_at}` > `${match.created_at}`) match = h;
+            fecha = match?.fecha || null;
+          }
         } else {
           const latest = latestHistorialByPe.get(pe.id);
           if (latest) {
@@ -1907,7 +1926,7 @@ export default function Proyectos() {
           isAdmin={isAdmin}
           alertas={(alertas || []).filter(a => editParentGroup.some(p => p.id === a.proyecto_id))}
           onCompleteAlerta={(a) => setAlertaCompleteTarget(a)}
-          onSubmit={async (data) => {
+          onSubmit={(data) => new Promise<void>((resolve, reject) => {
             const sharedFields = {
               nombre: data.nombre, region: data.region, direccion: data.direccion, comuna: data.comuna,
               estado_obra: data.estado_obra, fecha_estado_obra: data.fecha_estado_obra,
@@ -1927,25 +1946,23 @@ export default function Proyectos() {
             });
 
             if (toDelete.length > 0) {
-              setPendingParentSubmit({ data: { ...data, sharedFields }, toDelete });
-              // Nothing is saved yet — the actual write happens later from the
-              // confirmation dialog. Reject so ProyectoFormDialog doesn't flush
-              // its pending historial entries for a save that hasn't happened.
-              throw new Error("PENDING_DELETE_CONFIRMATION");
+              // Nothing is saved yet — hand resolve/reject to the confirmation
+              // dialog below so ProyectoFormDialog's `await onSubmit(...)` stays
+              // pending (and its historial flush waits) until the user actually
+              // confirms or cancels the deletion.
+              setPendingParentSubmit({ data: { ...data, sharedFields }, toDelete, resolve, reject });
+              return;
             }
 
             // PROJ-003: ref check prevents double-submit race between concurrent callbacks
-            if (isSavingParentRef.current) return;
+            if (isSavingParentRef.current) { reject(new Error("Ya se está guardando")); return; }
             isSavingParentRef.current = true;
             setIsSavingParent(true);
-            try {
-              await executeParentSubmit(data, sharedFields, editParentGroup, [], selectedEmpresaIds);
-              setEditParentGroup(null);
-            } finally {
-              isSavingParentRef.current = false;
-              setIsSavingParent(false);
-            }
-          }}
+            executeParentSubmit(data, sharedFields, editParentGroup, [], selectedEmpresaIds)
+              .then(() => { setEditParentGroup(null); resolve(); })
+              .catch((e) => reject(e))
+              .finally(() => { isSavingParentRef.current = false; setIsSavingParent(false); });
+          })}
         />
       )}
 
@@ -2006,7 +2023,21 @@ export default function Proyectos() {
       </AlertDialog>
 
       {/* Confirm delete from parent edit */}
-      <AlertDialog open={!!pendingParentSubmit} onOpenChange={(val) => !val && setPendingParentSubmit(null)}>
+      <AlertDialog
+        open={!!pendingParentSubmit}
+        onOpenChange={(val) => {
+          if (!val) {
+            // Only a real cancel (Cancelar / Escape / click outside) rejects.
+            // The confirm button's own auto-close is flagged below so it
+            // doesn't race its later resolve() with a reject() here.
+            if (!confirmingDeleteRef.current) {
+              pendingParentSubmit?.reject(new Error("Eliminación cancelada"));
+            }
+            confirmingDeleteRef.current = false;
+            setPendingParentSubmit(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar sublíneas?</AlertDialogTitle>
@@ -2026,7 +2057,11 @@ export default function Proyectos() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
                 if (pendingParentSubmit && editParentGroup) {
-                  const { data, toDelete } = pendingParentSubmit;
+                  // Set synchronously, before any await — Radix closes this
+                  // AlertDialog as part of this same click, and onOpenChange
+                  // must see this flag already set when that fires.
+                  confirmingDeleteRef.current = true;
+                  const { data, toDelete, resolve, reject } = pendingParentSubmit;
                   const selectedEmpresaIds = new Set<string>(data.empresa_links.map((l: any) => l.empresa_id));
                   if (isSavingParentRef.current) return;
                   isSavingParentRef.current = true;
@@ -2035,6 +2070,11 @@ export default function Proyectos() {
                     await executeParentSubmit(data, data.sharedFields, editParentGroup, toDelete, selectedEmpresaIds);
                     setPendingParentSubmit(null);
                     setEditParentGroup(null);
+                    // Lets ProyectoFormDialog's handleSubmit proceed to flush the
+                    // status change (if any) it deferred while this was pending.
+                    resolve();
+                  } catch (e) {
+                    reject(e);
                   } finally {
                     isSavingParentRef.current = false;
                     setIsSavingParent(false);
