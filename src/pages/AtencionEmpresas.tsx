@@ -124,16 +124,39 @@ export default function ReunionesPage() {
     return g;
   }, [groups, filterProyectoIds, filterEmpresaIds, filterEstatusKeys, search, empresas]);
 
-  // Unique empresas/proyectos that have checklist items
+  // Faceted filter options: each dropdown only shows options valid given the
+  // OTHER active filters (excluding its own axis). This prevents selecting a
+  // project that has no link to the currently-selected empresa, which was the
+  // root cause of rows disappearing from results after combining filters.
   const uniqueEmpresas = useMemo(() => {
-    const ids = new Set(groups.map(g => g.empresaId));
+    // Empresa options: filter by proyecto + estatus, but NOT by empresa itself.
+    let g = groups;
+    if (filterProyectoIds.length > 0) g = g.filter(x => filterProyectoIds.includes(x.proyectoId));
+    if (filterEstatusKeys.length > 0) {
+      g = g.filter(x => {
+        const catKey = x.categoriaId ? `cat:${x.categoriaId}` : null;
+        const subKey = x.subcategoriaId ? `sub:${x.subcategoriaId}` : null;
+        return (catKey && filterEstatusKeys.includes(catKey)) || (subKey && filterEstatusKeys.includes(subKey));
+      });
+    }
+    const ids = new Set(g.map(x => x.empresaId));
     return empresas.filter(e => ids.has(e.id));
-  }, [groups, empresas]);
+  }, [groups, filterProyectoIds, filterEstatusKeys, empresas]);
 
   const uniqueProyectos = useMemo(() => {
-    const ids = new Set(groups.map(g => g.proyectoId));
+    // Proyecto options: filter by empresa + estatus, but NOT by proyecto itself.
+    let g = groups;
+    if (filterEmpresaIds.length > 0) g = g.filter(x => filterEmpresaIds.includes(x.empresaId));
+    if (filterEstatusKeys.length > 0) {
+      g = g.filter(x => {
+        const catKey = x.categoriaId ? `cat:${x.categoriaId}` : null;
+        const subKey = x.subcategoriaId ? `sub:${x.subcategoriaId}` : null;
+        return (catKey && filterEstatusKeys.includes(catKey)) || (subKey && filterEstatusKeys.includes(subKey));
+      });
+    }
+    const ids = new Set(g.map(x => x.proyectoId));
     return proyectos.filter(p => ids.has(p.id));
-  }, [groups, proyectos]);
+  }, [groups, filterEmpresaIds, filterEstatusKeys, proyectos]);
 
   const toggleAll = () => {
     const allExpanded = filtered.every(g => expandedKeys[`${g.proyectoId}|${g.empresaId}`]);
