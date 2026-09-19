@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789836948168,
+      "tag": "0000_restore_team_write_shared_tables",
+      "breakpoints": true
+    }
+  ]
+}
