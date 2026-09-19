@@ -376,6 +376,13 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       ganado_op: isGanado ? (ganadoOp || null) : null,
       ganado_fecha: ganadoFecha || null,
     };
+    // La fecha elegida en este diálogo es la del nuevo estatus: debe quedar
+    // también en fecha_categoria, que es la fuente de verdad de la fecha que
+    // muestra el listado. Si no, el listado seguiría mostrando la fecha del
+    // estatus anterior.
+    if (ganadoFecha && row?.fecha_categoria !== ganadoFecha && categoryPermiteFecha(row?.categoria_id || null, row?.subcategoria_id || null)) {
+      updates.fecha_categoria = ganadoFecha;
+    }
     // Sincronizar cotización UF con el presupuesto si aún no tiene valor
     if (presupuestoVal && (!row?.monto || row.monto === 0)) {
       updates.monto = presupuestoVal;
