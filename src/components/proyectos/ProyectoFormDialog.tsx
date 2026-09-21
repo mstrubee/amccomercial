@@ -16,7 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Settings2, ChevronRight, Bell, Circle, CheckCircle2, UserPlus, Trophy, Pencil, Trash2, History } from "lucide-react";
 import VentasEmpresaSection from "./VentasEmpresaSection";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
-import { useHistorialEstatusByIds, useCreateHistorialEstatus, useDeleteHistorialEstatus, useDeleteHistorialEstatusBulk } from "@/hooks/useHistorialEstatus";
+import { useHistorialEstatusByIds, registrarCambioEstatus, useDeleteHistorialEstatus, useDeleteHistorialEstatusBulk } from "@/hooks/useHistorialEstatus";
+import { fechaNoAnterior, ordenarHistorial } from "@/lib/estatusVigente";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { VALOR_UF } from "@/data/mock-data";
 import { AlertaWithRelations } from "@/hooks/useAlertas";
 import { isBefore, startOfDay } from "date-fns";
@@ -84,7 +87,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
   })();
   const { data: allVentasForm } = useVentasByProyectoEmpresaIds(allPeIds);
   const { data: historialEstatus } = useHistorialEstatusByIds(allPeIds);
-  const createHistorial = useCreateHistorialEstatus();
+  const qcForm = useQueryClient();
   const ventasTotalByEmpresa = (() => {
     const map = new Map<string, number>();
     const sourceItems = groupItems && groupItems.length > 0 ? groupItems : initialData ? [initialData] : [];
@@ -333,6 +336,12 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
 
   const handleCategoryChange = (empresa_id: string, value: string) => {
     if (!value || value === "none") {
+      // Con historial, el estatus no se puede quitar: el vigente es siempre la
+      // entrada más reciente. Solo se cambia eligiendo otro estatus.
+      if (getHistorialForEmpresa(empresa_id).length > 0) {
+        toast.info("El estatus no se puede quitar: elige otro estatus.");
+        return;
+      }
       updateEmpresaRow(empresa_id, { categoria_id: null, subcategoria_id: null, fecha_categoria: null, ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
       return;
     }
@@ -371,17 +380,20 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     const presupuestoVal = ganadoPresupuesto ? parseFloat(ganadoPresupuesto) : null;
     const row = empresaRows.find(r => r.empresa_id === ganadoDialogEmpresaId);
     const isGanado = row?.subcategoria_id === GANADO_SUBCATEGORIA_ID;
+    // Todo cambio de estatus queda como la entrada MÁS RECIENTE del historial:
+    // su fecha nunca puede ser anterior a la de la última entrada.
+    const fechaCambio = fechaNoAnterior(ganadoFecha, todayLocalISO(), getHistorialForEmpresa(ganadoDialogEmpresaId)[0]);
     const updates: Partial<EmpresaRow> = {
       ganado_presupuesto: presupuestoVal,
       ganado_op: isGanado ? (ganadoOp || null) : null,
-      ganado_fecha: ganadoFecha || null,
+      ganado_fecha: fechaCambio,
     };
     // La fecha elegida en este diálogo es la del nuevo estatus: debe quedar
     // también en fecha_categoria, que es la fuente de verdad de la fecha que
     // muestra el listado. Si no, el listado seguiría mostrando la fecha del
     // estatus anterior.
-    if (ganadoFecha && row?.fecha_categoria !== ganadoFecha && categoryPermiteFecha(row?.categoria_id || null, row?.subcategoria_id || null)) {
-      updates.fecha_categoria = ganadoFecha;
+    if (row?.fecha_categoria !== fechaCambio && categoryPermiteFecha(row?.categoria_id || null, row?.subcategoria_id || null)) {
+      updates.fecha_categoria = fechaCambio;
     }
     // Sincronizar cotización UF con el presupuesto si aún no tiene valor
     if (presupuestoVal && (!row?.monto || row.monto === 0)) {
@@ -396,7 +408,7 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
         categoria_id: row?.categoria_id || null,
         subcategoria_id: row?.subcategoria_id || null,
         monto_uf: presupuestoVal || 0,
-        fecha: ganadoFecha || todayLocalISO(),
+        fecha: fechaCambio,
       });
       return next;
     });
@@ -440,25 +452,28 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
     updateEmpresaRow(empresa_id, { ganado_presupuesto: null, ganado_op: null, ganado_fecha: null });
   };
 
-  // Fuente de verdad: el campo guardado en la fila (lo que el usuario eligió
-  // la última vez que guardó). El historial es solo respaldo para cuando la
-  // empresa nunca tuvo categoría asignada — hay vías de guardado (Carga
-  // Masiva) que actualizan el campo sin dejar rastro en el historial, así
-  // que un historial "más reciente" no es necesariamente el estatus real.
-  const getSelectValue = (row: EmpresaRow): string => {
+  // REGLA: el estatus vigente de la empresa es la entrada más reciente del
+  // historial (fecha más reciente). El campo guardado en la fila solo se usa si
+  // la empresa todavía no tiene historial. Un cambio recién elegido en este
+  // formulario (pendiente de guardar) manda mientras no se guarde: al guardarse
+  // se registra en el historial y pasa a ser la entrada más reciente.
+  // El historial es un registro, no un selector: no se elige estatus desde él.
+  const estatusEfectivo = (row: EmpresaRow): { categoria_id: string | null; subcategoria_id: string | null } => {
     const pending = pendingHistorial.get(row.empresa_id);
-    if (pending) {
-      if (pending.subcategoria_id) return `sub:${pending.subcategoria_id}`;
-      if (pending.categoria_id) return `cat:${pending.categoria_id}`;
+    if (pending && (pending.subcategoria_id || pending.categoria_id)) {
+      return { categoria_id: pending.categoria_id, subcategoria_id: pending.subcategoria_id };
     }
-    if (row.subcategoria_id) return `sub:${row.subcategoria_id}`;
-    if (row.categoria_id) return `cat:${row.categoria_id}`;
-    const historial = getHistorialForEmpresa(row.empresa_id);
-    const latest = historial[0];
-    if (latest) {
-      if (latest.subcategoria_id) return `sub:${latest.subcategoria_id}`;
-      if (latest.categoria_id) return `cat:${latest.categoria_id}`;
+    const latest = getHistorialForEmpresa(row.empresa_id)[0];
+    if (latest && (latest.subcategoria_id || latest.categoria_id)) {
+      return { categoria_id: latest.categoria_id, subcategoria_id: latest.subcategoria_id };
     }
+    return { categoria_id: row.categoria_id, subcategoria_id: row.subcategoria_id };
+  };
+
+  const getSelectValue = (row: EmpresaRow): string => {
+    const eff = estatusEfectivo(row);
+    if (eff.subcategoria_id) return `sub:${eff.subcategoria_id}`;
+    if (eff.categoria_id) return `cat:${eff.categoria_id}`;
     return "none";
   };
 
@@ -483,25 +498,33 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
         if (pe.empresa_id === empresaId) peIds.add(pe.id);
       }
     }
-    return historialEstatus.filter((h) => peIds.has(h.proyecto_empresa_id));
+    // Más reciente primero (fecha más reciente; a igual fecha, la registrada
+    // más tarde): la posición [0] es el estatus vigente.
+    return ordenarHistorial(historialEstatus.filter((h) => peIds.has(h.proyecto_empresa_id)));
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
 
+    // El estatus guardado siempre debe coincidir con el vigente (entrada más
+    // reciente del historial), así que se guarda el estatus efectivo, no el que
+    // tenía la fila al abrir el formulario.
     const empresa_links: EmpresaLink[] = empresaRows
       .filter((r) => r.selected)
-      .map((r) => ({
-        empresa_id: r.empresa_id,
-        monto_cotizacion: ventasTotalByEmpresa.get(r.empresa_id) || 0,
-        adjudicado: isAdjudicado(r.categoria_id, r.subcategoria_id),
-        categoria_id: r.categoria_id,
-        subcategoria_id: r.subcategoria_id,
-        fecha_categoria: r.fecha_categoria,
-        ganado_presupuesto: r.ganado_presupuesto,
-        ganado_op: r.ganado_op,
-        ganado_fecha: r.ganado_fecha,
-      }));
+      .map((r) => {
+        const eff = estatusEfectivo(r);
+        return {
+          empresa_id: r.empresa_id,
+          monto_cotizacion: ventasTotalByEmpresa.get(r.empresa_id) || 0,
+          adjudicado: isAdjudicado(eff.categoria_id, eff.subcategoria_id),
+          categoria_id: eff.categoria_id,
+          subcategoria_id: eff.subcategoria_id,
+          fecha_categoria: r.fecha_categoria,
+          ganado_presupuesto: r.ganado_presupuesto,
+          ganado_op: r.ganado_op,
+          ganado_fecha: r.ganado_fecha,
+        };
+      });
 
     snapshotRef.current = "";
 
@@ -577,21 +600,48 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
       return;
     }
 
-    // Flush pending historial entries now that the main save has succeeded.
+    // Registrar en el historial los cambios de estatus hechos en este formulario,
+    // ahora que el guardado principal tuvo éxito. Cada cambio queda como la
+    // entrada más reciente y el estatus guardado pasa a ser igual a ella.
+    // (En "crear proyecto" los estatus iniciales los registra useCreateProyecto.)
     if (pendingHistorial.size > 0) {
-      for (const [empresaId, entry] of pendingHistorial.entries()) {
-        const peId = getProyectoEmpresaId(empresaId);
-        if (!peId) continue;
-        createHistorial.mutate({
-          proyecto_empresa_id: peId,
-          categoria_id: entry.categoria_id,
-          subcategoria_id: entry.subcategoria_id,
-          monto_uf: entry.monto_uf,
-          fecha: entry.fecha,
-        });
-      }
+      const pendientes = Array.from(pendingHistorial.entries());
       setPendingHistorial(new Map());
+      if (initialData) {
+        let fallidos = 0;
+        for (const [empresaId, entry] of pendientes) {
+          try {
+            // Una empresa recién agregada al proyecto aún no tiene id conocido: se busca.
+            const peId = getProyectoEmpresaId(empresaId) ?? (await resolverPeIdDeEmpresaNueva(empresaId));
+            if (!peId) { fallidos++; continue; }
+            await registrarCambioEstatus({
+              proyecto_empresa_id: peId,
+              categoria_id: entry.categoria_id,
+              subcategoria_id: entry.subcategoria_id,
+              monto_uf: entry.monto_uf,
+              fecha: entry.fecha,
+            });
+          } catch {
+            fallidos++;
+          }
+        }
+        qcForm.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
+        qcForm.invalidateQueries({ queryKey: ["proyectos"] });
+        if (fallidos > 0) {
+          toast.error(`No se pudo registrar en el historial el cambio de estatus de ${fallidos} empresa(s). Revisa el historial.`);
+        }
+      }
     }
+  };
+
+  /** Id de proyecto_empresas de una empresa recién agregada (busca por nombre de proyecto + empresa; solo si es inequívoco). */
+  const resolverPeIdDeEmpresaNueva = async (empresaId: string): Promise<string | null> => {
+    const { data, error } = await (supabase.from("proyecto_empresas") as any)
+      .select("id, proyectos!inner(nombre)")
+      .eq("empresa_id", empresaId)
+      .eq("proyectos.nombre", nombre.trim());
+    if (error || !Array.isArray(data) || data.length !== 1) return null;
+    return data[0].id as string;
   };
 
   return (
@@ -1115,7 +1165,13 @@ export default function ProyectoFormDialog({ open, onOpenChange, onSubmit, onCre
                   )}
                   <div className="space-y-1">
                     <Label>Fecha</Label>
-                    <Input type="date" value={ganadoFecha} onChange={(e) => setGanadoFecha(e.target.value)} />
+                    <Input
+                      type="date"
+                      value={ganadoFecha}
+                      // El cambio siempre es la entrada más reciente: no puede ser anterior a la última.
+                      min={(ganadoDialogEmpresaId ? getHistorialForEmpresa(ganadoDialogEmpresaId)[0]?.fecha : null) || undefined}
+                      onChange={(e) => setGanadoFecha(e.target.value)}
+                    />
                   </div>
                 </div>
               </>
@@ -1548,7 +1604,7 @@ function EstatusInfoBlock({
 }: {
   row: EmpresaRow;
   proyectoEmpresaId: string | null | undefined;
-  historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string }[];
+  historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string | null }[];
   categorias: CategoriaWithSubs[];
   onEdit: () => void;
   onClear: () => void;
@@ -1584,7 +1640,7 @@ function EstatusInfoBlock({
             {row.ganado_presupuesto != null && `Monto: ${formatUF(row.ganado_presupuesto)} ≈ ${formatCLP(ufToCLP(row.ganado_presupuesto))} `}
             {row.ganado_op && `OP: ${row.ganado_op} `}
             {latest
-              ? `· Último: ${labelFor(latest.categoria_id, latest.subcategoria_id)} (${latest.fecha})`
+              ? `· Último: ${labelFor(latest.categoria_id, latest.subcategoria_id)}${latest.fecha ? ` (${latest.fecha})` : ""}`
               : row.ganado_fecha && `Fecha: ${row.ganado_fecha}`}
           </span>
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onEdit}><Pencil className="w-3 h-3" /></button>
@@ -1602,12 +1658,16 @@ function HistorialPopover({
   categorias,
 }: {
   proyectoEmpresaId: string | null | undefined;
-  historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string }[];
+  historialItems: { id: string; subcategoria_id: string | null; categoria_id: string | null; monto_uf: number; fecha: string | null }[];
   categorias: CategoriaWithSubs[];
 }) {
   const deleteOne = useDeleteHistorialEstatus();
   const deleteAll = useDeleteHistorialEstatusBulk();
   if (historialItems.length === 0) return null;
+  // historialItems llega ordenado (más reciente primero): la posición 0 es el
+  // estatus vigente. Esa entrada no se puede borrar: el historial es un registro
+  // de cómo avanzó el proyecto, no un selector de estatus.
+  const vigenteId = historialItems[0].id;
 
   const labelFor = (catId: string | null, subId: string | null): string => {
     if (subId) {
@@ -1643,21 +1703,22 @@ function HistorialPopover({
           <button
             type="button"
             className="text-[10px] text-destructive hover:underline disabled:opacity-50"
-            disabled={deleteAll.isPending || !proyectoEmpresaId}
+            disabled={deleteAll.isPending || !proyectoEmpresaId || historialItems.length <= 1}
+            title="Se conserva la entrada más reciente (estatus vigente)"
             onClick={() => {
               if (!proyectoEmpresaId) return;
-              if (confirm(`¿Eliminar todo el historial (${historialItems.length} entradas)? Esta acción no se puede deshacer.`)) {
-                deleteAll.mutate(proyectoEmpresaId);
+              if (confirm(`¿Eliminar las ${historialItems.length - 1} entradas anteriores? Se conserva la más reciente (estatus vigente). Esta acción no se puede deshacer.`)) {
+                deleteAll.mutate({ proyecto_empresa_id: proyectoEmpresaId, conservarId: vigenteId });
               }
             }}
           >
-            Eliminar todo
+            Eliminar anteriores
           </button>
         </div>
         <ul className="space-y-0.5 max-h-60 overflow-auto">
           {historialItems.map((h) => (
             <li key={h.id} className="text-[11px] text-muted-foreground flex items-center gap-2 group">
-              <span className="font-medium text-card-foreground">{h.fecha}</span>
+              <span className="font-medium text-card-foreground">{h.fecha || "sin fecha"}</span>
               <span>·</span>
               <span className="flex-1 truncate">{labelFor(h.categoria_id, h.subcategoria_id)}</span>
               {h.monto_uf > 0 && (
@@ -1665,9 +1726,11 @@ function HistorialPopover({
               )}
               <button
                 type="button"
-                className="text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100"
-                title="Eliminar entrada"
+                className="text-muted-foreground hover:text-destructive opacity-60 hover:opacity-100 disabled:opacity-20 disabled:hover:text-muted-foreground disabled:cursor-not-allowed"
+                title={h.id === vigenteId ? "Estatus vigente: no se puede eliminar" : "Eliminar entrada"}
+                disabled={h.id === vigenteId}
                 onClick={() => {
+                  if (h.id === vigenteId) return;
                   if (confirm("¿Eliminar esta entrada del historial?")) {
                     deleteOne.mutate(h.id);
                   }

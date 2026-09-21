@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import { registrarCambioEstatus, obtenerEstatusVigente } from "@/hooks/useHistorialEstatus";
 import { useEmpresas } from "@/hooks/useEmpresas";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useClasificaciones } from "@/hooks/useClasificaciones";
@@ -1018,6 +1019,53 @@ export default function CargaMasiva() {
         );
         if (rpcErr) throw rpcErr;
         projectId = rpcResult as string;
+
+        // Todo cambio de estatus queda registrado en el historial: el estatus
+        // vigente es siempre la entrada más reciente. La función de la base solo
+        // guarda la categoría (y borra la subcategoría), así que aquí se registra
+        // la entrada. Si la categoría de la planilla es la misma que ya tenía el
+        // estatus vigente, no se cambia nada: solo se restaura la subcategoría.
+        const linksConEstatus = empLinks.filter((l) => l.categoria_id);
+        if (linksConEstatus.length > 0) {
+          let sinHistorial = 0;
+          try {
+            const { data: peRows, error: peErr } = await (supabase.from("proyecto_empresas") as any)
+              .select("id, empresa_id, proyecto_id, proyectos!inner(nombre)")
+              .eq("proyectos.nombre", projName)
+              .in("empresa_id", linksConEstatus.map((l) => l.empresa_id));
+            if (peErr) throw peErr;
+            for (const link of linksConEstatus) {
+              const candidatos = (peRows || []).filter((r: any) => r.empresa_id === link.empresa_id);
+              const pe = candidatos.length === 1 ? candidatos[0] : candidatos.find((r: any) => r.proyecto_id === projectId);
+              if (!pe) { sinHistorial++; continue; }
+              try {
+                const vigente = await obtenerEstatusVigente(pe.proyecto_id, link.empresa_id);
+                if (vigente && vigente.categoria_id === link.categoria_id) {
+                  await registrarCambioEstatus({
+                    proyecto_empresa_id: pe.id,
+                    categoria_id: vigente.categoria_id,
+                    subcategoria_id: vigente.subcategoria_id,
+                    omitirSiIgual: true,
+                  });
+                } else {
+                  await registrarCambioEstatus({
+                    proyecto_empresa_id: pe.id,
+                    categoria_id: link.categoria_id,
+                    subcategoria_id: null,
+                    omitirSiIgual: true,
+                  });
+                }
+              } catch {
+                sinHistorial++;
+              }
+            }
+          } catch {
+            sinHistorial = linksConEstatus.length;
+          }
+          if (sinHistorial > 0) {
+            toast.warning(`"${projName}": ${sinHistorial} estatus se guardaron pero no se pudieron registrar en el historial. Revísalos en el proyecto.`);
+          }
+        }
 
         // Create alertas - handle parent-child dependencies
         // Selected (crearAlerta) => active, unselected with date => historical (completada)

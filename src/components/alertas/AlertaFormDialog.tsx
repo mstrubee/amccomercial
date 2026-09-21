@@ -15,6 +15,7 @@ import { useClasificacionesAlerta } from "@/hooks/useClasificacionesAlerta";
 import { useCategorias } from "@/hooks/useCategorias";
 import { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { obtenerEstatusVigente } from "@/hooks/useHistorialEstatus";
 
 interface Props {
   open: boolean;
@@ -64,12 +65,8 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
     if (defaultCategoriaProyectoId) return;
 
     const fetchPE = async () => {
-      const { data } = await supabase
-        .from("proyecto_empresas")
-        .select("categoria_id, subcategoria_id")
-        .eq("proyecto_id", proyectoId)
-        .eq("empresa_id", empresaId)
-        .maybeSingle();
+      // Estatus vigente = entrada más reciente del historial (ver lib/estatusVigente).
+      const data = await obtenerEstatusVigente(proyectoId, empresaId).catch(() => null);
       if (data) {
         setCategoriaProyectoId(data.categoria_id || "");
         setSubcategoriaProyectoId(data.subcategoria_id || "");
@@ -97,18 +94,15 @@ export default function AlertaFormDialog({ open, onClose, onSubmit, editTarget, 
       setSubcategoriaProyectoId((editTarget as any).subcategoria_proyecto_id || "");
       // If alert doesn't have category stored, fetch from proyecto_empresas
       if (!(editTarget as any).categoria_proyecto_id && editTarget.empresa_id) {
-        supabase
-          .from("proyecto_empresas")
-          .select("categoria_id, subcategoria_id")
-          .eq("proyecto_id", editTarget.proyecto_id)
-          .eq("empresa_id", editTarget.empresa_id)
-          .maybeSingle()
-          .then(({ data }) => {
+        // Estatus vigente = entrada más reciente del historial.
+        obtenerEstatusVigente(editTarget.proyecto_id, editTarget.empresa_id)
+          .then((data) => {
             if (data) {
               setCategoriaProyectoId(data.categoria_id || "");
               setSubcategoriaProyectoId(data.subcategoria_id || "");
             }
-          });
+          })
+          .catch(() => {});
       }
     } else {
       setProyectoId(defaultProyectoId || "");

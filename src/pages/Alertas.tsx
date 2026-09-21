@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
+import { registrarCambioEstatusPorProyectoEmpresa } from "@/hooks/useHistorialEstatus";
 import KpiCard from "@/components/dashboard/KpiCard";
 import {
   useAlertas,
@@ -751,9 +752,16 @@ export default function Alertas() {
         mode={completeMode}
         categorias={categoriasComerciales}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
-          await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
+          // Todo cambio de estatus queda en el historial y el estatus guardado pasa
+          // a ser igual a esa entrada más reciente.
+          try {
+            await registrarCambioEstatusPorProyectoEmpresa({ proyecto_id: pId, empresa_id: eId, categoria_id: catId, subcategoria_id: subId });
+          } catch (e: any) {
+            toast.error("No se pudo registrar el cambio de estatus: " + (e?.message || e));
+          }
           queryClient.invalidateQueries({ queryKey: ["proyecto-empresas-categorias"] });
           queryClient.invalidateQueries({ queryKey: ["proyectos"] });
+          queryClient.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
         }}
         onComplete={(id) => {
           // Check if completing on behalf of someone
@@ -774,7 +782,7 @@ export default function Alertas() {
           const next = clasificaciones && lastAc ?
           getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificaciones) :
           { clasificacionId: "", subclasificacionId: "" };
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId, categoriaProyectoId: advancedCat?.categoriaId || (a as any).categoria_proyecto_id || undefined, subcategoriaProyectoId: advancedCat?.subcategoriaId || (a as any).subcategoria_proyecto_id || undefined });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, clasificacionId: next.clasificacionId, subclasificacionId: next.subclasificacionId, categoriaProyectoId: advancedCat?.categoriaId || undefined, subcategoriaProyectoId: advancedCat?.subcategoriaId || undefined });
           setEditTarget(null);
           setDialogOpen(true);
         }}

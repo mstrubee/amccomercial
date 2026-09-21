@@ -14,7 +14,7 @@ import { format, isBefore, startOfDay } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import { es } from "date-fns/locale";
 import { getNextCategoriaComercial } from "@/lib/clasificacion-utils";
-import { supabase } from "@/integrations/supabase/client";
+import { obtenerEstatusVigente } from "@/hooks/useHistorialEstatus";
 import { useQuery } from "@tanstack/react-query";
 
 interface Props {
@@ -43,14 +43,8 @@ export default function CompleteAlertaDialog({ alerta, open, onClose, onComplete
     queryKey: ["proyecto-empresa-for-complete", proyectoId, empresaId],
     queryFn: async () => {
       if (!proyectoId || !empresaId) return null;
-      const { data, error } = await supabase
-        .from("proyecto_empresas")
-        .select("categoria_id, subcategoria_id")
-        .eq("proyecto_id", proyectoId)
-        .eq("empresa_id", empresaId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      // Estatus vigente = entrada más reciente del historial (ver lib/estatusVigente).
+      return await obtenerEstatusVigente(proyectoId, empresaId);
     },
     enabled: !!proyectoId && !!empresaId && open && mode === "complete",
   });

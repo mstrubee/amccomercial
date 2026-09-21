@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLogActivity } from "@/hooks/useActivityLog";
+import { registrarCambioEstatusPorProyectoEmpresa } from "@/hooks/useHistorialEstatus";
 
 export interface AlertaClasificacionRow {
   id: string;
@@ -217,15 +218,19 @@ export function useCreateAlerta() {
         await syncClasificaciones(data.id, clasificaciones);
       }
 
-      // Sync proyecto_empresas category
+      // Sync proyecto_empresas category. Todo cambio de estatus queda registrado en
+      // el historial (si el estatus ya es el vigente no se crea entrada).
       if (rest.empresa_id && (categoria_proyecto_id || subcategoria_proyecto_id)) {
-        await supabase.from("proyecto_empresas")
-          .update({
+        try {
+          await registrarCambioEstatusPorProyectoEmpresa({
+            proyecto_id: rest.proyecto_id,
+            empresa_id: rest.empresa_id,
             categoria_id: categoria_proyecto_id || null,
             subcategoria_id: subcategoria_proyecto_id || null,
-          } as any)
-          .eq("proyecto_id", rest.proyecto_id)
-          .eq("empresa_id", rest.empresa_id);
+          });
+        } catch (e: any) {
+          toast.error("La alerta se creó, pero no se pudo registrar el cambio de estatus: " + (e?.message || e));
+        }
       }
     },
     onSuccess: (_data, variables) => {
@@ -235,6 +240,7 @@ export function useCreateAlerta() {
       // HOOK-004: invalidate proyectos when the mutation also updates proyecto_empresas
       if (variables.empresa_id && (variables.categoria_proyecto_id || variables.subcategoria_proyecto_id)) {
         qc.invalidateQueries({ queryKey: ["proyectos"] });
+        qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
       }
       const details = (variables as any).on_behalf_of
         ? `${variables.proyecto_id}|a nombre de ${(variables as any).on_behalf_of}`
@@ -271,6 +277,15 @@ export function useUpdateAlerta() {
         updatePayload.subcategoria_proyecto_id = subcategoria_proyecto_id || null;
       }
 
+      // Categoría que la alerta tenía antes de esta edición: solo si el usuario la
+      // cambió se sincroniza con el estatus de la empresa. Si no, editar una
+      // alerta antigua devolvería el proyecto a un estatus ya superado.
+      const { data: previa } = await supabase
+        .from("alertas")
+        .select("categoria_proyecto_id, subcategoria_proyecto_id")
+        .eq("id", id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from("alertas")
         .update(updatePayload as any)
@@ -282,15 +297,23 @@ export function useUpdateAlerta() {
         await syncClasificaciones(id, clasificaciones);
       }
 
-      // Sync proyecto_empresas category
-      if (rest.empresa_id && (categoria_proyecto_id || subcategoria_proyecto_id)) {
-        await supabase.from("proyecto_empresas")
-          .update({
+      // Sync proyecto_empresas category. Todo cambio de estatus queda registrado
+      // en el historial (si el estatus ya es el vigente no se crea entrada).
+      const categoriaCambiada =
+        !previa ||
+        ((previa as any).categoria_proyecto_id || null) !== (categoria_proyecto_id || null) ||
+        ((previa as any).subcategoria_proyecto_id || null) !== (subcategoria_proyecto_id || null);
+      if (rest.empresa_id && (categoria_proyecto_id || subcategoria_proyecto_id) && categoriaCambiada) {
+        try {
+          await registrarCambioEstatusPorProyectoEmpresa({
+            proyecto_id: rest.proyecto_id,
+            empresa_id: rest.empresa_id,
             categoria_id: categoria_proyecto_id || null,
             subcategoria_id: subcategoria_proyecto_id || null,
-          } as any)
-          .eq("proyecto_id", rest.proyecto_id)
-          .eq("empresa_id", rest.empresa_id);
+          });
+        } catch (e: any) {
+          toast.error("La alerta se actualizó, pero no se pudo registrar el cambio de estatus: " + (e?.message || e));
+        }
       }
     },
     onSuccess: (_data, variables) => {
@@ -300,6 +323,7 @@ export function useUpdateAlerta() {
       // HOOK-004: invalidate proyectos when the mutation also updates proyecto_empresas
       if (variables.empresa_id && (variables.categoria_proyecto_id || variables.subcategoria_proyecto_id)) {
         qc.invalidateQueries({ queryKey: ["proyectos"] });
+        qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
       }
       logActivity.mutate({ action: "editar", entity_type: "alerta", entity_id: variables.id, entity_name: variables.titulo, details: variables.proyecto_id });
     },

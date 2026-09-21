@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { useLogActivity } from "@/hooks/useActivityLog";
+import { registrarCambioEstatus } from "@/hooks/useHistorialEstatus";
 
 export type ProyectoRow = Tables<"proyectos">;
 export type ProyectoEmpresaRow = Tables<"proyecto_empresas">;
@@ -129,14 +130,36 @@ export function useCreateProyecto() {
         ganado_fecha: empresa_links[i].ganado_fecha || null,
       }));
 
-      const { error: linkError } = await supabase
+      const { data: createdLinks, error: linkError } = await supabase
         .from("proyecto_empresas")
-        .insert(links);
+        .insert(links)
+        .select("id, proyecto_id");
       if (linkError) {
         // Compensatory delete: remove orphaned project rows to avoid data inconsistency
         const createdIds = createdProjects!.map((p: any) => p.id);
         await supabase.from("proyectos").delete().in("id", createdIds);
         throw linkError;
+      }
+
+      // Todo estatus queda registrado en el historial, también el inicial: el
+      // estatus vigente es siempre la entrada más reciente del historial.
+      try {
+        const peIdByProyecto = new Map<string, string>((createdLinks || []).map((r: any) => [r.proyecto_id, r.id]));
+        for (const l of links) {
+          if (!l.categoria_id && !l.subcategoria_id) continue;
+          const peId = peIdByProyecto.get(l.proyecto_id);
+          if (!peId) continue;
+          await registrarCambioEstatus({
+            proyecto_empresa_id: peId,
+            categoria_id: l.categoria_id,
+            subcategoria_id: l.subcategoria_id,
+            monto_uf: Number(l.ganado_presupuesto || 0),
+            fecha: l.ganado_fecha,
+            omitirSiIgual: true,
+          });
+        }
+      } catch (e: any) {
+        toast.error("El proyecto se creó, pero no se pudo registrar el estatus inicial en el historial: " + (e?.message || e));
       }
 
       return createdProjects!;

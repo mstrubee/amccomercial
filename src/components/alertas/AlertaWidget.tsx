@@ -10,6 +10,8 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { registrarCambioEstatusPorProyectoEmpresa } from "@/hooks/useHistorialEstatus";
+import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isBefore, startOfDay, addDays, isToday, format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
@@ -199,8 +201,15 @@ export default function AlertaWidget() {
         onClose={() => setCompleteTarget(null)}
         categorias={categoriasComerciales}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
-          await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
+          // Todo cambio de estatus queda en el historial y el estatus guardado pasa
+          // a ser igual a esa entrada más reciente.
+          try {
+            await registrarCambioEstatusPorProyectoEmpresa({ proyecto_id: pId, empresa_id: eId, categoria_id: catId, subcategoria_id: subId });
+          } catch (e: any) {
+            toast.error("No se pudo registrar el cambio de estatus: " + (e?.message || e));
+          }
           widgetQc.invalidateQueries({ queryKey: ["proyectos"] });
+          widgetQc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
         }}
         onComplete={(id) => toggleCompletada.mutate({ id, completada: true })}
         onCompleteAndCreate={(a, advancedCat) => {
@@ -209,7 +218,7 @@ export default function AlertaWidget() {
           const next = clasificacionesAlerta && lastAc
             ? getNextClasificacion(lastAc.clasificacion_id, lastAc.subclasificacion_id, clasificacionesAlerta)
             : { clasificacionId: "", subclasificacionId: "" };
-          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: advancedCat?.categoriaId || (a as any).categoria_proyecto_id || undefined, defaultSubcategoriaProyectoId: advancedCat?.subcategoriaId || (a as any).subcategoria_proyecto_id || undefined });
+          setCreateDefaults({ proyectoId: a.proyecto_id, empresaId: a.empresa_id || undefined, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: advancedCat?.categoriaId || undefined, defaultSubcategoriaProyectoId: advancedCat?.subcategoriaId || undefined });
           setCreateDialogOpen(true);
         }}
       />

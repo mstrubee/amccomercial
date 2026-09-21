@@ -26,7 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCLP, formatUF, ufToCLP } from "@/data/mock-data";
 import { useVentasByProyectoEmpresaIds } from "@/hooks/useVentasProyectoEmpresa";
-import { useHistorialEstatusByIds, useCreateHistorialEstatus, HistorialEstatusRow } from "@/hooks/useHistorialEstatus";
+import { useHistorialEstatusByIds, registrarCambioEstatus, HistorialEstatusRow } from "@/hooks/useHistorialEstatus";
+import { compararHistorialMasRecientePrimero } from "@/lib/estatusVigente";
 import ProyectoFormDialog from "@/components/proyectos/ProyectoFormDialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import AlertaFormDialog from "@/components/alertas/AlertaFormDialog";
@@ -497,50 +498,34 @@ export default function Proyectos() {
 
   const { data: allVentasData } = useVentasByProyectoEmpresaIds(allPeIds);
   const { data: allHistorialData } = useHistorialEstatusByIds(allPeIds);
-  const createHistorialMain = useCreateHistorialEstatus();
 
   /**
-   * Latest historial entry per proyecto_empresa_id (sorted by fecha desc, then created_at desc).
-   * Source of truth for the status badge in the listing.
+   * Entrada de historial más reciente por proyecto_empresa_id: la de fecha más
+   * reciente y, a igual fecha, la registrada más tarde (ver lib/estatusVigente).
    */
   const latestHistorialByPe = useMemo(() => {
     const map = new Map<string, HistorialEstatusRow>();
     for (const h of (allHistorialData || [])) {
       const existing = map.get(h.proyecto_empresa_id);
-      // El vigente es el ÚLTIMO INGRESADO (created_at), no el de fecha mayor:
-      // un estatus puede registrarse con fecha retroactiva y aun así ser el actual.
-      if (!existing || `${h.created_at}` > `${existing.created_at}`) map.set(h.proyecto_empresa_id, h);
-    }
-    return map;
-  }, [allHistorialData]);
-
-  // Todas las entradas de historial por proyecto_empresa (para buscar la fecha
-  // asociada al estatus guardado en proyecto_empresas).
-  const historialByPe = useMemo(() => {
-    const map = new Map<string, HistorialEstatusRow[]>();
-    for (const h of (allHistorialData || [])) {
-      const arr = map.get(h.proyecto_empresa_id);
-      if (arr) arr.push(h); else map.set(h.proyecto_empresa_id, [h]);
+      if (!existing || compararHistorialMasRecientePrimero(h, existing) < 0) map.set(h.proyecto_empresa_id, h);
     }
     return map;
   }, [allHistorialData]);
 
   /**
-   * Effective status per proyecto_empresa_id. Fuente de verdad: el estatus
-   * guardado en proyecto_empresas — es el que el usuario elige explícitamente
-   * al editar el proyecto, y por lo tanto el único que nunca debe estar mal.
-   * El historial solo se usa (a) para completar la fecha mostrada junto al
-   * badge, buscando la entrada que coincide con el estatus guardado, y (b)
-   * como respaldo cuando esta empresa todavía no tiene categoría asignada.
-   * No se usa como fuente preferida sobre el campo guardado: hay vías de
-   * escritura (ej. Carga Masiva) que actualizan proyecto_empresas sin dejar
-   * rastro en el historial, así que un historial "más reciente" no implica
-   * que sea el estatus real vigente — ver el caso "Casa GZ, va con MZ".
+   * Estatus vigente por proyecto_empresa_id. REGLA: es SIEMPRE la entrada más
+   * reciente del historial (por fecha). El estatus guardado en proyecto_empresas
+   * solo se usa si la empresa todavía no tiene ninguna entrada de historial
+   * (datos anteriores a esta regla, hasta que se les complete el historial).
+   * El historial es un registro, no un selector: cada cambio de estatus crea
+   * una entrada nueva, que pasa a ser la más reciente.
    */
   type EffectiveStatus = {
     categoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
     subcategoria: { id: string; nombre: string; color: string; es_adjudicado: boolean } | null;
     fecha: string | null;
+    /** Momento en que se registró la entrada vigente (desempate entre filas del mismo grupo). */
+    registrado: string | null;
   };
   const statusByPe = useMemo(() => {
     const map = new Map<string, EffectiveStatus>();
@@ -558,44 +543,25 @@ export default function Proyectos() {
         let categoria: EffectiveStatus["categoria"] = null;
         let subcategoria: EffectiveStatus["subcategoria"] = null;
         let fecha: string | null = null;
-        if (pe.categoria_id || pe.subcategoria_id) {
+        let registrado: string | null = null;
+        const latest = latestHistorialByPe.get(pe.id);
+        if (latest) {
+          // Regla: el estatus vigente es la entrada más reciente del historial.
+          if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
+          if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
+          fecha = latest.fecha || null;
+          registrado = latest.created_at || null;
+        } else if (pe.categoria_id || pe.subcategoria_id) {
+          // Sin historial todavía: se muestra el estatus guardado.
           if (pe.subcategoria_id) subcategoria = subById.get(pe.subcategoria_id) || null;
           if (pe.categoria_id) categoria = catById.get(pe.categoria_id) || null;
-          // Fuente de verdad para la fecha: el campo guardado en la fila — es
-          // editable directamente (input de fecha en el formulario) sin pasar
-          // por el historial, así que un cambio de fecha por sí solo (sin
-          // cambiar el estatus) nunca crea una nueva entrada de historial. Si
-          // se usara la fecha del historial como preferida, esa edición nunca
-          // se reflejaría en el listado.
-          if ((pe as any).fecha_categoria) {
-            fecha = (pe as any).fecha_categoria;
-          } else {
-            const entries = (historialByPe.get(pe.id) || []).filter((h) =>
-              (h.categoria_id || null) === (pe.categoria_id || null) &&
-              (h.subcategoria_id || null) === (pe.subcategoria_id || null));
-            let match: HistorialEstatusRow | null = null;
-            for (const h of entries) if (!match || `${h.created_at}` > `${match.created_at}`) match = h;
-            fecha = match?.fecha || null;
-          }
-        } else {
-          const latest = latestHistorialByPe.get(pe.id);
-          if (latest) {
-            if (latest.subcategoria_id) subcategoria = subById.get(latest.subcategoria_id) || null;
-            if (latest.categoria_id) categoria = catById.get(latest.categoria_id) || null;
-            fecha = latest.fecha || null;
-          } else {
-            const cat = (pe as any).categorias_proyecto;
-            const sub = (pe as any).subcategorias_proyecto;
-            if (cat) categoria = { id: cat.id, nombre: cat.nombre, color: cat.color, es_adjudicado: cat.es_adjudicado };
-            if (sub) subcategoria = { id: sub.id, nombre: sub.nombre, color: sub.color, es_adjudicado: sub.es_adjudicado };
-            fecha = (pe as any).fecha_categoria || null;
-          }
+          fecha = (pe as any).fecha_categoria || null;
         }
-        map.set(pe.id, { categoria, subcategoria, fecha });
+        map.set(pe.id, { categoria, subcategoria, fecha, registrado });
       }
     }
     return map;
-  }, [proyectos, categorias, latestHistorialByPe, historialByPe]);
+  }, [proyectos, categorias, latestHistorialByPe]);
 
   // Pre-compute visible project names for captador filter.
   // A project is visible if ANY of its rows passes the captador check.
@@ -614,11 +580,12 @@ export default function Proyectos() {
   // Estatus VIGENTE por (grupo, empresa). Una "línea madre" agrupa varias filas
   // de proyecto con el mismo nombre; la misma empresa puede aparecer en varias
   // de ellas con estatus distintos. El vigente es el de la fila con fecha más
-  // reciente. Se usa tanto para mostrar el badge como para filtrar, de modo que
-  // el resultado no dependa de qué fila sobrevivió al filtro.
+  // reciente (a igual fecha, la registrada más tarde). Se usa tanto para mostrar
+  // el badge como para filtrar, de modo que el resultado no dependa de qué fila
+  // sobrevivió al filtro.
   const currentStatusByGroup = useMemo(() => {
     type Cur = { peId: string; catId: string; subId: string };
-    const best = new Map<string, Map<string, Cur & { fecha: string }>>();
+    const best = new Map<string, Map<string, Cur & { fecha: string; registrado: string }>>();
     for (const p of (proyectos || [])) {
       const key = p.nombre.trim().toLowerCase();
       let g = best.get(key);
@@ -627,13 +594,15 @@ export default function Proyectos() {
         if (!pe.empresa_id) continue;
         const eff = statusByPe.get(pe.id);
         const fecha = eff?.fecha || "";
+        const registrado = eff?.registrado || "";
         const existing = g.get(pe.empresa_id);
-        if (existing && fecha <= existing.fecha) continue;
+        if (existing && (fecha < existing.fecha || (fecha === existing.fecha && registrado <= existing.registrado))) continue;
         g.set(pe.empresa_id, {
           peId: pe.id,
           catId: (eff ? eff.categoria?.id : pe.categoria_id) || "",
           subId: (eff ? eff.subcategoria?.id : pe.subcategoria_id) || "",
           fecha,
+          registrado,
         });
       }
     }
@@ -2162,8 +2131,8 @@ export default function Proyectos() {
         mode={alertaCompleteTarget?.completada ? "uncomplete" : "complete"}
         categorias={categorias}
         onAdvanceCategoria={async (pId, eId, catId, subId) => {
-          await supabase.from("proyecto_empresas").update({ categoria_id: catId, subcategoria_id: subId }).eq("proyecto_id", pId).eq("empresa_id", eId);
-          // Sync historial so the badge reflects the change (historial is the source of truth)
+          // Todo cambio de estatus queda en el historial (y el estatus guardado
+          // pasa a ser igual a esa entrada más reciente).
           const { data: peRow } = await supabase
             .from("proyecto_empresas")
             .select("id, ganado_presupuesto")
@@ -2172,14 +2141,16 @@ export default function Proyectos() {
             .maybeSingle();
           if (peRow?.id) {
             try {
-              await createHistorialMain.mutateAsync({
+              await registrarCambioEstatus({
                 proyecto_empresa_id: peRow.id,
                 categoria_id: catId,
                 subcategoria_id: subId,
                 monto_uf: Number(peRow.ganado_presupuesto || 0),
-                fecha: new Date().toISOString().slice(0, 10),
+                omitirSiIgual: true,
               });
-            } catch { /* historial creation is best-effort */ }
+            } catch (e: any) {
+              toast.error("No se pudo registrar el cambio de estatus: " + (e?.message || e));
+            }
           }
           qc.invalidateQueries({ queryKey: ["proyectos"] });
           qc.invalidateQueries({ queryKey: ["historial_estatus_empresa"] });
@@ -2195,12 +2166,12 @@ export default function Proyectos() {
           const next = clasificacionesAlerta
             ? getNextClasificacion((a as any).clasificacion_alerta_id, (a as any).subclasificacion_alerta_id, clasificacionesAlerta)
             : { clasificacionId: "", subclasificacionId: "" };
-          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: (a as any).categoria_proyecto_id || undefined, defaultSubcategoriaProyectoId: (a as any).subcategoria_proyecto_id || undefined });
+          setAlertaCreateContext({ proyecto_id: a.proyecto_id, empresa_id: a.empresa_id || null, parentAlertaId: a.id, defaultClasificacionId: next.clasificacionId, defaultSubclasificacionId: next.subclasificacionId, defaultCategoriaProyectoId: undefined, defaultSubcategoriaProyectoId: undefined });
         }}
       />
 
       {/* View detail dialog */}
-      <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} />
+      <ProyectoDetailDialog viewTarget={viewTarget} onClose={() => setViewTarget(null)} statusByPe={statusByPe} />
 
       {/* Tree dialog */}
       <AlertaTreeDialog open={showTree} onClose={() => setShowTree(false)} rootAlertaId={treeRootId} />
@@ -2584,7 +2555,7 @@ function NotaGrupoCell({ proyecto, onSave, onCreateAlerta, currentUserName }: { 
 }
 
 /* ── Detail dialog component ── */
-function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWithEmpresas | null; onClose: () => void }) {
+function ProyectoDetailDialog({ viewTarget, onClose, statusByPe }: { viewTarget: ProyectoWithEmpresas | null; onClose: () => void; statusByPe?: Map<string, any> }) {
   const peIds = viewTarget?.proyecto_empresas?.map(pe => pe.id) || [];
   const { data: detailVentas } = useVentasByProyectoEmpresaIds(peIds);
   const ventasByPeDetail = new Map<string, number>();
@@ -2635,8 +2606,10 @@ function ProyectoDetailDialog({ viewTarget, onClose }: { viewTarget: ProyectoWit
             <div className="space-y-2">
               {viewTarget.proyecto_empresas?.map((pe) => {
                 if (!pe.empresas) return null;
-                const sub = (pe as any).subcategorias_proyecto;
-                const cat = (pe as any).categorias_proyecto;
+                // Estatus vigente = última entrada del historial (ver statusByPe).
+                const eff = statusByPe?.get(pe.id);
+                const sub = eff ? eff.subcategoria : (pe as any).subcategorias_proyecto;
+                const cat = eff ? eff.categoria : (pe as any).categorias_proyecto;
                 const isAdj = sub?.es_adjudicado || cat?.es_adjudicado || false;
                 const statusColor = sub?.color || cat?.color || null;
                 const statusName = sub ? `${cat?.nombre ? cat.nombre + " › " : ""}${sub.nombre}` : cat?.nombre || null;

@@ -3,6 +3,7 @@ import { useEmpresas } from "@/hooks/useEmpresas";
 import { useProyectos } from "@/hooks/useProyectos";
 import { useAllChecklistItems, ChecklistItem } from "@/hooks/useEmpresaChecklist";
 import { useHistorialEstatusByIds, HistorialEstatusRow } from "@/hooks/useHistorialEstatus";
+import { compararHistorialMasRecientePrimero } from "@/lib/estatusVigente";
 import { useCategorias } from "@/hooks/useCategorias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,17 +45,15 @@ export default function ReunionesPage() {
   }, [proyectos]);
   const { data: allHistorialData } = useHistorialEstatusByIds(allPeIds);
 
-  // Latest historial entry per proyecto_empresa_id — used ONLY as a fallback
-  // for empresas that never got a categoría assigned. proyecto_empresas.
-  // categoria_id is the real source of truth (it's what the user explicitly
-  // picks when editing the project); trusting historial over it broke for
-  // rows updated via Carga Masiva, which never writes to historial — see
-  // "Casa GZ, va con MZ" / "Casa Coliumo".
+  // Entrada de historial más reciente por proyecto_empresa_id (fecha más
+  // reciente; a igual fecha, la registrada más tarde). REGLA: el estatus vigente
+  // de una empresa es siempre esa entrada; el estatus guardado en
+  // proyecto_empresas solo se usa si la empresa todavía no tiene historial.
   const latestHistorialByPe = useMemo(() => {
     const map = new Map<string, HistorialEstatusRow>();
     for (const h of (allHistorialData || [])) {
       const existing = map.get(h.proyecto_empresa_id);
-      if (!existing || `${h.created_at}` > `${existing.created_at}`) map.set(h.proyecto_empresa_id, h);
+      if (!existing || compararHistorialMasRecientePrimero(h, existing) < 0) map.set(h.proyecto_empresa_id, h);
     }
     return map;
   }, [allHistorialData]);
@@ -78,16 +77,17 @@ export default function ReunionesPage() {
       for (const pe of ((proy as any).proyecto_empresas || [])) {
         const emp = empresas.find(e => e.id === pe.empresa_id);
         if (!emp) continue;
-        const hasCategoria = !!(pe.categoria_id || pe.subcategoria_id);
-        const latest = hasCategoria ? undefined : latestHistorialByPe.get(pe.id);
+        // Regla: manda la entrada más reciente del historial; el estatus
+        // guardado solo si no hay historial.
+        const latest = latestHistorialByPe.get(pe.id);
         result.push({
           proyectoId: proy.id,
           proyectoName: proy.nombre,
           empresaId: pe.empresa_id,
           empresaName: emp.nombre,
           items: itemsByCombo.get(`${proy.id}|${pe.empresa_id}`) || [],
-          categoriaId: (hasCategoria ? pe.categoria_id : latest?.categoria_id) ?? null,
-          subcategoriaId: (hasCategoria ? pe.subcategoria_id : latest?.subcategoria_id) ?? null,
+          categoriaId: (latest ? latest.categoria_id : pe.categoria_id) ?? null,
+          subcategoriaId: (latest ? latest.subcategoria_id : pe.subcategoria_id) ?? null,
         });
       }
     }
